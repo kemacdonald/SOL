@@ -1,0 +1,269 @@
+source("/Users/kylemacdonaldadmin/RScripts_v_3.6/libraries_v_3.6.R")
+iChart <- readiChart("/Users/kylemacdonaldadmin/Documents/Projects/SOL/SOL_Data/SOL.n15.ichart.txt")
+iChart[iChart$Sub.Num != "30008",] -> iChart ## removes 85-month-old
+sum(iChart$Response=="C")#
+sum(iChart$Response=="D")#
+sum(iChart$Response=="T")#
+sum(iChart$Response=="A")
+iChart$Response[iChart$Response == "A"] <- "D"#
+iChart$Response[iChart$Response == "C"] <- "D"
+iChart$Condition <- "van"
+str(iChart$Condition)
+sum(iChart$"1800" == "0.5")#
+sum(iChart$"1800" == "1")#
+sum(iChart$"1800" == "0")
+sum(iChart$"0" == "0.5")#
+sum(iChart$"0" == "1")#
+sum(iChart$"0" == "0")
+accuracy <- poolData(meanAccuracy(iChart, startWindowAcc=300, endWindowAcc=3300), RejectFirstGap=FALSE, #
+                     RejectLongestGap=FALSE, RejectRT=FALSE, color=TRUE, dependent="Accuracy", group="", facet="value", dodge="", xlab="", #
+                     ylab= "Proportion\n  Looking\n  to target", paired=TRUE, miny = 0.2, maxy = 0.80, size=13, #
+                     legend.direction="horizontal", legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+accuracy <- poolData(meanAccuracy(iChart, startWindowAcc=300, endWindowAcc=3300), RejectFirstGap=FALSE, #
+                     RejectLongestGap=FALSE, RejectRT=FALSE, color=TRUE, dependent="Accuracy", group="", facet="", dodge="", xlab="", #
+                     ylab= "Proportion\n  Looking\n  to target", paired=TRUE, miny = 0.2, maxy = 0.80, size=13, #
+                     legend.direction="horizontal", legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+names(accuracy)
+accuracy[1]
+accuracy[2]
+t.tests(accuracy)
+iChart$Months <- as.numeric(iChart$Months) ## change months to a numeric
+iChart$Condition <- ifelse(iChart$Months > median(iChart$Months, na.rm=TRUE), "H", "L") ## divide groups into high and low based on median age
+createPlots(iChart, startWindow=300, endWindow=3500, RejectLongestGap=FALSE, #
+            RejectFirstGap=FALSE, RejectRT=FALSE, color=TRUE, smooth=400, #
+            targetEnd=800, carrier="", targets=c(""), #
+            group="",  plotStats="PP", miny = 0.4, maxy=0.85, size=15, #
+            legend.direction = "horizontal", legend.position=c(0.7, 0.95), #
+            breaks=c(0.25, 0.50, 0.75), x.target=0.33)
+accuracy <- poolData(meanAccuracy(iChart, startWindowAcc=300, endWindowAcc=3300), RejectFirstGap=FALSE, #
+                     RejectLongestGap=FALSE, RejectRT=FALSE, color=TRUE, dependent="Accuracy", group="Condition", facet="", dodge="", xlab="", #
+                     ylab= "Proportion\n  Looking\n  to target", paired=TRUE, miny = 0.2, maxy = 0.80, size=13, #
+                     legend.direction="horizontal", legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+accuracy
+t.tests(accuracy)
+accuracy <- poolData(meanAccuracy(iChart, startWindowAcc=300, endWindowAcc=3300), RejectFirstGap=FALSE, #
+                     RejectLongestGap=FALSE, RejectRT=FALSE, color=TRUE, dependent="Accuracy", group="", facet="Condition", dodge="", xlab="", #
+                     ylab= "Proportion\n  Looking\n  to target", paired=TRUE, miny = 0.2, maxy = 0.80, size=13, #
+                     legend.direction="horizontal", legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+accuracy
+accuracy <- poolData(meanAccuracy(iChart, startWindowAcc=300, endWindowAcc=3300), RejectFirstGap=FALSE, #
+                     RejectLongestGap=FALSE, RejectRT=FALSE, color=TRUE, dependent="Accuracy", group="", facet="", dodge="Condition", xlab="", #
+                     ylab= "Proportion\n  Looking\n  to target", paired=TRUE, miny = 0.2, maxy = 0.80, size=13, #
+                     legend.direction="horizontal", legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+accuracy
+accuracy <- poolData(meanAccuracy(iChart, startWindowAcc=300, endWindowAcc=3300), RejectFirstGap=FALSE, #
+                     RejectLongestGap=FALSE, RejectRT=FALSE, color=TRUE, dependent="Accuracy", group="", facet="", dodge="", xlab="", #
+                     ylab= "Proportion\n  Looking\n  to target", paired=TRUE, miny = 0.2, maxy = 0.80, size=13, #
+                     legend.direction="horizontal", legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+accuracy
+aggregate(RT ~ Condition, data=iChart, FUN=mean)
+iChart$RT
+str(iChart$RT)
+iChart$RT <- as.numeric(iChart$RT)
+aggregate(RT ~ Condition, data=iChart, FUN=mean)
+source("/Users/kylemacdonaldadmin/RScripts_v_3.6/libraries_v_3.6.R")
+iChart <- readiChart("/Users/kylemacdonaldadmin/Documents/Projects/SOL/SOL_Data/SOL.n15.ichart.txt")
+iChart$Condition <- "van"
+iChart$Condition <- "van"
+str(iChart$Condition)
+sum(iChart$"1800" == "0.5")#
+sum(iChart$"1800" == "1")#
+sum(iChart$"1800" == "0")
+sum(iChart$"0" == "0.5")
+sum(iChart$"0" == "0.5")
+sum(iChart$"0" == "0.5")
+sum(iChart$"0" == "1")
+sum(iChart$"0" == "0")
+accuracy <- poolData(meanAccuracy(iChart, startWindowAcc=300, endWindowAcc=3300), RejectFirstGap=FALSE, #
+                     RejectLongestGap=FALSE, RejectRT=FALSE, color=TRUE, dependent="Accuracy", group="", facet="", dodge="", xlab="", #
+                     ylab= "Proportion\n  Looking\n  to target", paired=TRUE, miny = 0.2, maxy = 0.80, size=13, #
+                     legend.direction="horizontal", legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+accuracy
+iChart$Months <- as.numeric(iChart$Months) ## change months to a numeric
+iChart$Condition <- ifelse(iChart$Months > median(iChart$Months, na.rm=TRUE), "H", "L") ## divide groups into high and low based on median age
+accuracy.by.condition <- poolData(meanAccuracy(iChart, startWindowAcc=300, endWindowAcc=3300), RejectFirstGap=FALSE, #
+                     RejectLongestGap=FALSE, RejectRT=FALSE, color=TRUE, dependent="Accuracy", group="", facet="", dodge="", xlab="", #
+                     ylab= "Proportion\n  Looking\n  to target", paired=TRUE, miny = 0.2, maxy = 0.80, size=13, #
+                     legend.direction="horizontal", legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+accuracy.by.condition <- poolData(meanAccuracy(iChart, startWindowAcc=300, endWindowAcc=3300), RejectFirstGap=FALSE, #
+                     RejectLongestGap=FALSE, RejectRT=FALSE, color=TRUE, dependent="Accuracy", group="", facet="Condition", dodge="", xlab="", #
+                     ylab= "Proportion\n  Looking\n  to target", paired=TRUE, miny = 0.2, maxy = 0.80, size=13, #
+                     legend.direction="horizontal", legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+accuracy.by.condition
+iChart <- readiChart("/Users/kylemacdonaldadmin/Documents/SOL/SOL_Data/SOL.n15.ichart.txt")
+iChart <- readiChart("/Users/kylemacdonaldadmin/Documents/Projects/SOL/SOL_Data/SOL.n15.ichart.txt")
+iChart[iChart$Sub.Num != "30008",] -> iChart ## Remove 85-month-old
+iChart[iChart$"0" == 0.5, "0"] <- "0" ## At F0, changes all 0.5s to 0
+col_i <- match("0",names(iChart)):match("3500",names(iChart))#
+for(i in col_i) {#
+  iChart[iChart[,i]== 0.5, i] <- 0#
+}
+View(iChart)
+iChart$Condition <- "van"
+iChart$Months <- as.numeric(iChart$Months)
+iChart$Condition <- ifelse(iChart$Months >= median(iChart$Months, na.rm=TRUE), "H", "L")
+iChart <- defineOnset(iChart[iChart$Prescreen.Notes == "",], critonset=0, includeAways=FALSE)
+iChart <- computeStatistics(iChart, startWindow=0, endWindow=4000)
+iChart <- filteriChart(iChart, minRT=300, maxRT=3500, maxfirstgap=15, maxlonggap=15)
+RT <- poolData(iChart, RejectFirstGap=FALSE, RejectLongestGap=FALSE, RejectRT=TRUE, color=FALSE, dependent="RT", #
+               group="", facet="", dodge="Response", xlab="", ylab="mean RT (ms)", paired=TRUE, #
+               miny = 400, maxy=1300, size=13, legend.direction = "horizontal", legend.position="bottom", breaks=c(400, 800, 1200))
+ages = aggregate(Months~Sub.Num, data=iChart, mean)
+ages
+RT <- merge(RT, ages, by="Sub.Num")
+RT
+all <- merge(RT, accuracy, by="Sub.Num")
+all
+cor.test(RT$van_D[all$Sub.Num != "30008"], RT$Months[all$Sub.Num != "30008"])
+t.test(all$H_D, all$L_D)
+rm(ls())
+rm(ls)
+?rm
+rm(list=rm())
+source("/Users/kylemacdonaldadmin/RScripts_v_3.6/libraries_v_3.6.R")
+iChart <- readiChart("/Users/kylemacdonaldadmin/Documents/Projects/SOL/SOL_Data/SOL.n15.ichart.txt")
+iChart[iChart$Sub.Num != "30008",] -> iChart ## removes 85-month-old
+iChart$Response[iChart$Response == "A"] <- "D"#
+iChart$Response[iChart$Response == "C"] <- "D"
+iChart$Condition <- "van"#
+str(iChart$Condition)
+accuracy <- poolData(meanAccuracy(iChart, startWindowAcc=300, endWindowAcc=3300), RejectFirstGap=FALSE, #
+                     RejectLongestGap=FALSE, RejectRT=FALSE, color=TRUE, dependent="Accuracy", group="", facet="", dodge="", xlab="", #
+                     ylab= "Proportion\n  Looking\n  to target", paired=TRUE, miny = 0.2, maxy = 0.80, size=13, #
+                     legend.direction="horizontal", legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+iChart$Months <- as.numeric(iChart$Months) ## change months to a numeric
+iChart$Condition <- ifelse(iChart$Months > median(iChart$Months, na.rm=TRUE), "H", "L") ## divide groups into high and low based on median age
+accuracy.by.condition <- poolData(meanAccuracy(iChart, startWindowAcc=300, endWindowAcc=3300), RejectFirstGap=FALSE, #
+                     RejectLongestGap=FALSE, RejectRT=FALSE, color=TRUE, dependent="Accuracy", group="", facet="Condition", dodge="", xlab="", #
+                     ylab= "Proportion\n  Looking\n  to target", paired=TRUE, miny = 0.2, maxy = 0.80, size=13, #
+                     legend.direction="horizontal", legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+iChart <- readiChart("/Users/kylemacdonaldadmin/Documents/Projects/SOL/SOL_Data/SOL.n15.ichart.txt")
+iChart[iChart$Sub.Num != "30008",] -> iChart ## Remove 85-month-old
+iChart[iChart$"0" == 0.5, "0"] <- "0" ## At F0, changes all 0.5s to 0
+col_i <- match("0",names(iChart)):match("3500",names(iChart))#
+for(i in col_i) {#
+  iChart[iChart[,i]== 0.5, i] <- 0#
+}
+iChart$Condition <- "van"
+iChart$Months <- as.numeric(iChart$Months)
+iChart$Condition <- ifelse(iChart$Months >= median(iChart$Months, na.rm=TRUE), "H", "L")
+iChart <- defineOnset(iChart[iChart$Prescreen.Notes == "",], critonset=0, includeAways=FALSE)
+iChart <- computeStatistics(iChart, startWindow=0, endWindow=4000)
+iChart <- filteriChart(iChart, minRT=300, maxRT=3500, maxfirstgap=15, maxlonggap=15)
+RT <- poolData(iChart, RejectFirstGap=FALSE, RejectLongestGap=FALSE, RejectRT=TRUE, color=FALSE, dependent="RT", #
+               group="", facet="", dodge="Response", xlab="", ylab="mean RT (ms)", paired=TRUE, #
+               miny = 400, maxy=1300, size=13, legend.direction = "horizontal", legend.position="bottom", breaks=c(400, 800, 1200))
+ages = aggregate(Months~Sub.Num, data=iChart, mean)
+RT <- merge(RT, ages, by="Sub.Num")
+all <- merge(RT, accuracy.by.condition, by="Sub.Num")
+all
+t.test(all$H_H, all$L_L)
+median(iChart$Months)
+iChart$Condition <- ifelse(iChart$Months >= median(iChart$Months, na.rm=TRUE), "H", "L") ## divide groups into high and low based on median age
+accuracy.by.condition <- poolData(meanAccuracy(iChart, startWindowAcc=300, endWindowAcc=3300), RejectFirstGap=FALSE, #
+                     RejectLongestGap=FALSE, RejectRT=FALSE, color=TRUE, dependent="Accuracy", group="", facet="Condition", dodge="", xlab="", #
+                     ylab= "Proportion\n  Looking\n  to target", paired=TRUE, miny = 0.2, maxy = 0.80, size=13, #
+                     legend.direction="horizontal", legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+ages = aggregate(Months~Sub.Num, data=iChart, mean)
+RT <- merge(RT, ages, by="Sub.Num")
+all <- merge(RT, accuracy.by.condition, by="Sub.Num")
+all
+iChart <- readiChart("/Users/kylemacdonaldadmin/Documents/Projects/SOL/SOL_Data/SOL.n15.ichart.txt")
+iChart[iChart$Sub.Num != "30008",] -> iChart ## removes 85-month-old
+iChart$Response[iChart$Response == "A"] <- "D"#
+iChart$Response[iChart$Response == "C"] <- "D"
+iChart$Months <- as.numeric(iChart$Months) ## change months to a numeric
+iChart$Condition <- ifelse(iChart$Months >= median(iChart$Months, na.rm=TRUE), "H", "L") ## divide groups into high and low based on median age
+accuracy.by.condition <- poolData(meanAccuracy(iChart, startWindowAcc=300, endWindowAcc=3300), RejectFirstGap=FALSE, #
+                     RejectLongestGap=FALSE, RejectRT=FALSE, color=TRUE, dependent="Accuracy", group="", facet="Condition", dodge="", xlab="", #
+                     ylab= "Proportion\n  Looking\n  to target", paired=TRUE, miny = 0.2, maxy = 0.80, size=13, #
+                     legend.direction="horizontal", legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+accuracy.by.condition
+iChart <- readiChart("/Users/kylemacdonaldadmin/Documents/Projects/SOL/SOL_Data/SOL.n15.ichart.txt")
+iChart[iChart$Sub.Num != "30008",] -> iChart ## Remove 85-month-old
+iChart[iChart$"0" == 0.5, "0"] <- "0" ## At F0, changes all 0.5s to 0
+col_i <- match("0",names(iChart)):match("3500",names(iChart))#
+for(i in col_i) {#
+  iChart[iChart[,i]== 0.5, i] <- 0#
+}
+iChart$Condition <- "van"
+iChart$Months <- as.numeric(iChart$Months)
+iChart$Condition <- ifelse(iChart$Months >= median(iChart$Months, na.rm=TRUE), "H", "L")
+iChart <- defineOnset(iChart[iChart$Prescreen.Notes == "",], critonset=0, includeAways=FALSE)
+iChart <- computeStatistics(iChart, startWindow=0, endWindow=4000)
+iChart <- filteriChart(iChart, minRT=300, maxRT=3500, maxfirstgap=15, maxlonggap=15)
+RT <- poolData(iChart, RejectFirstGap=FALSE, RejectLongestGap=FALSE, RejectRT=TRUE, color=FALSE, dependent="RT", #
+               group="", facet="", dodge="Response", xlab="", ylab="mean RT (ms)", paired=TRUE, #
+               miny = 400, maxy=1300, size=13, legend.direction = "horizontal", legend.position="bottom", breaks=c(400, 800, 1200))
+ages = aggregate(Months~Sub.Num, data=iChart, mean)
+RT <- merge(RT, ages, by="Sub.Num")
+all <- merge(RT, accuracy.by.condition, by="Sub.Num")
+all
+t.test(all$H_D, all$L_D)
+t.test(all$H_H, all$L_L)
+iChart2 <- readiChart("/Volumes/Babylab/General/Studies/SOL/SOL Data/SOL Online Data/SOL-INC Adult Prime Noun Onset/SOL-INC-Adult.iChart.n8.prime.nounonset.plotting.txt")
+head(iChart2)
+iChart2$Response[iChart$Response == "A"] <- "D"
+sum(iChart$Response=="C")
+sum(iChart$Response=="D")
+sum(iChart$Response=="T")
+sum(iChart$Response=="A")
+iChart$Condition <- "van"
+iChart2$Condition <- "van"
+str(iChart2$Condition)
+sum(iChart2$"1800" == "0.5")
+sum(iChart2$Response=="C")
+sum(iChart2$Response=="D")
+sum(iChart2$Response=="T")
+sum(iChart2$Response=="A")
+ichart2$Response
+iChart2$Response
+str(iChart2$Condition)
+str(iChart2$Response)
+iChart2 <- readiChart("/Volumes/Babylab/General/Studies/SOL/SOL Data/SOL Online Data/SOL-INC Adult Prime Noun Onset/SOL-INC-Adult.iChart.n8.prime.nounonset.txt")
+sum(iChart2$Response=="C")
+sum(iChart2$Response=="D")
+sum(iChart2$Response=="T")
+sum(iChart2$Response=="A")
+head(iChart2)
+sum(iChart2$Response.center=="C")
+names(iChart2)
+sum(iChart2$Response.Center=="C")
+iChart2$Response.Center[iChart2$Response.Center == "C"] <- "D"
+sum(iChart2$Response.Center=="C")
+iChart2$Condition <- "van"
+str(iChart2$Condition)
+sum(iChart2$"1800" == "0.5")
+sum(iChart$"1800" == "1")
+sum(iChart$"1800" == "0")
+sum(iChart$"0" == "0.5")
+sum(iChart$"0" == "0.5")
+sum(iChart$"0" == "1")
+sum(iChart$"0" == "0")
+sum(iChart2$"1800" == "0.5")
+sum(iChart2$"1800" == "1")
+sum(iChart2$"1800" == "0")
+sum(iChart2$"0" == "0.5")
+sum(iChart2$"0" == "1")
+sum(iChart2$"0" == "0")
+accuracy <- poolData(meanAccuracy(iChart2, startWindowAcc=300, endWindowAcc=3300), RejectFirstGap=FALSE, #
+                     RejectLongestGap=FALSE, RejectRT=FALSE, color=TRUE, dependent="Accuracy", group="", facet="", dodge="", xlab="", #
+                     ylab= "Proportion\n  Looking\n  to target", paired=TRUE, miny = 0.2, maxy = 0.80, size=13, #
+                     legend.direction="horizontal", legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+iChart <- readiChart("/Volumes/Babylab/General/Studies/SOL/SOL Data/SOL Online Data/SOL-INC Adult Prime Noun Onset/SOL-INC-Adult.iChart.n8.prime.nounonset.txt")
+iChart[iChart$"0" == 0.5, "0"] <- "0" ## At F0, changes all 0.5s to 0
+col_i <- match("0",names(iChart)):match("3500",names(iChart))#
+for(i in col_i) {#
+  iChart[iChart[,i]== 0.5, i] <- 0#
+}
+iChart$Condition <- "van"
+iChart$Months <- as.numeric(iChart$Months)
+iChart <- defineOnset(iChart[iChart$Prescreen.Notes == "",], critonset=0, includeAways=FALSE)
+iChart <- filteriChart(iChart, minRT=300, maxRT=3500, maxfirstgap=15, maxlonggap=15)
+iChart <- computeStatistics(iChart, startWindow=0, endWindow=4000)
+iChart <- defineOnset(iChart[iChart$Prescreen.Notes == "",], critonset=0, includeAways=FALSE)
+iChart <- computeStatistics(iChart, startWindow=0, endWindow=4000)
+iChart <- defineOnset(iChart[iChart$Prescreen.Notes == "",], critonset=0, includeAways=FALSE)
+iChart <- computeStatistics(iChart, startWindow=0, endWindow=4000)
+iChart <- computeStatistics(iChart, startWindow=0, endWindow=4000)
+iChart <- filteriChart(iChart, minRT=300, maxRT=3500, maxfirstgap=15, maxlonggap=15)

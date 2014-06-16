@@ -1,0 +1,10 @@
+$statistic
+          H_H L_L
+H_H        NA  NA
+L_L -1.972356  NA
+
+$p.value
+           H_H L_L
+H_H         NA  NA
+L_L 0.07269537  NA
+
