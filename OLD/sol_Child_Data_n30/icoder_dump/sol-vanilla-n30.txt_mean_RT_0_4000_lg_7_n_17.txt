@@ -1,0 +1,2 @@
+"Condition"	"dodg"	"mean"	"se"
+"van"	"D"	801.305	91.0284309829749

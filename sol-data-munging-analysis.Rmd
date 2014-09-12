@@ -1,0 +1,556 @@
+---
+title: "SOL-data-munging-analysis"
+author: "Kyle MacDonald"
+date: "September 8, 2014"
+output: html_document
+---
+
+## Data processing, plotting, and analysis script for SOL PEEK data 
+
+### Read in data and do some minor cleaning
+
+Load libraries
+```{r load libraries, message=F, warning=F}
+source("/Users/kmacdonald/Documents/programming/rscripts/RScripts_v_3.6/libraries_v_3.6.R")
+source("/Users/kmacdonald/Documents/Projects/SOC_XSIT/XSIT-MIN/analysis/Ranalysis/useful.R")
+library(ggplot2)
+library(dplyr)
+library(ggm)
+library(psych)
+```
+
+Read in the raw data (iChart), which is exported from the DataWiz program. This iChart contains data from both kids and adults on the following PEEKs: Vanilla-1 (all Vanilla Trials), Incremental (prime, adjective, and vanilla trials -- all analyzed from noun onset). 
+
+Read in the demographic data for each subject.
+
+```{r read data, message=F, warning=F}
+iChart <- readiChart("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/SOL-iChart-all-data.txt")
+
+sol_demo_df <- read.csv("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/sol.demo.data.csv")
+```
+
+One child completed two PEEKs because the fire alarm went off after first 8 trials in PEEK1 -- here, we read in the data as two subjects (30036 and 99999) and now we revalue subject 99999 to be 30036. 
+
+```{r munging}
+# after running this, 30036 should have 22 vanilla trials and 99999 should no longer exist
+iChart$Sub.Num[iChart$Sub.Num == "99999"]<- "30036" 
+check(iChart)
+```
+
+Next, we collapse all conditions to Vanilla for data analysis. 
+
+```{r revalue conditions}
+iChart$Condition <- "vanilla"
+```
+
+Get descriptives: the number of trials for each subject, ages, genders.
+
+```{r descriptives}
+iChart %>%
+      group_by(Sub.Num, Months, Sex) %>%
+      summarise(Trials = n())
+```
+
+Checks the distribution of C, D, T, and A at F0
+
+```{r distribution of responses}
+iChart %>% 
+      group_by("0", Response) %>%
+      summarise(Trials = n())
+```
+
+### Data Processing
+
+First, we need to process the data, removing prescreened out trials and keeping only those trials on which the child was looking at the signer at F0 go into Accuracy and RT computations. 
+
+- C: Center
+- D: Distractor
+- T: Target
+- A: Away
+
+includeOffCenter == FALSE -> only include trials child was looking at center at F0
+
+includeOffCenter == TRUE -> include trials child was looking at center, target, or distractor at F0 
+
+```{r define onset and responses}
+# 170 As
+iChart %>% 
+      group_by(Response) %>%
+      summarise(Trials = n())
+
+## remove prescreened out trials
+iChart <- iChart[iChart$Prescreen.Notes == "",]
+
+# 24 As left, meaning we removed 146 trials for prescreening
+iChart %>% 
+      group_by(Response) %>%
+      summarise(Trials = n())
+
+## define onset, changing Cs to Ds and everything else as As
+iChart <- defineOnsetSOL(iChart, critonset=0, includeOffCenter=FALSE)
+
+## check iChart after setting response (should only have Ds and As)
+iChart %>% 
+      group_by(Response) %>%
+      summarise(Trials = n())
+```
+
+### Compute Accuracy and RT (All subs)
+
+Now we have our iChart set up to only include C-initial trials, we can do our Accuracy computations. Here we don't filter any subjects out.
+
+```{r compute accuracy, warning=FALSE, message=FALSE}
+# compute gaps
+iChart <- computeStatistics(iChart, startWindow=0, endWindow=4000)
+
+# filter iChart: reject trials with extreme RT and gaps
+iChart <- filteriChart(iChart, minRT=300, maxRT=3500, maxfirstgap=15, maxlonggap=15)
+
+## Compute accuracy for each subject
+accuracy <- poolData(meanAccuracy(iChart, startWindowAcc=300, endWindowAcc=1800), 
+                     RejectFirstGap=TRUE,RejectLongestGap=TRUE, RejectRT=FALSE, 
+                     color=TRUE, dependent="Accuracy", group="", facet="", dodge="", 
+                     xlab="", ylab= "Proportion\n  Looking\n  to target", paired=TRUE, 
+                     miny = 0.2, maxy = 0.80, size=13, legend.direction="horizontal", 
+                     legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+
+## Compute reaction time for each subject
+RT <- poolData(iChart[iChart$Response == "D",], RejectFirstGap=TRUE, RejectLongestGap=TRUE,
+               RejectRT=TRUE, color=FALSE, dependent="RT", group="", facet="", dodge="Response",
+               xlab="", ylab="mean RT (ms)", paired=TRUE, miny = 400, maxy=1300, size=13, 
+               legend.direction = "horizontal", legend.position="bottom", 
+               breaks=c(400, 800, 1200))
+```
+
+#### Profile plot with full dataset
+
+```{r profile plot full dataset, message=FALSE, warning=FALSE}
+## profile plot with adults ange two age groups for kids
+iChart$Months <- as.numeric(iChart$Months)
+
+## split sample into three groups based on age: young (< 24months, > 24months, adults)
+iChart$Condition <- ifelse(iChart$Months < 24, "< 24 Months", 
+                  ifelse(iChart$Months >= 24 & iChart$Months <=42 , "> 24 Months ",
+                  ifelse(iChart$Months > 100, "Adults", NA)))
+
+accuracy.by.cond.full <- poolData(meanAccuracy(iChart, startWindowAcc=300, endWindowAcc=1800), 
+                     RejectFirstGap=TRUE,RejectLongestGap=TRUE, RejectRT=FALSE, 
+                     color=TRUE, dependent="Accuracy", group="", facet="", dodge="", 
+                     xlab="", ylab= "Proportion\n  Looking\n  to target", paired=TRUE, 
+                     miny = 0.2, maxy = 0.80, size=13, legend.direction="horizontal", 
+                     legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+
+createPlots(iChart, startWindow=0, endWindow=2000, RejectLongestGap=FALSE, 
+            RejectFirstGap=FALSE, RejectRT=FALSE, color=TRUE, smooth=400, 
+            targetEnd=800, carrier="", targets=c(""), 
+            group="",  plotStats="PP", miny = 0.4, maxy=0.95, size=15, 
+            legend.direction = "vertical", legend.position=c(0.85, 0.9), 
+            breaks=c(0.25, 0.50, 0.75), x.target=0.33)
+```
+
+### Relationship between Acc and Age/Vocab (Kids)
+
+Merge the accuracy data with demographic data and filter to get good subs. We filter out 
+
+- adults 
+- kids who were reported to not know the signs on the peek, 
+- and kids younger than 15 months and older than 42 months.
+
+```{r merge peek and demo data}
+ms_sol <- join(sol_demo_df, accuracy, by = "Sub.Num")
+ms_sol <- join(ms_sol, RT, by = "Sub.Num")
+ms_sol_filt <- filter(.data = ms_sol, include == 1, age_months >= 15, age_months <= 42)
+```
+
+Vizualize distributions of age and cdi scores
+
+```{r vizualize distributions age/vocab/cdi, warning=F, message=FALSE}
+age_dist <- ggplot(ms_sol_filt, aes(age_months)) + 
+                  geom_histogram(aes(y=..density..),fill=NA, color="black") +
+                  geom_density(alpha=.2, fill="#FF6666")
+
+cdi_dist <- ggplot(ms_sol_filt, aes(signs_produced)) + 
+                  geom_histogram(aes(y=..density..),fill=NA, color="black") +
+                  geom_density(alpha=.2, fill="#FF6666")
+
+multiplot(age_dist, cdi_dist, cols = 2)
+```
+
+To get correlations between Accuracy, Age, and Vocabulary we use both Pearson and Spearman because the cdi scores are skewed. We then can compare the output of the two.
+
+Text below is taken from: http://rpubs.com/dgolicher/2286
+
+The Spearman procedure is very robust as it is based on ranks. It will answer the fundamental question. Is there a relationship of some form between the two variables? Does an increase in x lead to an increase in y? 
+
+From: A guide to appropriate use of Correlation coefficient in medical research, MM Mukaka
+
+Spearman's rank correlation coefficient is denoted as [var rho]s for a population parameter and as rs for a sample statistic. It is appropriate when one or both variables are skewed or ordinal and is robust when extreme values are present.
+
+```{r acc/age correlations, warning=FALSE}
+# correlation between age and accuracy on peek
+cor.test(ms_sol_filt$vanilla, ms_sol_filt$age_months, method = "spearman")
+cor.test(ms_sol_filt$vanilla, ms_sol_filt$age_months, method = "pearson")
+# correlation between accuracy on the peek and vocab
+cor.test(ms_sol_filt$vanilla, ms_sol_filt$signs_produced, method = "spearman")
+cor.test(ms_sol_filt$vanilla, ms_sol_filt$signs_produced, method = "pearson")
+```
+
+The Pearson vs. Spearman correlations for age and accuracy are not very different. However, the cdi and accuracy is, probably because of the skewed distribution of cdi scores. 
+
+Next we try to transform the cdi scores. 
+
+### CDI score transformations
+
+Taken from: http://fmwww.bc.edu/repec/bocode/t/transint.html
+
+Reducing skewness A transformation may be used to reduce skewness. 
+A distribution that is symmetric or nearly so is often easier to handle and
+interpret than a skewed distribution. More specifically, a normal or
+Gaussian distribution is often regarded as ideal as it is assumed by many
+statistical methods.
+
+- To reduce right skewness, take roots or logarithms or reciprocals (roots
+are weakest). This is the commonest problem in practice.
+
+- To reduce left skewness, take squares or cubes or higher powers.
+
+```{r transformations of cdi scores, warning=FALSE, message=FALSE, fig.width=12, fig.height=6}
+ms_sol_filt <- ms_sol_filt %>%
+      mutate(signs_produced_log_e = log(signs_produced),
+             signs_produced_log_10 = log10(signs_produced),
+             signs_produced_sqrt = sqrt(signs_produced),
+             signs_produced_squares = signs_produced^2,
+             signs_produced_cubes = signs_produced^3,
+             signs_produced_reciprocal = 1/signs_produced)
+```
+
+#### Test for normality of cdi scores
+
+The null-hypothesis of this test is that the population is normally distributed. Thus if the p-value is less than the chosen alpha level, then the null hypothesis is rejected and there is evidence that the data tested are not from a normally distributed population.
+
+
+```{r test normality full data set}
+cdi_transformed <- ms_sol_filt %>% select(signs_produced, signs_produced_log_e,
+                                          signs_produced_log_10, signs_produced_sqrt,
+                                          signs_produced_squares, signs_produced_cubes,
+                                          signs_produced_reciprocal)
+lapply(cdi_transformed, shapiro.test)
+```
+
+All variables show evidence they are not from a normally distribution.
+
+#### Vizualize Distribution of transformed variables
+
+```{r vizualize transformed variables}
+cdi_log_e <- ggplot(ms_sol_filt, aes(signs_produced_log_e)) + 
+                  geom_histogram(aes(y=..density..),fill=NA, color="black") +
+                  geom_density(alpha=.2, fill="#FF6666")
+
+cdi_log_10 <- ggplot(ms_sol_filt, aes(signs_produced_log_10)) + 
+                  geom_histogram(aes(y=..density..),fill=NA, color="black") +
+                  geom_density(alpha=.2, fill="#FF6666")
+
+cdi_sqrt <- ggplot(ms_sol_filt, aes(signs_produced_sqrt)) + 
+                  geom_histogram(aes(y=..density..),fill=NA, color="black") +
+                  geom_density(alpha=.2, fill="#FF6666")
+
+cdi_squares <- ggplot(ms_sol_filt, aes(signs_produced_squares)) + 
+                  geom_histogram(aes(y=..density..),fill=NA, color="black") +
+                  geom_density(alpha=.2, fill="#FF6666")
+
+cdi_cubes <- ggplot(ms_sol_filt, aes(signs_produced_cubes)) + 
+                  geom_histogram(aes(y=..density..),fill=NA, color="black") +
+                  geom_density(alpha=.2, fill="#FF6666")
+
+cdi_recip <- ggplot(ms_sol_filt, aes(signs_produced_reciprocal)) + 
+                  geom_histogram(aes(y=..density..),fill=NA, color="black") +
+                  geom_density(alpha=.2, fill="#FF6666")
+
+
+multiplot(cdi_dist, cdi_log_e, cdi_log_10, cdi_sqrt, cdi_squares, cdi_cubes, cols = 3)
+```
+
+### Scatter Plots: Accuracy with all Kids
+
+```{r scatter full dataset, fig.width=12, warning=FALSE}
+age_acc_plot <- ggplot(data=ms_sol_filt, aes(x=age_months, y=vanilla)) +
+                        geom_point(size=4) + 
+                        xlab("Age (months)") +
+                        ylab("Mean Accuracy") +
+                        ylim(0.44, 0.75) +
+                        theme(axis.title.x=element_text(vjust=-0.5)) +
+                        theme(axis.title.y=element_text(vjust=0.1)) +
+                        stat_smooth(method="lm", se=FALSE) +
+                        ggtitle("Positive Relationship Between Age and Accuracy") +
+                        geom_text(x=35, y=0.5, label="r(24) = .45", size = 8, face="bold")
+
+cdi_acc_plot <- ggplot(data=ms_sol_filt, aes(x=signs_produced, y=vanilla)) +
+                        geom_point(size=4) + 
+                        xlab("Signs Produced") +
+                        ylab("Mean Accuracy") +
+                        ylim(0.42, 0.75) +
+                        theme(axis.title.x=element_text(vjust=-0.5)) +
+                        theme(axis.title.y=element_text(vjust=0.3)) +
+                        stat_smooth(method="lm", se=FALSE) +
+                        ggtitle("Positive Relationship Between Vocabulary and Accuracy") +
+                        geom_text(x=65, y=0.5, label="r(21) = .41", size = 8, face="bold")
+
+multiplot(age_acc_plot, cdi_acc_plot, cols = 2)
+```
+
+### Accuracy with just kids between 15-30 months
+
+Another way to deal with the ceiling effects of the CDI is to limit the analysis to just those subjects between the ages fo 15-30 months, the ages that the PEEK and CDI were designed to test and have provided the most reliable data in prior studies.
+
+```{r filter 15-30 months}
+ms_sol_filt_15_30 <- filter(ms_sol, include == 1, age_months >= 15, age_months <= 30)
+```
+
+Vizualize Distributions
+
+```{r vizualize distributions 15-30 months, warning=F, message=FALSE}
+age_dist_15_30 <- ggplot(ms_sol_filt_15_30, aes(age_months)) + 
+                        geom_histogram(aes(y=..density..),fill=NA, color="black") +
+                        geom_density(alpha=.2, fill="#FF6666")
+
+cdi_dist_15_30 <- ggplot(ms_sol_filt_15_30, aes(signs_produced)) + 
+                        geom_histogram(aes(y=..density..),fill=NA, color="black") +
+                        geom_density(alpha=.2, fill="#FF6666")
+
+multiplot(age_dist_15_30, cdi_dist_15_30, cols = 2)
+```
+
+Correlations
+
+```{r correlations 15-30 months, warning=FALSE}
+# age to acc
+cor.test(ms_sol_filt_15_30$vanilla, ms_sol_filt_15_30$age_months, method = "pearson")
+cor.test(ms_sol_filt_15_30$vanilla, ms_sol_filt_15_30$age_months, method = "spearman")
+# cdi to acc
+cor.test(ms_sol_filt_15_30$vanilla, ms_sol_filt_15_30$signs_produced, method = "pearson")
+cor.test(ms_sol_filt_15_30$vanilla, ms_sol_filt_15_30$signs_produced, method = "spearman")
+```
+
+Scatter plots
+
+```{r scatter 15-30 months, warning=FALSE, fig.width=12}
+age_acc_plot_15_30 <- ggplot(data=ms_sol_filt_15_30, aes(x=age_months, y=vanilla)) +
+                        geom_point(size=4) + 
+                        xlab("Age (months)") +
+                        ylab("Mean Accuracy") +
+                        ylim(0.44, 0.75) +
+                        theme(axis.title.x=element_text(vjust=-0.5)) +
+                        theme(axis.title.y=element_text(vjust=0.1)) +
+                        stat_smooth(method="lm", se=FALSE) +
+                        ggtitle("Positive Relationship Between Age and Accuracy") +
+                        geom_text(x=25, y=0.5, label="r(14) = .60", size = 8, face="bold")
+
+cdi_acc_plot_15_30 <- ggplot(data=ms_sol_filt_15_30, aes(x=signs_produced, y=vanilla)) +
+                        geom_point(size=4) + 
+                        xlab("Signs Produced") +
+                        ylab("Mean Accuracy") +
+                        ylim(0.42, 0.75) +
+                        theme(axis.title.x=element_text(vjust=-0.5)) +
+                        theme(axis.title.y=element_text(vjust=0.3)) +
+                        stat_smooth(method="lm", se=FALSE) +
+                        ggtitle("Positive Relationship Between Vocabulary and Accuracy") +
+                        geom_text(x=65, y=0.5, label="r(11) = .61", size = 8, face="bold")
+```
+
+##### Compare the filtered (15-30 months) scatter to the scatter of the whole dataset (15-42 months).
+
+```{r scatter filtered vs. not filtered, warning=FALSE, message=FALSE, fig.width=12, fig.height=8}
+multiplot(age_acc_plot, age_acc_plot_15_30, cdi_acc_plot, cdi_acc_plot_15_30, cols = 2)
+```
+
+## Profile plot for kid and adult data
+
+```{r compute accuracy: kid and adult data, warning=FALSE}
+## convert Months to numeric
+iChart$Months <- as.numeric(iChart$Months)
+
+## filter subjects: only keep kids under 30 months and adults
+iChart_filt <- subset(iChart, (Months >= 15 & Months <= 30) | Months > 100)
+
+## remove prescreened out trials
+iChart_filt <- iChart_filt[iChart_filt$Prescreen.Notes == "",]
+
+## define onset, changing Cs to Ds and everything else as As
+iChart_filt <- defineOnsetSOL(iChart_filt, critonset=0, includeOffCenter=FALSE)
+
+# compute gaps
+iChart_filt <- computeStatistics(iChart_filt, startWindow=0, endWindow=4000)
+
+# filter iChart: reject trials with extreme RT and gaps
+iChart_filt <- filteriChart(iChart_filt, minRT=300, maxRT=3500, maxfirstgap=15, maxlonggap=15)
+
+## split sample into three groups based on age: young (< 24months, > 24months, adults)
+iChart_filt$Condition <- ifelse(iChart_filt$Months < 24, "< 24 Months", 
+                  ifelse(iChart_filt$Months >= 24 & iChart_filt$Months <= 30, "> 24 Months ",
+                  ifelse(iChart_filt$Months > 100, "Adults", NA)))
+
+## compute accuracy for each age group
+accuracy.by.cond.filt <- poolData(meanAccuracy(iChart_filt, startWindowAcc=300, endWindowAcc=1800), 
+                                  RejectFirstGap=TRUE, RejectLongestGap=TRUE, RejectRT=FALSE, 
+                                  color=TRUE, dependent="Accuracy", group="", 
+                                  facet="Condition", dodge="", xlab="", 
+                                  ylab= "Proportion\n  Looking\n  to target", paired=TRUE, 
+                                  miny = 0.2, maxy = 0.80, size=13, legend.direction="horizontal", 
+                                  legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+
+createPlots(iChart_filt, startWindow=0, endWindow=2000, RejectLongestGap=FALSE, 
+            RejectFirstGap=FALSE, RejectRT=FALSE, color=TRUE, smooth=400, 
+            targetEnd=800, carrier="", targets=c(""), 
+            group="",  plotStats="PP", miny = 0.4, maxy=0.95, size=15, 
+            legend.direction = "vertical", legend.position=c(0.85, 0.9), 
+            breaks=c(0.25, 0.50, 0.75), x.target=0.33)
+```
+
+### Relationship between RT and Age/Vocab (All Kids)
+
+```{r relationship between RT and age/vocab}
+ms_sol_filt_rt <- filter(.data = ms_sol, include == 1, age_months >= 15, age_months <= 30)
+
+# correlation between age and accuracy on peek
+cor.test(ms_sol_filt_rt$vanilla_D, ms_sol_filt_rt$age_months)
+# correlation between accuracy on the peek and vocab
+cor.test(ms_sol_filt_rt$vanilla_D, ms_sol_filt_rt$signs_produced)
+```
+
+## RT Scatter Plots
+
+```{r RT scatter plots, fig.width=12, warning=FALSE}
+age_rt_plot <- ggplot(data=ms_sol_filt_rt, aes(x=age_months, y=vanilla_D)) +
+                        geom_point(size=4) + 
+                        xlab("Age (months)") +
+                        ylab("Reaction Time") +
+                        theme(axis.title.x=element_text(vjust=-0.5)) +
+                        theme(axis.title.y=element_text(vjust=0.1)) +
+                        stat_smooth(method="lm", se=FALSE) +
+                        ggtitle("Negative Relationship Between Age and RT") +
+                        geom_text(x=35, y=0.5, label="r(24) = .48", size = 8, face="bold")
+
+
+# plot
+cdi_rt_plot <- ggplot(data=ms_sol_filt_rt, aes(x=signs_produced, y=vanilla_D)) +
+                        geom_point(size=4) + 
+                        xlab("Signs Produced") +
+                        ylab("Reaction Time") +
+                        theme(axis.title.x=element_text(vjust=-0.5)) +
+                        theme(axis.title.y=element_text(vjust=0.3)) +
+                        stat_smooth(method="lm", se=FALSE) +
+                        ggtitle("Negative Relationship Between Vocabulary and RT") +
+                        geom_text(x=65, y=0.5, label="r(21) = .44", size = 8, face="bold")
+
+multiplot(age_rt_plot, cdi_rt_plot, cols = 2)
+```
+
+### Relationship between Vocab and Peek, controlling for age
+
+#### Get correlation matrix 
+
+```{r correlation matrix}
+ms_sol_corrs <- select(ms_sol_filt, age_months, signs_produced, vanilla, vanilla_D) 
+r_sol <- cor(ms_sol_corrs, use = "pairwise.complete.obs")
+r_sol
+```
+
+#### Now compute partial correlations
+
+```{r partial correlations}
+pr.mar = partial.r(ms_sol_corrs, c(2:3), 1)
+pr.mar
+```
+
+#### Multiple regression predicting accuracy (DV) with age and CDI as IVs
+
+The goal here is to see whether all of the variance is overlapping or whether one of the predictors adds variance over the other.
+
+Model 1: DV: accuracy, step 1: IV age, step 2: IV CDI.  
+
+```{r model 1}
+m1_step1 <- lm(vanilla ~ age_months,
+         data = ms_sol_filt)
+
+m1_step2 <- lm(vanilla ~ age_months + signs_produced,
+         data = ms_sol_filt)
+summary(m1_step2)
+```
+
+What is the r-squared change between step 1 and 2?
+
+```{r r-squared model 1}
+summary(m1_step1)$r.squared
+summary(m1_step2)$r.squared 
+```
+
+Model 2: DV: accuracy: step 2: IV CDI, step 2: IV age. 
+
+```{r model 2}
+m2_step1 <- lm(vanilla ~ signs_produced,
+         data = ms_sol_filt)
+
+m2_step2 <- lm(vanilla ~ signs_produced + age_months,
+         data = ms_sol_filt)
+summary(m2_step2)
+```
+
+What is the r-squared change between step 1 and 2?
+
+```{r r-squared model 2}
+summary(m2_step1)$r.squared
+summary(m2_step2)$r.squared 
+```
+
+Compare full models (including age and vocab as predictors)
+
+```{r compare full models}
+anova(m1_step2, m2_step2)
+```
+
+#### Multiple regression predicting accuracy (DV) with age and CDI as IVs (just kids between 15-30 months)
+
+Model 1: DV: accuracy, step 1: IV age, step 2: IV CDI.  
+
+```{r model 1 15-30 months}
+m1_step1_15_30 <- lm(vanilla ~ age_months,
+         data = ms_sol_filt_15_30)
+summary(m1_step1_15_30)
+
+m1_step2_15_30 <- lm(vanilla ~ age_months + signs_produced,
+         data = ms_sol_filt_15_30)
+summary(m1_step2_15_30)
+```
+
+What is the r-squared change between step 1 and 2?
+
+```{r r-squared model 1 15-30 months}
+summary(m1_step1_15_30)$r.squared
+summary(m1_step2_15_30)$r.squared 
+```
+
+Model 2: DV: accuracy: step 2: IV CDI, step 2: IV age. 
+
+```{r model 2 15-30 months}
+m2_step1_15_30 <- lm(vanilla ~ signs_produced,
+         data = ms_sol_filt_15_30)
+summary(m2_step1_15_30)
+
+m2_step2_15_30 <- lm(vanilla ~ signs_produced + age_months,
+         data = ms_sol_filt_15_30)
+summary(m2_step2_15_30)
+```
+
+What is the r-squared change between step 1 and 2?
+
+```{r r-squared model 2 15-30 months}
+summary(m2_step1)$r.squared
+summary(m2_step2)$r.squared 
+```
+
+Compare full models (including age and vocab as predictors)
+
+```{r compare full models 15-30 months}
+anova(m1_step2, m2_step2)
+```
+
