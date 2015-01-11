@@ -1,0 +1,195 @@
+---
+title: "SOL-LOC-Delay"
+author: "Kyle MacDonald"
+date: "October 23, 2014"
+output: html_document
+---
+
+## Data processing, plotting, and analysis script for SOL PEEK data 
+
+Clear workspace
+
+```{r clear workspace}
+rm(list=ls())
+```
+
+### Read in data and do some minor cleaning
+
+Load libraries
+```{r load libraries, message=F, warning=F}
+source("/Users/kmacdonald/Documents/programming/rscripts/RScripts_v_3.6/libraries_v_3.6.R")
+source("/Users/kmacdonald/Documents/Projects/SOC_XSIT/XSIT-MIN/analysis/Ranalysis/useful.R")
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(reshape2)
+```
+
+Read in the raw data (iChart), which is exported from the DataWiz program. This iChart contains data from adults on the LOC-delay peek. In this experiment we included a within-subjects manipulation of a pause or no-pause between the informative location and the target noun. 
+
+```{r read data, message=F, warning=F}
+#loc-delay FO at sentence onset
+iChart <- readiChart("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/loc-delay/sentence-onset-n11/sol-loc-sent-onset-iChart-n11.txt")
+
+#loc-delay F0 at noun onset
+iChart <- readiChart("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/loc-delay/noun-onset-n11-fixed-orders/sol-loc-iChart-n11.txt")
+```
+
+Get descriptives: the number of trials for each subject, ages, genders. And remove one subject who did not do the task.
+
+```{r descriptives}
+iChart <- filter(iChart, Sub.Num != 30056) # remove participant who wasn't doing the task
+
+iChart %>%
+      group_by(Sub.Num, Months, Sex) %>%
+      summarise(Trials = n())
+```
+
+Checks the distribution of C, D, T, and A at F0
+
+```{r distribution of responses}
+iChart %>% 
+      group_by("0", Response) %>%
+      summarise(Trials = n())
+```
+
+### Data Processing
+
+First, we need to process the data, removing prescreened out trials and keeping only those trials on which the child was looking at the signer at F0 go into Accuracy and RT computations. 
+
+- C: Center
+- D: Distractor
+- T: Target
+- A: Away
+
+includeOffCenter == FALSE -> only include trials child was looking at center at F0
+
+includeOffCenter == TRUE -> include trials child was looking at center, target, or distractor at F0 
+
+```{r define onset and responses}
+## remove prescreened out trials
+iChart <- iChart[iChart$Prescreen.Notes == "",]
+
+## check trials after removing 
+iChart %>% 
+      group_by(Response) %>%
+      summarise(Trials = n())
+
+## define onset for LOC-delay, don't change Ts and dont' include As
+iChart <- defineOnsetSOL(iChart, critonset=0, includeOffCenter=TRUE)
+
+## check iChart after setting response (should only have Ds and As)
+iChart %>% 
+      group_by(Response) %>%
+      summarise(Trials = n())
+```
+
+
+### Compute Accuracy and RT (All subs)
+
+Now we have our iChart set up to only include C-initial trials, we can do our Accuracy computations. Here we don't filter any subjects out.
+
+```{r compute accuracy, warning=FALSE, message=FALSE}
+# compute gaps
+iChart <- computeStatistics(iChart, startWindow="F.3000", endWindow=4000)
+
+# filter iChart: reject trials with extreme RT and gaps
+iChart <- filteriChart(iChart, minRT=0, maxRT=3500, maxfirstgap=15, maxlonggap=15)
+
+## Compute accuracy for each subject
+accuracy <- poolData(meanAccuracy(iChart, startWindowAcc=300, endWindowAcc=1800), 
+                     RejectFirstGap=TRUE,RejectLongestGap=TRUE, RejectRT=FALSE, 
+                     color=TRUE, dependent="Accuracy", group="", facet="", dodge="", 
+                     xlab="", ylab= "Proportion\n  Looking\n  to target", paired=TRUE, 
+                     miny = 0.2, maxy = 0.80, size=13, legend.direction="horizontal", 
+                     legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+
+```
+
+#### Profile plot
+
+```{r profile plot full dataset, message=FALSE, warning=FALSE}
+# remove vanilla condition and just plot pause vs. no-pause
+iChart_filt <- filter(iChart, Condition != "vanilla")
+
+createPlots(iChart, startWindow="F.3000", endWindow=6000, RejectLongestGap=FALSE, 
+            RejectFirstGap=FALSE, RejectRT=FALSE, color=TRUE, smooth=400, 
+            targetEnd=1200, carrier="", targets=c(""), 
+            group="",  plotStats="PP", miny = 0.4, maxy=0.95, size=15, 
+            legend.direction = "vertical", legend.position=c(0.85, 0.9), 
+            breaks=c(0.25, 0.50, 0.75), x.target=0.33)
+```
+
+#### Plot using graph values
+
+```{r plot using graph values}
+#read in data
+gv_df <- tbl_df(read.table("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/loc-delay/noun-onset-n11-fixed-orders/sol-loc-iChart-n11.txt_PP_graphValues_F.3000_6000_minRT_33_maxRT_2867_lg_31_fg_31_n_10.txt", header=T))
+
+names(gv_df) <- gsub("X", "", names(gv_df))
+names(gv_df) <- gsub("F.", "-", names(gv_df))
+
+# melt data for plotting
+gv.melt <- melt(gv_df, id.vars=c("Condition", "statistic"),
+                variable.name = "Time.ms",
+                value.name = "value")
+
+gv.melt <- mutate(gv.melt, Condition = as.factor(Condition), 
+                  Time.ms = as.numeric(as.character(Time.ms)))
+
+gv.melt <- spread(statistic, value, data=gv.melt)
+
+gv.melt.filt <- filter(gv.melt, Condition == "no-pause" | Condition == "vanilla")
+
+# set breaks
+breaks <- seq(-4000,6000, by=1000)
+
+# set limits for error bars
+limits <- aes(ymax = mean + se, ymin= mean - se)
+
+qplot(data = gv.melt.filt, x = Time.ms, y = mean, 
+      geom=c("point", "line"), color=Condition,
+      ylim=c(0.2,1), xlab=c("Time (ms) from noun onset"), 
+      ylab=c("Proportion Looking to target")) +
+      geom_hline(yintercept = 0.5, linetype="dashed") +
+      scale_x_continuous(breaks = breaks) +
+      geom_vline(xintercept=1200, linetype = "dashed") +
+      geom_vline(xintercept=0, linetype = "dashed") +
+      geom_errorbar(limits, width=0.1) +
+      theme(axis.text.x = element_text(angle = 75, hjust = 1))
+```
+
+#### Plot ind subs using graph values
+
+```{r pp by subs read in data van2}
+#read in data
+gv_subs <- tbl_df(read.table("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/loc-delay/noun-onset-n11-fixed-orders/sol-loc-iChart-n11.txt_PP_graphValues_by_subs_F.3000_6000_minRT_33_maxRT_2867_lg_31_fg_31_n_10.txt", header=T))
+
+names(gv_subs) <- gsub("X", "", names(gv_subs))
+names(gv_subs) <- gsub("F.", "-", names(gv_subs))
+
+# melt data for plotting
+gv.melt.subs <- melt(gv_subs, id.vars=c("Sub.Num", "Condition"),
+                variable.name = "Time.ms",
+                value.name = "accuracy")
+
+gv.melt.subs <- mutate(gv.melt.subs, Condition = as.factor(Condition), 
+                  Time.ms = as.numeric(as.character(Time.ms)))
+
+gv.melt.subs.filt <- filter(gv.melt.subs, Condition == "no-pause" | Condition == "vanilla", 
+                            Sub.Num != 30077)
+
+# set breaks
+breaks <- seq(-4000,6000, by=1000)
+
+qplot(data = gv.melt.subs.filt, x = Time.ms, y = accuracy, 
+      geom=c("point", "line"), color=Condition,
+      ylim=c(0.2,1), xlab=c("Time (ms) from noun onset"), 
+      ylab=c("Proportion Looking to target")) +
+      geom_hline(yintercept = 0.5, linetype="dashed") +
+      scale_x_continuous(breaks = breaks) +
+      geom_vline(xintercept=1200, linetype = "dashed") +
+      geom_vline(xintercept=0, linetype = "dashed") +
+      facet_wrap(~Sub.Num, ncol = 2) +
+      theme(axis.text.x = element_text(angle = 75, hjust = 1))
+```
