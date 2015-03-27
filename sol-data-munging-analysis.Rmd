@@ -18,20 +18,15 @@ rm(list=ls())
 Load libraries
 ```{r load libraries, message=F, warning=F}
 source("/Users/kmacdonald/Documents/programming/rscripts/RScripts_v_3.6/libraries_v_3.6.R")
-source("/Users/kmacdonald/Documents/Projects/SOC_XSIT/XSIT-MIN/analysis/Ranalysis/useful.R")
-library(ggm)
-library(psych)
-library(tidyr)
-library(ggplot2)
-library(dplyr)
-library(reshape2)
+source("/Users/kmacdonald/Documents/programming/rscripts/useful.R")
+setwd("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/plots/srcd")
 ```
 
 Set paths for loading data
 
 ```{r set paths}
 path_v1 <- "/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/vanilla-1/"
-path_v2 <- "/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/vanilla-2-fixed-orders/good-adult-child/"
+path_v2 <- "/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/vanilla-2-fixed-orders/srcd-analysis/"
 path_demo_v1 <- "/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/"
 path_demo_v2 <- "/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/"
 ```
@@ -50,7 +45,7 @@ sol_demo_v1 <- read.csv(paste(path_demo_v1, "sol.demo.data.csv", sep=""))
 Vanilla-2
 
 ```{r read data Van 2, message=F, warning=F}
-iChart_2 <- readiChart(paste(path_v2, "sol-van2-iChart-n21.txt", sep=""))
+iChart_2 <- readiChart(paste(path_v2, "sol-vanilla2-ichart-srcd.txt", sep=""))
 sol_demo_v2 <- read.csv(paste(path_demo_v2, "sol-demo-van-2.csv", sep=""))
 ```
 
@@ -74,13 +69,6 @@ iChart_2$age_group <- ifelse(iChart_2$Months < 24 & iChart_2$Months >= 15, "< 24
                   ifelse(iChart_2$Months > 100, "Adults", NA)))
 ```
 
-Join Vanilla 1 and Vanilla 2 together in one iChart
-
-```{r join van1 and van2}
-# Need to figure out how to line up F0 for different iCharts
-```
-
-
 #### Data processing Vanilla-1
 
 One child completed two PEEKs because the fire alarm went off after first 8 trials in PEEK1 -- here, we read in the data as two subjects (30036 and 99999) and now we revalue subject 99999 to be 30036. 
@@ -90,228 +78,21 @@ One child completed two PEEKs because the fire alarm went off after first 8 tria
 iChart_1$Sub.Num[iChart_1$Sub.Num == "99999"]<- "30036" 
 ```
 
-## Flag C-T vs. C-D Trials for both Van1 and Van2
-
-```{r flag c-t and c-d}
-# create function for flagging these trial types
-trial_type_fun <- function(trial) { 
-      start_col <- which(names(trial)=="0")
-      end_col <- which(names(trial)=="2000")
-      trial_type <- "no-shift"
-      for (col in start_col:end_col) {
-            curr_val <- trial[col]
-            next_val <- trial[col+1]
-            
-            if(curr_val == "." & next_val %in% c("0", "1")) {
-                  if(next_val == "1") {
-                        trial_type <- "C-T"
-                        } else {
-                              trial_type <- "C-D"
-                              }
-                  break
-                  }
-            }
-      return(trial_type)
-}
-
-# filter out trials where child wasn't on center at F0
-iChart_1_c <- filter(iChart_1, Response == "C")
-iChart_2_c <- filter(iChart_2, Response == "C")
-
-# now we need to apply it to each row in our dataset
-trial_types_v1 <- apply(iChart_1_c, 1, trial_type_fun) 
-trial_types_v2 <- apply(iChart_2_c, 1, trial_type_fun) 
-
-# now we need to merge this information back with the iChart
-iChart_1_c <- cbind(iChart_1_c, trial_types_v1)
-iChart_2_c <- cbind(iChart_2_c, trial_types_v2)
-```
-
-Now we can summarise and plot the proportion of C-T and C-D for Van1.
-
-```{r c-t c-d summarise subject level}
-ss_ct_cd_v1 <- iChart_1_c %>%
-      group_by(Sub.Num, trial_types_v1) %>%
-      summarise(count = n()) %>%
-      mutate(n_trial = sum(count),
-             experiment = "Vanilla.1",
-             prop_sub = count / n_trial)
-
-# get age group information 
-age_groups_v1 <- iChart_1_c %>% 
-      group_by(Sub.Num) %>%
-      select(Sub.Num, age_group) %>%
-      distinct()
-
-# add to table
-ss_ct_cd_v1 <- merge(ss_ct_cd_v1, age_groups_v1, by="Sub.Num")
-
-# get the total number of trials where there was a shift for each kid
-n_trial_shift_v1 <- ss_ct_cd_v1 %>%
-      group_by(Sub.Num) %>%
-      filter(trial_types_v1 == "C-T" | trial_types_v1 == "C-D") %>%
-      summarise(n_trial_shift = sum(count)) %>%
-      select(Sub.Num, n_trial_shift)
-
-# merge with ss data frame
-ss_ct_cd_v1 <- merge(ss_ct_cd_v1, n_trial_shift_v1)
-
-# now do the same thing for van2
-ss_ct_cd_v2 <- iChart_2_c %>%
-      group_by(Sub.Num, trial_types_v2) %>%
-      summarise(count = n()) %>%
-      mutate(n_trial = sum(count),
-             experiment = "Vanilla.2",
-             prop_sub = count / n_trial)
-
-# add in age group information 
-age_groups_v2 <- iChart_2_c %>% 
-      group_by(Sub.Num) %>%
-      select(Sub.Num, age_group) %>%
-      distinct()
-
-ss_ct_cd_v2 <- merge(ss_ct_cd_v2, age_groups_v2, by="Sub.Num")
-
-# get the total number of trials where there was a shift for each kid
-n_trial_shift_v2 <- ss_ct_cd_v2 %>%
-      group_by(Sub.Num) %>%
-      filter(trial_types_v2 == "C-T" | trial_types_v2 == "C-D") %>%
-      summarise(n_trial_shift = sum(count)) %>%
-      select(Sub.Num, n_trial_shift)
-
-# merge with ss data frame
-ss_ct_cd_v2 <- merge(ss_ct_cd_v2, n_trial_shift_v2)
-
-# revalue trial types variable for merging
-ss_ct_cd_v1 <- rename(ss_ct_cd_v1, trial_type = trial_types_v1)
-ss_ct_cd_v2 <- rename(ss_ct_cd_v2, trial_type = trial_types_v2)
-
-# merge for plotting
-ss_ct_cd_all <- rbind(ss_ct_cd_v1, ss_ct_cd_v2)
-
-# compute proportion correct for trials with shifts for each subject
-ss_ct_cd_all_shifts <- ss_ct_cd_all %>%
-      filter(trial_type == "C-T" | trial_type == "C-D") %>%
-      mutate(prop_shift = count / n_trial_shift)
-```
-
-Next we compute mean proportion of trials on which kids did C-T, C-D, or didn't shift.
-
-```{r c-t c-d summarise group level}
-ms_ct_cd <- ss_ct_cd_all %>%
-                  group_by(trial_type, experiment) %>%
-                  summarise(mean_prop = mean(prop_sub),
-                            ci.high = ci.high(prop_sub),
-                            ci.low = ci.low(prop_sub))
-```
-
-Now that we have our summary table, we can plot.
-
-```{r c-t c-d  plot}
-# reorder factor levels for plotting
-ms_ct_cd$trial_type <- factor(ms_ct_cd$trial_type, 
-                              levels = c("no-shift", "C-D", "C-T"))
-
-# create filter for just plotting proportions when child shifted in the window
-ms_ctd_filt <- filter(ms_ct_cd, trial_type != "no-shift")
-
-limits <- aes(ymax = mean_prop + ci.high, ymin= mean_prop - ci.low)
-
-prop_shift_1 <- qplot(data=ms_ctd_filt, x=experiment, y=mean_prop, fill=trial_type,
-                      geom=c("bar"), stat="identity", position = "dodge", ylim=c(0,1),
-                      xlab=c("Experiment"),
-                      ylab=c("Proportion of trials")) +
-      geom_linerange(limits, width=0.1, position=position_dodge(.9))
-
-prop_shift_2 <- qplot(data=ms_ct_cd, x=experiment, y=mean_prop, fill=trial_type,
-                      geom=c("bar"), stat="identity", position = "dodge", ylim=c(0,1),
-                      xlab=c("Experiment"),
-                      ylab=c("Proportion of trials")) +
-      geom_linerange(limits, width=0.1, position=position_dodge(.9))
-
-multiplot(prop_shift_1, prop_shift_2)
-```
-
-Now we analyze the proportion of different shift types in the different age groups
-
-```{r c-t c-d summarise age_group level}
-ms_ct_cd_age_group <- ss_ct_cd_all %>%
-      group_by(trial_type, experiment, age_group) %>%
-      summarise(mean_prop = mean(prop_sub),
-                ci.high = ci.high(prop_sub),
-                ci.low = ci.low(prop_sub))
-```
-
-Now that we have our summary table by age groups, we can plot.
-
-```{r c-t c-d age_group plot}
-# reorder factor levels for plotting
-ms_ct_cd_age_group$trial_type <- factor(ms_ct_cd_age_group$trial_type, 
-                              levels = c("no-shift", "C-D", "C-T"))
-
-# create filter for just plotting proportions when child shifted in the window
-ms_ctd_filt_age_group <- filter(ms_ct_cd_age_group, trial_type != "no-shift")
-
-# filter out NAs (kids who were older than 36 months)
-ms_ct_cd_age_group <- filter(ms_ct_cd_age_group, age_group != "NA")
-ms_ctd_filt_age_group <- filter(ms_ctd_filt_age_group, age_group != "NA")
-
-limits <- aes(ymax = mean_prop + ci.high, ymin= mean_prop - ci.low)
-
-prop_shift_1_age <- qplot(data=ms_ctd_filt_age_group, x=age_group, y=mean_prop, fill=trial_type,
-                      geom=c("bar"), stat="identity", position = "dodge", ylim=c(0,1),
-                      xlab=c("Experiment"),
-                      ylab=c("Proportion of trials"),
-                      facets=(. ~ experiment)) +
-      geom_linerange(limits, width=0.1, position=position_dodge(.9))
-
-prop_shift_2_age <- qplot(data=ms_ct_cd_age_group, x=age_group, y=mean_prop, 
-                      fill=trial_type,
-                      geom=c("bar"), stat="identity", position = "dodge", 
-                      ylim=c(0,1),
-                      xlab=c("Experiment"),
-                      ylab=c("Proportion of trials"), 
-                      facets=(. ~ experiment)) +
-      geom_linerange(limits, width=0.1, position=position_dodge(.9))
-
-multiplot(prop_shift_1_age, prop_shift_2_age)
-```
-
-Now do line plots
-
-```{r shifts line plots}
-limits <- aes(ymax = mean_prop + ci.high, ymin= mean_prop - ci.low)
-
-line_plot_all_shifts <- ggplot(data=ms_ct_cd_age_group, 
-                               aes(x=age_group, y=mean_prop, 
-                                   group=trial_type, color=trial_type)) +
-                              geom_line() +
-                              geom_pointrange(limits, width=0.1) + 
-                              facet_wrap(~experiment) +
-                              xlab("Age Group") +
-                              ylab("Proportion of trials") +
-                              geom_hline(y=0.5, linetype = "dashed")
-
-line_plot <- ggplot(data=ms_ctd_filt_age_group, 
-                               aes(x=age_group, y=mean_prop, 
-                                   group=trial_type, color=trial_type)) +
-                              geom_line() +
-                              geom_pointrange(limits, width=0.1) + 
-                              facet_wrap(~experiment) +
-                              xlab("Age Group") +
-                              ylab("Proportion of trials") +
-                              geom_hline(y=0.5, linetype = "dashed")
-
-multiplot(line_plot, line_plot_all_shifts)
-```
-
-
 Get descriptives: the number of trials for each subject, ages, genders.
 
 ```{r descriptives van 1}
 van1_descriptives <- iChart_1 %>%
                         group_by(Sub.Num, Months, Sex) %>%
                         summarise(Trials = n())
+van1_descriptives
+```
+
+Filter out participants that should not go into the profile plot computation
+
+```{r set up filters Vanilla 1}
+include_v1 <- select(sol_demo_v1, Sub.Num, include)
+iChart_1 <- merge(iChart_1, include_v1, by="Sub.Num")
+iChart_1 <-filter(iChart_1, include == 1)
 ```
 
 Checks the distribution of C, D, T, and A at F0
@@ -361,13 +142,13 @@ Now we have our iChart_1 set up to only include C-initial trials, we can do our 
 
 ```{r compute statistics, warning=FALSE, message=FALSE}
 # compute gaps
-iChart_1 <- computeStatistics(iChart_1, startWindow=0, endWindow=4000)
+iChart_1 <- computeStatistics(iChart_1, startWindow=0, endWindow=3000)
 
 # filter iChart_1: reject trials with extreme RT and gaps
-iChart_1 <- filteriChart(iChart_1, minRT=300, maxRT=3500, maxfirstgap=15, maxlonggap=15)
+iChart_1 <- filteriChart(iChart_1, minRT=300, maxRT=2000, maxfirstgap=15, maxlonggap=15)
 
 ## Compute accuracy for each subject
-accuracy_1 <- poolData(meanAccuracy(iChart_1, startWindowAcc=300, endWindowAcc=1800), 
+accuracy_1 <- poolData(meanAccuracy(iChart_1, startWindowAcc=300, endWindowAcc=2600), 
                      RejectFirstGap=TRUE,RejectLongestGap=TRUE, RejectRT=FALSE, 
                      color=TRUE, dependent="Accuracy", group="", facet="", dodge="", 
                      xlab="", ylab= "Proportion\n  Looking\n  to target", paired=TRUE, 
@@ -385,7 +166,7 @@ RT_1 <- poolData(iChart_1[iChart_1$Response == "D",], RejectFirstGap=TRUE, Rejec
 #### Profile plot and mean RT/Acc for different age groups
 
 ```{r profile plot full dataset, message=FALSE, warning=FALSE}
-## profile plot with adults ange two age groups for kids
+## profile plot with adults and two age groups for kids
 iChart_1$Months <- as.numeric(iChart_1$Months)
 
 ## split sample into three groups based on age: young (< 24months, > 24months, adults)
@@ -393,21 +174,30 @@ iChart_1$Condition <- ifelse(iChart_1$Months < 24 & iChart_1$Months >= 15, "< 24
                   ifelse(iChart_1$Months >= 24 & iChart_1$Months <= 36 , "> 24 Months",
                   ifelse(iChart_1$Months > 100, "Adults", NA)))
 
-accuracy.by.cond.1 <- poolData(meanAccuracy(iChart_1, startWindowAcc=300, endWindowAcc=1800), 
-                     RejectFirstGap=TRUE,RejectLongestGap=TRUE, RejectRT=FALSE, 
-                     color=TRUE, dependent="Accuracy", group="", facet="", dodge="", 
-                     xlab="", ylab= "Proportion\n  Looking\n  to target", paired=TRUE, 
-                     miny = 0.2, maxy = 0.80, size=13, legend.direction="horizontal", 
-                     legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+accuracy.by.cond.1 <- poolData(meanAccuracy(iChart_1, startWindowAcc=300, endWindowAcc=2600), 
+                               RejectFirstGap=TRUE,RejectLongestGap=TRUE, 
+                               RejectRT=FALSE, color=TRUE, dependent="Accuracy", 
+                               group="", facet="", dodge="", 
+                               xlab="", ylab= "Proportion\n  Looking\n  to target", 
+                               paired=TRUE, miny = 0.2, maxy = 0.80, 
+                               size=13, legend.direction="horizontal", 
+                               legend.position="bottom", 
+                               breaks=c(0.25, 0.50, 0.75))
 
 ## Compute reaction time for each age group
-RT.by.cond.1 <- poolData(iChart_1[iChart_1$Response == "D",], RejectFirstGap=TRUE, RejectLongestGap=TRUE,
-               RejectRT=TRUE, color=FALSE, dependent="RT", group="", facet="", dodge="Response",
-               xlab="", ylab="mean RT (ms)", paired=TRUE, miny = 400, maxy=1300, size=13, 
-               legend.direction = "horizontal", legend.position="bottom", 
-               breaks=c(400, 800, 1200))
+RT.by.cond.1 <- poolData(iChart_1[iChart_1$Response == "D",], 
+                         RejectFirstGap=TRUE, RejectLongestGap=TRUE,
+                         RejectRT=TRUE, color=FALSE, dependent="RT", group="", 
+                         facet="", dodge="Response",
+                         xlab="", ylab="mean RT (ms)", 
+                         paired=TRUE, 
+                         miny = 400, maxy=1300, 
+                         size=13, 
+                         legend.direction = "horizontal", 
+                         legend.position="bottom", 
+                         breaks=c(400, 800, 1200))
 
-createPlots(iChart_1, startWindow=0, endWindow=4000, RejectLongestGap=FALSE, 
+createPlots(iChart_1, startWindow=0, endWindow=3000, RejectLongestGap=FALSE, 
             RejectFirstGap=FALSE, RejectRT=FALSE, color=TRUE, smooth=400, 
             targetEnd=800, carrier="", targets=c(""), 
             group="",  plotStats="PP", miny = 0.4, maxy=0.95, size=15, 
@@ -420,7 +210,10 @@ createPlots(iChart_1, startWindow=0, endWindow=4000, RejectLongestGap=FALSE,
 ```{r pp by subs read in data van1}
 detach("package:reshape", unload=TRUE)
 
-gv.subs.v1 <- read.table("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/vanilla-1/SOL-iChart-all-data.txt_PP_graphValues_by_subs_0_4000_minRT_33_maxRT_3800_lg_106_fg_26_n_40.txt", header = T)
+gv.subs.v1 <- read.table("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/vanilla-1/SOL-iChart-all-data.txt_PP_graphValues_by_subs_0_3000_minRT_100_maxRT_2933_lg_79_fg_26_n_35.txt", header = T)
+
+# add variable to track experiment
+gv.subs.v1$experiment <- "vanilla-1"
 
 #strip X from header
 names(gv.subs.v1) <- gsub("X", "", names(gv.subs.v1))
@@ -433,10 +226,12 @@ gv.subs.v1 <- left_join(gv.subs.v1, age.voc.v1, by="Sub.Num")
 gv.subs.v1.melt <- melt(gv.subs.v1, id.vars=c("Sub.Num", "Condition", "age_months", "signs_produced"),
                      variable.name = "Time.ms",
                      value.name = "accuracy")
+
 #convert sub.num to a factor
 gv.subs.v1.melt <- mutate(gv.subs.v1.melt, Sub.Num = as.factor(Sub.Num), 
                        Time.ms = as.numeric(as.character(Time.ms)),
-                       age_months = as.factor(age_months))
+                       age_months = as.factor(age_months),
+                       accuracy = as.numeric(accuracy))
 ```
 
 Now plot each subs data for Vanilla-1.
@@ -448,12 +243,14 @@ breaks.v1 <- seq(0,4000, by=500)
 # set up filters 
 gv.less.24.v1 <- filter(gv.subs.v1.melt, Condition == "< 24 Months")
 gv.more.24.v1 <- filter(gv.subs.v1.melt, Condition == "> 24 Months")
+gv.adults <- filter(gv.subs.v1.melt, Condition == "Adults")
 
 # get plots for ind subs younger than 24 months
 pp.less.24.v1 <- qplot(data = gv.less.24.v1, x = Time.ms, y = accuracy, 
-                              geom=c("point", "line"), color=Sub.Num,
+                              geom=c("point"), color=Sub.Num,
                               ylim=c(0.2,1), xlab=c("Time (ms) from noun onset"), 
                               ylab=c("Proportion Looking to target")) + 
+                              geom_smooth(method="loess") +
                               geom_hline(yintercept = 0.5, linetype="dashed") +
                               scale_x_discrete(breaks = breaks.v1) +
                               facet_wrap(age_months~Sub.Num, ncol=4) +
@@ -464,10 +261,11 @@ pp.less.24.v1 <- qplot(data = gv.less.24.v1, x = Time.ms, y = accuracy,
 
 # get plots for ind subs younger than 24 months
 pp.greater.24.v1 <- qplot(data = gv.more.24.v1, x = Time.ms, y = accuracy, 
-                              geom=c("point", "line"), color=Sub.Num,
+                              geom=c("point"), color=Sub.Num,
                               ylim=c(0.2,1), xlab=c("Time (ms) from noun onset"), 
                               ylab=c("Proportion Looking to target")) + 
                               geom_hline(yintercept = 0.5, linetype="dashed") +
+                              geom_smooth(method="loess") +
                               scale_x_discrete(breaks = breaks.v1) +
                               facet_wrap(age_months~Sub.Num, ncol=3) +
                               guides(color=FALSE) +
@@ -475,7 +273,21 @@ pp.greater.24.v1 <- qplot(data = gv.more.24.v1, x = Time.ms, y = accuracy,
                               theme(axis.text.x = element_text(angle = 75, hjust = 1)) +
                               theme_bw()
 
-multiplot(pp.less.24.v1, pp.greater.24.v1, cols=2)
+# get plots for ind subs: adults
+pp.adults <- qplot(data = gv.adults, x = Time.ms, y = accuracy, 
+                              geom=c("point"), color=Sub.Num,
+                              ylim=c(0.2,1), xlab=c("Time (ms) from noun onset"), 
+                              ylab=c("Proportion Looking to target")) + 
+                              geom_hline(yintercept = 0.5, linetype="dashed") +
+                              geom_smooth(method="loess") +
+                              scale_x_discrete(breaks = breaks.v1) +
+                              facet_wrap(age_months~Sub.Num, ncol=3) +
+                              guides(color=FALSE) +
+                              geom_vline(xintercept=1200, linetype = "dashed") +
+                              theme(axis.text.x = element_text(angle = 75, hjust = 1)) +
+                              theme_bw()
+
+multiplot(pp.less.24.v1, pp.greater.24.v1, pp.adults, cols=3)
 ```
 
 #### Data processing Vanilla-2
@@ -505,6 +317,29 @@ subs_in_both <- intersect(van1_descriptives$Sub.Num, van2_descriptives$Sub.Num)
 length(subs_in_both)
 subs_in_both 
 ```
+
+Filter out adults who weren't doing the task (below chance performance on accuracy),
+and children who participated in both rounds of data collection (V1 and V2).
+
+```{r filter adults and repeats}
+# adults below chance
+below_chance <- c(30070, 30077, 30080, 30083, 30086, 30088)
+iChart_2 <- iChart_2 %>% 
+    mutate(below_chance = ifelse(Sub.Num %in% below_chance, "yes", "no")) %>%
+    filter(below_chance == "no", Sub.Num != 30077)
+
+# flag and remove duplicates 
+dups_V2 <- c(30013, 30017, 30024, 30031, 30041, 30048)
+iChart_2 <- iChart_2 %>% 
+    mutate(duplicate = ifelse(Sub.Num %in% dups_V2, "yes", "no")) %>%
+    filter(duplicate == "no")
+
+# filter 
+include_v2 <- select(sol_demo_v2, Sub.Num, include)
+iChart_2 <- merge(iChart_2, include_v2, by="Sub.Num")
+iChart_2 <- filter(iChart_2, include == 1)
+```
+
 
 First, we need to process the data, removing prescreened out trials and keeping only those trials on which the child was looking at the signer at F0 go into Accuracy and RT computations. 
 
@@ -547,13 +382,13 @@ Now we have our iChart_2 set up to only include C-initial trials, we can do our 
 
 ```{r compute accuracy van2, warning=FALSE, message=FALSE}
 # compute gaps
-iChart_2 <- computeStatistics(iChart_2, startWindow=0, endWindow=4000)
+iChart_2 <- computeStatistics(iChart_2, startWindow=0, endWindow=3000)
 
 # filter iChart_2: reject trials with extreme RT and gaps
-iChart_2 <- filteriChart(iChart_2, minRT=300, maxRT=3500, maxfirstgap=15, maxlonggap=15)
+iChart_2 <- filteriChart(iChart_2, minRT=300, maxRT=2000, maxfirstgap=15, maxlonggap=15)
 
 ## Compute accuracy for each subject
-accuracy_2 <- poolData(meanAccuracy(iChart_2, startWindowAcc=300, endWindowAcc=1800), 
+accuracy_2 <- poolData(meanAccuracy(iChart_2, startWindowAcc=300, endWindowAcc=2600), 
                      RejectFirstGap=TRUE,RejectLongestGap=TRUE, RejectRT=FALSE, 
                      color=TRUE, dependent="Accuracy", group="", facet="", dodge="", 
                      xlab="", ylab= "Proportion\n  Looking\n  to target", paired=TRUE, 
@@ -579,7 +414,7 @@ iChart_2$Condition <- ifelse(iChart_2$Months < 24, "< 24 Months",
                   ifelse(iChart_2$Months >= 24 & iChart_2$Months <=36 , "> 24 Months",
                   ifelse(iChart_2$Months > 100, "Adults", NA)))
 
-accuracy.by.cond.2 <- poolData(meanAccuracy(iChart_2, startWindowAcc=300, endWindowAcc=1800), 
+accuracy.by.cond.2 <- poolData(meanAccuracy(iChart_2, startWindowAcc=300, endWindowAcc=2600), 
                      RejectFirstGap=TRUE,RejectLongestGap=TRUE, RejectRT=FALSE, 
                      color=TRUE, dependent="Accuracy", group="", facet="", dodge="", 
                      xlab="", ylab= "Proportion\n  Looking\n  to target", paired=TRUE, 
@@ -597,7 +432,7 @@ RT.by.cond.2 <- poolData(iChart_2_rt_filt[iChart_2_rt_filt$Response == "D",], Re
                          miny = 400, maxy=1300, size=13, legend.direction = "horizontal", 
                          legend.position="bottom", breaks=c(400, 800, 1200))
 
-createPlots(iChart_2, startWindow=0, endWindow=4000, RejectLongestGap=FALSE, 
+createPlots(iChart_2, startWindow=0, endWindow=3000, RejectLongestGap=FALSE, 
             RejectFirstGap=FALSE, RejectRT=FALSE, color=TRUE, smooth=400, 
             targetEnd=800, carrier="", targets=c(""), 
             group="",  plotStats="PP", miny = 0.4, maxy=0.95, size=15, 
@@ -610,31 +445,35 @@ createPlots(iChart_2, startWindow=0, endWindow=4000, RejectLongestGap=FALSE,
 ```{r pp by subs read in data van2}
 detach("package:reshape")
 
-gv.subs.v2 <- read.table("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/vanilla-2-fixed-orders/good-adult-child/sol-van2-iChart-n21.txt_PP_graphValues_by_subs_0_4000_minRT_33_maxRT_3967_lg_88_fg_34_n_21.txt", header = T)
+gv.subs.v2 <- read.table("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/vanilla-2-fixed-orders/srcd-analysis/sol-vanilla2-ichart-srcd.txt_PP_graphValues_by_subs_0_3000_minRT_33_maxRT_2967_lg_58_fg_34_n_18.txt", header = T)
 
 #strip X from header
 names(gv.subs.v2) <- gsub("X", "", names(gv.subs.v2))
 
+# add variable to track experiment
+gv.subs.v2$experiment <- "vanilla-2"
+
 #get ages and vocabulary from demo, rename id to Sub.Num, and merge with graph values, 
-age.voc.v2 <- select(sol_demo_v2, id, age_months)
-age.voc.v2 <- select(age.voc.v2, Sub.Num = id, age_months)
-gv.subs.v2 <- left_join(gv.subs.v2, age.voc.v2, by="Sub.Num")
+age.voc.v2 <- select(sol_demo_v2, Sub.Num, age_months, signs_produced)
+gv.subs.v2 <- merge(gv.subs.v2, age.voc.v2, by="Sub.Num")
 
 #melt to long form for plotting
 gv.subs.v2.melt <- melt(gv.subs.v2, id.vars=c("Sub.Num", "Condition", "age_months"),
                      variable.name = "Time.ms",
                      value.name = "accuracy")
+
 #convert sub.num to a factor
 gv.subs.v2.melt <- mutate(gv.subs.v2.melt, Sub.Num = as.factor(Sub.Num), 
                        Time.ms = as.numeric(as.character(Time.ms)),
-                       age_months = as.factor(age_months))
+                       age_months = as.factor(age_months), 
+                       accuracy = as.numeric(accuracy))
 ```
 
 Now plot individual subject data for Vanilla-2.
 
 ```{r pp plot by subs van2}
 # set breaks for x-axis
-breaks.v2 <- seq(0,4000, by=500)
+breaks.v2 <- seq(0,3000, by=500)
 
 # set up filters 
 gv.less.24.v2 <- filter(gv.subs.v2.melt, Condition == "< 24 Months")
@@ -643,39 +482,42 @@ gv.adults.v2 <- filter(gv.subs.v2.melt, Condition == "Adults")
 
 # get plots for ind subs younger than 24 months
 pp.less.24.v2 <- qplot(data = gv.less.24.v2, x = Time.ms, y = accuracy, 
-                              geom=c("point", "line"), color=Sub.Num,
+                       geom=c("point"), color=Sub.Num,
                               ylim=c(0.2,1), xlab=c("Time (ms) from noun onset"), 
                               ylab=c("Proportion Looking to target")) + 
-                              geom_hline(yintercept = 0.5, linetype="dashed") +
-                              scale_x_discrete(breaks = breaks.v2) +
-                              facet_wrap(age_months~Sub.Num, ncol=2) +
-                              guides(color=FALSE) +
-                              geom_vline(xintercept=1200, linetype = "dashed") +
-                              theme(axis.text.x = element_text(angle = 75, hjust = 1)) 
+                           geom_hline(yintercept = 0.5, linetype="dashed") +
+                           geom_smooth(method="loess") +
+                           scale_x_discrete(breaks = breaks.v2) +
+                           facet_wrap(age_months~Sub.Num, ncol=2) +
+                           guides(color=FALSE) +
+                           geom_vline(xintercept=1200, linetype = "dashed") +
+                           theme(axis.text.x = element_text(angle = 75, hjust = 1)) 
 
 # get plots for ind subs younger than 24 months
 pp.greater.24.v2 <- qplot(data = gv.more.24.v2, x = Time.ms, y = accuracy, 
-                              geom=c("point", "line"), color=Sub.Num,
-                              ylim=c(0.2,1), xlab=c("Time (ms) from noun onset"), 
-                              ylab=c("Proportion Looking to target")) + 
-                              geom_hline(yintercept = 0.5, linetype="dashed") +
-                              scale_x_discrete(breaks = breaks.v2) +
-                              facet_wrap(age_months~Sub.Num, ncol=3) +
-                              guides(color=FALSE) +
-                              geom_vline(xintercept=1200, linetype = "dashed") +
-                              theme(axis.text.x = element_text(angle = 75, hjust = 1)) 
+                          geom=c("point"), color=Sub.Num,
+                          ylim=c(0.2,1), xlab=c("Time (ms) from noun onset"), 
+                          ylab=c("Proportion Looking to target")) + 
+    geom_hline(yintercept = 0.5, linetype="dashed") +
+    geom_smooth(method="loess") +
+    scale_x_discrete(breaks = breaks.v2) +
+    facet_wrap(age_months~Sub.Num, ncol=3) +
+    guides(color=FALSE) +
+    geom_vline(xintercept=1200, linetype = "dashed") +
+    theme(axis.text.x = element_text(angle = 75, hjust = 1)) 
 
 # get plots for adults
 pp.adults.v2 <- qplot(data = gv.adults.v2, x = Time.ms, y = accuracy, 
-                              geom=c("point", "line"), color=Sub.Num,
-                              ylim=c(0.2,1), xlab=c("Time (ms) from noun onset"), 
-                              ylab=c("Proportion Looking to target")) + 
-                              geom_hline(yintercept = 0.5, linetype="dashed") +
-                              scale_x_discrete(breaks = breaks.v2) +
-                              facet_wrap(age_months~Sub.Num, ncol=3) +
-                              guides(color=FALSE) +
-                              geom_vline(xintercept=1200, linetype = "dashed") +
-                              theme(axis.text.x = element_text(angle = 75, hjust = 1)) 
+                      geom=c("point"), color=Sub.Num,
+                      ylim=c(0.2,1), xlab=c("Time (ms) from noun onset"), 
+                      ylab=c("Proportion Looking to target")) + 
+    geom_hline(yintercept = 0.5, linetype="dashed") +
+    geom_smooth(method="loess") +
+    scale_x_discrete(breaks = breaks.v2) +
+    facet_wrap(age_months~Sub.Num, ncol=3) +
+    guides(color=FALSE) +
+    geom_vline(xintercept=1200, linetype = "dashed") +
+    theme(axis.text.x = element_text(angle = 75, hjust = 1)) 
 
 multiplot(pp.less.24.v2, pp.greater.24.v2, pp.adults.v2, cols=3)
 ```
@@ -684,13 +526,13 @@ multiplot(pp.less.24.v2, pp.greater.24.v2, pp.adults.v2, cols=3)
 
 ```{r van-1 vs. van-2 load in graph values}
 #read in van1 and van2 graph values
-gv.van1 <- tbl_df(read.table("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/vanilla-1/SOL-iChart-all-data.txt_PP_graphValues_0_2000_minRT_33_maxRT_3800_lg_106_fg_26_n_40.txt", header=T))
+gv.van1 <- tbl_df(read.table("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/vanilla-1/SOL-iChart-all-data.txt_PP_graphValues_0_3000_minRT_100_maxRT_2933_lg_79_fg_26_n_35.txt", header=T))
 
-gv.van2 <- tbl_df(read.table("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/vanilla-2-fixed-orders/good-adult-child/sol-van2-iChart-n21.txt_PP_graphValues_0_4000_minRT_33_maxRT_3967_lg_88_fg_34_n_21.txt", header = T))
+gv.van2 <- tbl_df(read.table("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/vanilla-2-fixed-orders/srcd-analysis/sol-vanilla2-ichart-srcd.txt_PP_graphValues_0_3000_minRT_33_maxRT_2967_lg_58_fg_34_n_18.txt", header = T))
 
-#filter van1 to just include 0-2000 msec
-gv.van1 <- select(gv.van1, 1:63)
-gv.van2 <- select(gv.van2, 1:63)
+#filter van1 to just include 0-3000 msec
+gv.van1 <- select(gv.van1, 1:78)
+gv.van2 <- select(gv.van2, 1:78)
 
 #add column to track van1 vs. van2
 gv.van1 <- mutate(gv.van1, Experiment = "Vanilla.1")
@@ -722,91 +564,703 @@ gv.melt <- spread(statistic, value, data=gv.melt)
 Now we plot.
 
 ```{r PP van1 vs. van2}
-breaks <- seq(0,2000, by=500)
+breaks <- seq(0,2500, by=500)
 
 # set limits for error bars
 limits <- aes(ymax = mean + se, ymin= mean - se)
 
-qplot(data = gv.melt, x = Time.ms, y = mean, 
-                              geom=c("point", "line"), color=Condition,
+qplot(data = gv.melt, x = Time.ms, y = mean, color=Condition,
                               ylim=c(0.2,1), xlab=c("Time (ms) from noun onset"), 
                               ylab=c("Proportion Looking to target")) +
                               geom_hline(yintercept = 0.5, linetype="dashed") +
+                              geom_smooth(limits, method="loess") +
                               scale_x_discrete(breaks = breaks) +
-                              geom_vline(xintercept=1200, linetype = "dashed") +
-                              geom_errorbar(limits, width=0.1) +
+                              geom_vline(xintercept=1200, linetype = "dashed")+
                               facet_grid(.~Experiment) +
-                              theme(axis.text.x = element_text(angle = 75, hjust = 1)) 
+                              theme(axis.text.x = element_text(hjust = 1)) 
 ```
 
-#### Mean Accuracy and RT comparsion Van1-Van2
+## Collapse V1 and V2 - profile plot
 
-Get mean accuracy for each age group in each experiment
+```{r v1-v2 pp}
+# merge
+gv.subs.all <- rbind(gv.subs.v1, gv.subs.v2)
 
-```{r mean acc van1-van2}
-# Vanilla-1
-ms_v1 <- read.table("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/vanilla-1/SOL-iChart-all-data.txt_mean_Accuracy_300_1800_lg_15_n_30.txt", header=T)
-ms_v1$experiment <- "Vanilla.1"
-ms_v1 <- select(ms_v1, -facet)
+# descriptives
+gv.subs.all %>%
+    group_by(Condition) %>%
+    summarise(n())
 
-# Vanilla-2
-ms_v2 <- read.table("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/vanilla-2-fixed-orders/good-adult-child/sol-van2-iChart-n21.txt_mean_Accuracy_300_1800_lg_15_n_21.txt", header=T)
-ms_v2$experiment <- "Vanilla.2"
+# melt to long form to compute means
+gv.subs.all.melt <- melt(gv.subs.all, 
+                         id.vars=c("Sub.Num", "Condition", 
+                                   "age_months","signs_produced", 
+                                   "experiment"),
+                         variable.name = "Time.ms",
+                         value.name = "value")
 
-# now merge
-ms_all <- rbind(ms_v1, ms_v2)
+# compute means and CIs for each condition at each time slice
+ms.all <- gv.subs.all.melt %>%
+    group_by(Condition, Time.ms) %>%
+    summarise(mean = mean(value),
+              se = sem(value))
+
+# compute means and CIs for all kids
+ms.all.kids <- gv.subs.all.melt %>%
+    filter(Condition != "Adults") %>%
+    mutate(Condition = "15-36 Months") %>%
+    group_by(Condition, Time.ms) %>%
+    summarise(mean = mean(value),
+              se = sem(value))
+    
 ```
 
-Now plot mean accuracy (window: 300-1800).
+Now plot
 
-```{r mean accuracy van1-van2 plot}
+```{r SRCD pp collapsed experiments}
+# convert time back to a numeric
+ms.all$Time.ms <- as.numeric(as.character(ms.all$Time.ms))
+ms.all.kids$Time.ms <- as.numeric(as.character(ms.all.kids$Time.ms))
+
+# select window: 0-2500
+breaks <- seq(0,2500, by=500)
+plot_points <- c(0, breaks[2:6]-200)
+ms.all.0.2500 <- filter(ms.all, Time.ms <= 2400)
+ms.all.kids <- filter(ms.all.kids, Time.ms <= 2400) 
+ms.breaks.kids <- filter(ms.all.kids, Time.ms %in% plot_points)
+ms.breaks <- filter(ms.all, Time.ms %in% plot_points)
+
+# set limits for error bars
 limits <- aes(ymax = mean + se, ymin= mean - se)
 
-qplot(data=ms_all, x=Condition, y=mean, 
-      geom=c("bar"), stat="identity", 
-      fill=experiment, position="dodge",
-      xlab=c("Age group"),
-      ylab=c("Proportion looking to target")) + 
-      geom_hline(yintercept = 0.5, linetype="dashed") +
-      coord_cartesian(ylim=c(0,0.9)) +
+sol.pp.all.kids <- qplot(data = ms.all.kids, x = Time.ms, y = mean, color=Condition, 
+      ylim=c(0.35,1), xlab=c("Time (ms) from noun onset"),
+      geom="line",ylab=c("Proportion Looking \n to Target")) +
+    geom_point(data=ms.breaks.kids, aes(x = Time.ms, y = mean, shape=Condition, size=1)) +
+    geom_linerange(data=ms.breaks.kids, limits) +
+    geom_hline(yintercept = 0.5, linetype="dashed") +
+    scale_x_discrete(breaks = breaks) +
+    geom_vline(xintercept=1200, linetype = "dashed") +
+    scale_size_continuous(guide=FALSE) +
+    scale_shape_discrete(guide=FALSE) + 
+    scale_color_manual(name="Age Group", values=c("#e41a1c")) +
+    theme(axis.title.x = element_text(colour="black",size=16,angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.title.y = element_text(colour="black",size=16,angle=0,hjust=0.5,vjust=0.5,face="plain"),
+        axis.text.x = element_text(colour="grey20",size=12,angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.text.y = element_text(colour="grey20",size=12,angle=0,hjust=0.5,vjust=0,face="plain"),
+        legend.position=c(0.85,0.85),
+        legend.text = element_text(size=13),
+        legend.title = element_text(size=13, face="bold"))
+
+ggsave("sol-pp-all-kids.pdf", sol.pp.all.kids, width=8, height=5)
+
+
+sol.pp.median.split <- qplot(data = filter(ms.all.0.2500, Condition != "Adults"), x = Time.ms, y = mean, color=Condition, 
+      ylim=c(0.35,1), xlab=c("Time (ms) from noun onset"),
+      geom="line",ylab=c("Proportion Looking \n to Target")) +
+    geom_point(data=filter(ms.breaks, Condition != "Adults"), aes(x = Time.ms, y = mean, shape=Condition, size=1)) +
+    geom_linerange(data=filter(ms.breaks, Condition != "Adults"), limits) +
+    geom_hline(yintercept = 0.5, linetype="dashed") +
+    scale_x_discrete(breaks = breaks) +
+    geom_vline(xintercept=1200, linetype = "dashed") +
+    scale_size_continuous(guide=FALSE) +
+    scale_shape_discrete(guide=FALSE) + 
+    scale_color_manual(name="Age Group", values=c("#e41a1c", "#4daf4a")) +
+    theme(axis.title.x = element_text(colour="black",size=16,angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.title.y = element_text(colour="black",size=16,angle=0,hjust=0.5,vjust=0.5,face="plain"),
+        axis.text.x = element_text(colour="grey20",size=12,angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.text.y = element_text(colour="grey20",size=12,angle=0,hjust=0.5,vjust=0,face="plain"),
+        legend.position=c(0.85,0.85),
+        legend.text = element_text(size=13),
+        legend.title = element_text(size=13, face="bold"))
+
+ggsave("sol-pp-median-split.pdf", sol.pp.median.split, width=8, height=5)
+
+sol.pp.kids.adults <- qplot(data = ms.all.0.2500, x = Time.ms, y = mean, color=Condition, 
+      ylim=c(0.35,1), xlab=c("Time (ms) from noun onset"),
+      geom="line",ylab=c("Proportion Looking \n to Target")) +
+    geom_point(data=ms.breaks, aes(x = Time.ms, y = mean, shape=Condition, size=1)) +
+    geom_linerange(data=ms.breaks, limits) +
+    geom_hline(yintercept = 0.5, linetype="dashed") +
+    scale_x_discrete(breaks = breaks) +
+    geom_vline(xintercept=1200, linetype = "dashed") +
+    scale_size_continuous(guide=FALSE) +
+    scale_shape_discrete(guide=FALSE) + 
+    scale_color_manual(name="Age Group", values=c("#e41a1c", "#4daf4a", "#377eb8")) +
+      theme(axis.title.x = element_text(colour="black",size=16,angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.title.y = element_text(colour="black",size=16,angle=0,hjust=0.5,vjust=0.5,face="plain"),
+        axis.text.x = element_text(colour="grey20",size=12,angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.text.y = element_text(colour="grey20",size=12,angle=0,hjust=0.5,vjust=0,face="plain"),
+        legend.position=c(0.85,0.85),
+        legend.text = element_text(size=13),
+        legend.title = element_text(size=13, face="bold"))
+
+ggsave("sol-pp-kids.adults.pdf", sol.pp.kids.adults, width=8, height=5)
+```
+
+## Flag C-T vs. C-D Trials for both Van1 and Van2
+
+```{r flag c-t and c-d}
+# create function for flagging these trial types
+trial_type_fun <- function(trial) { 
+      start_col <- which(names(trial)=="0")
+      end_col <- which(names(trial)=="3000")
+      trial_type <- "no-shift"
+      for (col in start_col:end_col) {
+            curr_val <- trial[col]
+            next_val <- trial[col+1]
+            
+            if(curr_val == "." & next_val %in% c("0", "1", "0.5", ".5")) {
+                  if(next_val == "1") {
+                        trial_type <- "C-T"
+                        } else if(next_val == "0.5" | next_val == ".5") {
+                            trial_type <- "C-C"
+                              } else {
+                                trial_type <- "C-D"    
+                              }
+                  break
+                  }
+            }
+      return(trial_type)
+}
+```
+
+Compute RTs for C-T, C-D separately
+
+```{r RT ct cd Vanilla 1}
+# filter out trials where child wasn't on center at F0
+iChart_1_c <- filter(iChart_1, Response == "D")
+iChart_2_c <- filter(iChart_2, Response == "D")
+
+# compute gaps
+iChart_1_c <- computeStatistics(iChart_1, startWindow=0, endWindow=3000)
+
+# filter iChart_1: reject trials with extreme RT and gaps
+iChart_1_c <- filteriChart(iChart_1_c, minRT=300, maxRT=2000, maxfirstgap=15, maxlonggap=15)
+
+# now we need to apply it to each row in our dataset
+trial_types_v1 <- apply(iChart_1_c, 1, trial_type_fun) 
+
+# now we need to merge this information back with the iChart
+iChart_1_c <- cbind(iChart_1_c, trial_types_v1)
+
+# change condition to Vanilla
+iChart_1_c$Condition <- "vanilla"
+
+## Compute accuracy for each subject
+library(reshape)
+accuracy_1_c <- poolData(meanAccuracy(iChart_1_c, startWindowAcc=300, endWindowAcc=2600), 
+                     RejectFirstGap=TRUE,RejectLongestGap=TRUE, RejectRT=FALSE, 
+                     color=TRUE, dependent="Accuracy", group="", facet="", dodge="", 
+                     xlab="", ylab= "Proportion\n  Looking\n  to target", paired=TRUE, 
+                     miny = 0.2, maxy = 0.80, size=13, legend.direction="horizontal", 
+                     legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+
+## Compute reaction time for each subject
+RT_1_c <- poolData(iChart_1_c, RejectFirstGap=TRUE, RejectLongestGap=TRUE,
+               RejectRT=TRUE, color=FALSE, dependent="RT", group="", facet="trial_types_v1", 
+               dodge="Response",
+               xlab="", ylab="mean RT (ms)", paired=TRUE, miny = 400, maxy=1300, size=13, 
+               legend.direction = "horizontal", legend.position="bottom", 
+               breaks=c(400, 800, 1200))
+```
+
+Now do the same thing for Vanilla-2
+
+```{r RT ct cd Vanilla 2}
+# compute gaps
+iChart_2_c <- computeStatistics(iChart_2_c, startWindow=0, endWindow=3000)
+
+# filter iChart_1: reject trials with extreme RT and gaps
+iChart_2_c <- filteriChart(iChart_2_c, minRT=300, maxRT=2000, maxfirstgap=15, maxlonggap=15)
+
+# change condition to Vanilla
+iChart_2_c$Condition <- "vanilla"
+
+# apply ct/cd flagging function 
+trial_types_v2 <- apply(iChart_2_c, 1, trial_type_fun) 
+iChart_2_c <- cbind(iChart_2_c, trial_types_v2)
+
+## Compute accuracy for each subject
+library(reshape)
+accuracy_2_c <- poolData(meanAccuracy(iChart_2_c, startWindowAcc=300, endWindowAcc=2600), 
+                     RejectFirstGap=TRUE,RejectLongestGap=TRUE, RejectRT=FALSE, 
+                     color=TRUE, dependent="Accuracy", group="", facet="", dodge="", 
+                     xlab="", ylab= "Proportion\n  Looking\n  to target", paired=TRUE, 
+                     miny = 0.2, maxy = 0.80, size=13, legend.direction="horizontal", 
+                     legend.position="bottom", breaks=c(0.25, 0.50, 0.75))
+
+## Compute reaction time for each subject
+RT_2_c <- poolData(iChart_2_c, RejectFirstGap=TRUE, RejectLongestGap=TRUE,
+               RejectRT=TRUE, color=FALSE, dependent="RT", group="", facet="trial_types_v2", 
+               dodge="Response",
+               xlab="", ylab="mean RT (ms)", paired=TRUE, miny = 400, maxy=1300, size=13, 
+               legend.direction = "horizontal", legend.position="bottom", 
+               breaks=c(400, 800, 1200))
+```
+
+
+### Summarise and plot the proportion of C-T and C-D for Van1.
+
+```{r c-t c-d summarise subject level}
+detach("package:reshape", unload=TRUE)
+ss_ct_cd_v1 <- iChart_1_c %>%
+      group_by(Sub.Num, trial_types_v1) %>%
+      summarise(count = n()) %>%
+      mutate(n_trial = sum(count),
+             experiment = "Vanilla.1",
+             prop_sub = count / n_trial)
+
+# get age group information 
+age_groups_v1 <- iChart_1_c %>% 
+      group_by(Sub.Num) %>%
+      select(Sub.Num, age_group, Months) %>%
+      distinct()
+
+# add to table
+ss_ct_cd_v1 <- merge(ss_ct_cd_v1, age_groups_v1, by="Sub.Num")
+
+# get the total number of trials where there was a shift for each kid
+n_trial_shift_v1 <- ss_ct_cd_v1 %>%
+      group_by(Sub.Num) %>%
+      filter(trial_types_v1 == "C-T" | trial_types_v1 == "C-D") %>%
+      summarise(n_trial_shift = sum(count)) %>%
+      select(Sub.Num, n_trial_shift)
+
+# merge with ss data frame
+ss_ct_cd_v1 <- merge(ss_ct_cd_v1, n_trial_shift_v1)
+
+# now do the same thing for van2
+ss_ct_cd_v2 <- iChart_2_c %>%
+      group_by(Sub.Num, trial_types_v2) %>%
+      summarise(count = n()) %>%
+      mutate(n_trial = sum(count),
+             experiment = "Vanilla.2",
+             prop_sub = count / n_trial)
+
+# add in age group information 
+age_groups_v2 <- iChart_2_c %>% 
+      group_by(Sub.Num) %>%
+      select(Sub.Num, age_group, Months) %>%
+      distinct()
+
+ss_ct_cd_v2 <- merge(ss_ct_cd_v2, age_groups_v2, by="Sub.Num")
+
+# get the total number of trials where there was a shift for each kid
+n_trial_shift_v2 <- ss_ct_cd_v2 %>%
+      group_by(Sub.Num) %>%
+      filter(trial_types_v2 == "C-T" | trial_types_v2 == "C-D") %>%
+      summarise(n_trial_shift = sum(count)) %>%
+      select(Sub.Num, n_trial_shift)
+
+# merge with ss data frame
+ss_ct_cd_v2 <- merge(ss_ct_cd_v2, n_trial_shift_v2)
+
+# revalue trial types variable for merging
+ss_ct_cd_v1 <- rename(ss_ct_cd_v1, trial_type = trial_types_v1)
+ss_ct_cd_v2 <- rename(ss_ct_cd_v2, trial_type = trial_types_v2)
+
+# merge for plotting
+ss_ct_cd_all <- rbind(ss_ct_cd_v1, ss_ct_cd_v2)
+
+# compute proportion correct for trials with shifts for each subject
+ss_ct_cd_all_shifts <- ss_ct_cd_all %>%
+    filter(trial_type == "C-T" | trial_type == "C-D") %>%
+    mutate(prop_shift = count / n_trial_shift) %>%
+    arrange(Sub.Num)
+```
+
+Next we compute mean proportion of trials on which kids did C-T, C-D, or didn't shift.
+
+```{r c-t c-d summarise age_group level}
+ms_ct_cd_age_group <- ss_ct_cd_all_shifts %>%
+      group_by(trial_type, experiment, age_group) %>%
+      summarise(mean_prop = mean(prop_shift),
+                ci.high = ci.high(prop_shift),
+                ci.low = ci.low(prop_shift))
+```
+
+Now that we have our summary table by age groups, we can plot.
+
+```{r c-t c-d age_group plot}
+# reorder factor levels for plotting
+ms_ct_cd_age_group$trial_type <- factor(ms_ct_cd_age_group$trial_type, 
+                              levels = c("no-shift", "C-D", "C-T", "C-C"))
+
+# create filter for just plotting proportions when child shifted in the window
+ms_ctd_filt_age_group <- filter(ms_ct_cd_age_group, trial_type != "no-shift", trial_type != "C-C")
+
+# filter out NAs (kids who were older than 36 months)
+ms_ct_cd_age_group <- filter(ms_ct_cd_age_group, age_group != "NA")
+ms_ctd_filt_age_group <- filter(ms_ctd_filt_age_group, age_group != "NA")
+
+limits <- aes(ymax = mean_prop + ci.high, ymin= mean_prop - ci.low)
+
+qplot(data=ms_ctd_filt_age_group, x=age_group, y=mean_prop, fill=trial_type,
+                      geom=c("bar"), stat="identity", position = "dodge", ylim=c(0,1),
+                      xlab=c("Experiment"),
+                      ylab=c("Proportion of trials"),
+                      facets=(. ~ experiment)) +
       geom_linerange(limits, width=0.1, position=position_dodge(.9))
 ```
 
-### RT comparison 
+Now collapse across the two experiments
 
-Get mean RT each age group in each experiment
-
-```{r mean RT van1-van2}
-# Vanilla-1
-ms_v1_rt <- read.table("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/vanilla-1/SOL-iChart-all-data.txt_mean_RT_0_4000_lg_15_n_40.txt", header=T)
-ms_v1_rt$experiment <- "Vanilla.1"
-ms_v1_rt <- select(ms_v1_rt, -dodg)
-
-# Vanilla-2
-ms_v2_rt <- read.table("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/vanilla-2-fixed-orders/good-adult-child/sol-van2-iChart-n21.txt_mean_RT_0_4000_lg_15_n_20.txt", header=T)
-ms_v2_rt$experiment <- "Vanilla.2"
-ms_v2_rt <- select(ms_v2_rt, -dodg)
-
-# now merge
-ms_all_rt <- rbind(ms_v1_rt, ms_v2_rt)
+```{r ms ct cd collapsed}
+ms_ct_cd_collapsed <- ss_ct_cd_all_shifts %>%
+      group_by(trial_type, age_group) %>%
+      summarise(mean_prop = mean(prop_shift),
+                ci.high = ci.high(prop_shift),
+                ci.low = ci.low(prop_shift))
 ```
 
-Now plot mean RT.
+Now plot
 
-```{r mean RT van1-van2 plot}
-ms_all_rt$Condition <- factor(ms_all_rt$Condition, 
-                              levels = c("Adults", "> 24 Months", "< 24 Months"))
+```{r c-t c-d plot values}
+# reorder factor levels for plotting
+ms_ct_cd_collapsed$trial_type <- factor(ms_ct_cd_collapsed$trial_type, 
+                              levels = c("no-shift", "C-T", "C-D"))
 
-limits <- aes(ymax = mean + se, ymin= mean - se)
+# create filter for just plotting proportions when child shifted in the window
+ms_ct_cd_filt_collapsed <- filter(ms_ct_cd_collapsed, trial_type != "no-shift")
 
-qplot(data=ms_all_rt, x=Condition, y=mean, 
-      geom=c("bar"), stat="identity", 
-      fill=experiment, position="dodge",
-      xlab=NULL,
-      ylab=c("Mean RT")) + 
-      geom_linerange(limits, width=0.1, position=position_dodge(.9)) +
-      coord_flip()
+# filter out NAs (kids who were older than 36 months)
+ms_ct_cd_filt_collapsed <- filter(ms_ct_cd_filt_collapsed, age_group != "NA")
 ```
+
+```{r SRCD ct-cd plot}
+limits <- aes(ymax = mean_prop + ci.high, ymin= mean_prop - ci.low)
+
+# change factor labels
+levels(ms_ct_cd_filt_collapsed$trial_type)[levels(ms_ct_cd_filt_collapsed$trial_type)=="no-shift"] <- "No-Shift"
+levels(ms_ct_cd_filt_collapsed$trial_type)[levels(ms_ct_cd_filt_collapsed$trial_type)=="C-T"] <- "Center-Target"
+levels(ms_ct_cd_filt_collapsed$trial_type)[levels(ms_ct_cd_filt_collapsed$trial_type)=="C-D"] <- "Center-Distractor"
+
+sol.ct.cd.plot <- qplot(data=filter(ms_ct_cd_filt_collapsed, trial_type=="Center-Target"), x=age_group, y=mean_prop,
+                        geom=c("bar"), stat="identity", position = "dodge", ylim=c(0,1),
+                        xlab=c("Age Group"),
+                        ylab=c("Proportion \n of trials")) +
+    geom_linerange(limits, width=0.1, position=position_dodge(.9)) +
+    theme(axis.title.x = element_text(colour="black",size=20,angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.title.y = element_text(colour="black",size=20,angle=0,hjust=0.5,vjust=0.5,face="plain"),
+          axis.text.x = element_text(colour="grey20",size=14,angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.text.y = element_text(colour="grey20",size=14,angle=0,hjust=0.5,vjust=0,face="plain"),
+          legend.position=c(0.2,0.85),
+          legend.text = element_text(size=9),
+          legend.title = element_text(size=9, face="bold"))
+
+ggsave("sol-ct-cd-prop.pdf", sol.ct.cd.plot, width=6, height=3.5)
+```
+
+#### Mean Accuracy and RT Collapsed Van1-Van2
+
+Get mean accuracy and rt for each participant
+
+Some munging to get data frame to do analysis. 
+Variables needed for each subject:
+- Mean acc
+- Mean rt
+- Signs produced
+- Age
+- Age condition 
+
+```{r mean acc and rt munging}
+# merge acc/rt van1
+ss_van1 <- merge(accuracy_1, RT_1_c, by="Sub.Num")
+
+# merge with demo info
+ss_van1 <- merge(ss_van1, sol_demo_v1, by="Sub.Num")
+
+# clean up data frame
+ss_van1 <- ss_van1 %>% mutate(experiment = "vanilla-1")
+names(ss_van1)[names(ss_van1)=="vanilla-1"] <- "mean_accuracy"
+names(ss_van1)[names(ss_van1)=="vanilla_C-D_D"] <- "mean_cd_rt"
+names(ss_van1)[names(ss_van1)=="vanilla_C-T_D"] <- "mean_ct_rt"
+names(ss_van1)[names(ss_van1)=="vanilla_C-C_D"] <- "mean_cc_rt"
+
+# acc van2
+ss_van2 <- merge(accuracy_2, RT_2_c, by="Sub.Num")
+
+# merge with demo info
+ss_van2 <- merge(ss_van2, sol_demo_v2, by="Sub.Num")
+
+# clean up
+ss_van2 <- ss_van2 %>% mutate(experiment = "vanilla-2") 
+ss_van2$mean_cc_rt <- NULL
+names(ss_van2)[names(ss_van2)=="vanilla-2"] <- "mean_accuracy"
+names(ss_van2)[names(ss_van2)=="vanilla_C-D_D"] <- "mean_cd_rt"
+names(ss_van2)[names(ss_van2)=="vanilla_C-T_D"] <- "mean_ct_rt"
+
+# merge V1 and V2 to get final data frame
+ss_collapsed <- rbind(ss_van1, ss_van2)
+```
+
+Now create age bins.
+
+```{r create age bins}
+ss_collapsed$Age_Bin <- ifelse(ss_collapsed$age_months < 24 & 
+                           ss_collapsed$age_months >= 15, "< 24 months", 
+                       ifelse(ss_collapsed$age_months >= 24 & 
+                                  ss_collapsed$age_months <= 36 , "> 24 months",
+                              ifelse(ss_collapsed$age_months > 100, "Adults", NA)))
+```
+
+Scatter plots with full dataset
+
+```{r filters for SRCD models and corrrelations}
+ss_collapsed_acc <- filter(ss_collapsed, 
+                           include==1, 
+                           Age_Bin != "NA", 
+                           Age_Bin != "Adults",
+                           age_months <= 36)
+
+ss_collapsed_cdi <- filter(ss_collapsed, 
+                           include==1, 
+                           Age_Bin != "NA", 
+                           Age_Bin != "Adults",
+                           age_months <= 30)
+```
+
+```{r models and corrrelations}}
+## age and accuracy 
+qplot(data=ss_collapsed_acc, x=age_months, y=mean_accuracy) +
+    geom_smooth(method="lm")
+
+## model
+m.age.acc <- lm(mean_accuracy ~ age_months, data=ss_collapsed_acc)
+summary(m.age.acc)
+
+## correlation
+cor.test(ss_collapsed_acc$mean_accuracy, ss_collapsed_acc $age_months , method = "pearson")
+
+## age and vocab
+qplot(data=ss_collapsed_cdi, x=age_months, y=signs_produced) +
+    geom_smooth(method="lm")
+# model
+m.age.voc <- lm(signs_produced ~ age_months, data=ss_collapsed_cdi)
+summary(m.age.voc)
+cor.test(ss_collapsed_cdi$signs_produced, ss_collapsed_cdi$age_months , method = "pearson")
+
+## acc and vocab
+qplot(data=ss_collapsed_cdi, x=signs_produced, y=mean_accuracy) +
+    geom_smooth(method="lm")
+
+m.acc.voc <- lm(mean_accuracy ~ signs_produced, data=ss_collapsed_cdi)
+summary(m.acc.voc)
+
+cor.test(ss_collapsed_cdi$signs_produced, 
+         ss_collapsed_cdi$mean_accuracy, 
+         method = "pearson")
+
+## rt to age
+qplot(data=ss_collapsed_acc, x=age_months, y=mean_ct_rt) +
+    geom_smooth(method="lm")
+
+cor.test(ss_collapsed_acc$age_months, 
+         ss_collapsed_acc$mean_ct_rt, 
+         method = "pearson")
+
+## rt to voc
+qplot(data=ss_collapsed_cdi, x=signs_produced, y=mean_ct_rt) +
+    geom_smooth(method="lm")
+
+# correlation
+cor.test(ss_collapsed_cdi$signs_produced, 
+         ss_collapsed_cdi$mean_ct_rt, 
+         method = "pearson")
+```
+
+Make clean scatter plots for SRCD talk:
+
+```{r SRCD scatter plots}
+# Acc and CDI, R(19) = 0.44
+acc.cdi.scatter <- qplot(data=ss_collapsed_cdi, x=signs_produced, y=mean_accuracy) +
+    geom_smooth(method="lm") + 
+    xlab("Signs Produced") + 
+    xlim(15,80) +
+    ylim(0.5,0.8) +
+    ylab("Mean \n Accuracy") +
+    theme(axis.title.x = element_text(colour="black",size=20,angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.title.y = element_text(colour="black",size=20,angle=0,hjust=0.5,vjust=0.5,face="plain"),
+        axis.text.x = element_text(colour="grey20",size=16,angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.text.y = element_text(colour="grey20",size=16,angle=0,hjust=0.5,vjust=0,face="plain"),
+        legend.position=c(0.85,0.85),
+        legend.text = element_text(size=17),
+        legend.title = element_text(size=17, face="bold"))
+
+ggsave("sol.acc.cdi.scatter.pdf", acc.cdi.scatter, width=6, height=5)
+
+# RT and CDI, R(19) = -0.49
+rt.cdi.scatter <- qplot(data=ss_collapsed_cdi, x=signs_produced, y=mean_ct_rt) +
+    geom_smooth(method="lm") +
+    xlab("Signs Produced") + 
+    ylim(700, 1800) +
+    xlim(15,80) +
+    ylab("Mean\nRT") +
+    theme(axis.title.x = element_text(colour="black",size=20,angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.title.y = element_text(colour="black",size=20,angle=0,hjust=0.5,vjust=0.5,face="plain"),
+        axis.text.x = element_text(colour="grey20",size=16,angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.text.y = element_text(colour="grey20",size=16,angle=0,hjust=0.5,vjust=0,face="plain"),
+        legend.position=c(0.85,0.85),
+        legend.text = element_text(size=17),
+        legend.title = element_text(size=17, face="bold"))
+
+ggsave("sol.rt.cdi.scatter.pdf", rt.cdi.scatter, width=6, height=5)
+```
+
+
+### Analyze first shift accuracy relations
+
+First we need to merge with other summary data for each participant
+
+```{r first shift acc analysis}
+# get C-T proportion for each participant
+prop_correct_shift <- ss_ct_cd_all_shifts %>%
+    filter(trial_type == "C-T") %>%
+    select(Sub.Num, trial_type, prop_shift)
+
+prop_correct_shift <- filter(prop_correct_shift, Sub.Num %in% ss_collapsed_acc$Sub.Num)
+
+# sort
+ss_collapsed_acc <- arrange(ss_collapsed_acc, Sub.Num)
+
+# merge with other subject level info
+ss_collapsed_acc <- merge(ss_collapsed_acc, prop_correct_shift, by="Sub.Num")
+```
+
+Now we plot the relationships between first shift accuracy and age
+
+```{r first shift acc and age}
+first_shift_age_scatter <- qplot(data=ss_collapsed_acc, x=age_months, y=prop_shift) +
+    geom_smooth(method = "lm") + 
+    xlab("Age Months") + 
+    xlim(15,36) +
+    ylim(0.5,0.95) +
+    ylab("First Shift\nAccuracy") +
+    theme(axis.title.x = element_text(colour="black",size=20,angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.title.y = element_text(colour="black",size=20,angle=0,hjust=0.5,vjust=0.5,face="plain"),
+        axis.text.x = element_text(colour="grey20",size=16,angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.text.y = element_text(colour="grey20",size=16,angle=0,hjust=0.5,vjust=0,face="plain"),
+        legend.position=c(0.85,0.85),
+        legend.text = element_text(size=17),
+        legend.title = element_text(size=17, face="bold"))
+
+ggsave("sol.first.shift.age.scatter.pdf", first_shift_age_scatter, width=6, height=5)
+
+# correlation
+cor.test(ss_collapsed_acc$age_months, 
+         ss_collapsed_acc$prop_shift, 
+         method = "pearson")
+```
+
+First shift acc and rt
+
+```{r first shift acc and age}
+qplot(data=ss_collapsed_acc, x=prop_shift, y=mean_ct_rt) +
+    geom_smooth(method = "lm") 
+
+# correlation
+cor.test(ss_collapsed_acc$mean_ct_rt, 
+         ss_collapsed_acc$prop_shift, 
+         method = "pearson")
+```
+
+First shift acc and mean acc
+
+```{r first shift acc and mean acc}
+qplot(data=ss_collapsed_acc, x=prop_shift, y=mean_accuracy) +
+    geom_smooth(method = "lm")
+
+# correlation
+cor.test(ss_collapsed_acc$mean_accuracy, 
+         ss_collapsed_acc$prop_shift, 
+         method = "pearson")
+
+```
+
+First shift acc and cdi
+
+```{r first shift acc and age}
+ss_collapsed_cdi_fs <- filter(ss_collapsed_acc, 
+                           include==1, 
+                           Age_Bin != "NA", 
+                           Age_Bin != "Adults",
+                           age_months <= 30)
+
+qplot(data=ss_collapsed_cdi_fs, x=signs_produced, y=prop_shift) +
+    geom_smooth(method = "lm")
+
+# correlation
+cor.test(ss_collapsed_cdi_fs$signs_produced, 
+         ss_collapsed_cdi_fs$prop_shift, 
+         method = "pearson")
+```
+
+
+### Trio comparison
+
+Get mean C-T RT for each age group
+
+```{r TRIO comparsion RT by age group}
+# get comparable age group (Trio = 24-26 months)
+ss_trio_comparsion <- filter(ss_collapsed_acc, age_months >= 24, age_months <= 36)
+
+ms_trio <- ss_trio_comparsion %>%
+      summarise(mean_rt = mean(mean_ct_rt),
+                ci.high.rt = ci.high(mean_ct_rt),
+                ci.low.rt = ci.low(mean_ct_rt)) %>%
+    mutate(Experiment = "ASL")
+
+ms_sol_mean_ct <- filter(ms_ct_cd_filt_collapsed, trial_type == "Center-Target", age_group == "> 24 Months")
+
+ms_trio <- cbind(ms_trio, ms_sol_mean_ct)
+
+# merge with mean RTs from Trio-Face and Trio-Bull
+ms_trio_face_bull <- read.csv("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/ms-trio-comp.csv", sep = ",")
+ms_trio_final <- rbind(ms_trio, ms_trio_face_bull)
+
+
+# reorder factor levels for plotting
+ms_trio_final$Experiment <- factor(ms_trio_final$Experiment, 
+                              levels = c("Trio-Bull", "Trio-Face", "ASL"))
+
+# plot with proportion of C-T, C-D shifts
+trio.comparison.plot <- qplot(data=ms_trio_final, x=Experiment, y=mean_prop, geom="bar",
+                              stat="identity", position = "dodge", ylim=c(0,1),
+                              xlab=c("Experiment"),
+                              ylab=c("Proportion \n of trials")) +
+    geom_linerange(limits, width=0.1, position=position_dodge(.9)) +
+    geom_hline(yintercept=0.5, linetype = "dashed") +
+    theme(axis.title.x = element_text(colour="black",size=16,angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.title.y = element_text(colour="black",size=16,angle=0,hjust=0.5,vjust=0.5,face="plain"),
+          axis.text.x = element_text(colour="grey20",size=12,angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.text.y = element_text(colour="grey20",size=12,angle=0,hjust=0.5,vjust=0,face="plain"),
+          legend.position=c(0.85,0.85),
+          legend.text = element_text(size=13),
+          legend.title = element_text(size=13, face="bold"))
+
+ggsave("sol-trio-comp-srcd",trio.comparison.plot, width=7, height=3.5)
+
+## rt plot
+limits.rt <- aes(ymax = mean_rt + ci.high.rt, ymin= mean_rt - ci.low.rt)
+
+
+trio_rt_plot <- qplot(data=ms_trio_final, x=Experiment, y=mean_rt, geom="bar",
+                              stat="identity", position = "dodge", ylim=c(0,1250),
+                              xlab=c("Experiment"),
+                              ylab=c("Mean \n Reaction Time")) +
+    geom_linerange(limits.rt, width=0.1, position=position_dodge(.9)) +
+    theme(axis.title.x = element_text(colour="black",size=16,angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.title.y = element_text(colour="black",size=16,angle=0,hjust=0.5,vjust=0.5,face="plain"),
+          axis.text.x = element_text(colour="grey20",size=12,angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.text.y = element_text(colour="grey20",size=12,angle=0,hjust=0.5,vjust=0,face="plain"),
+          legend.text = element_text(size=13),
+          legend.title = element_text(size=13, face="bold"))
+
+ggsave("sol-trio-rt-srcd",trio_rt_plot, width=7, height=3.5)
+```
+
+
 
 
 #### Compare Van1 vs. Van2 for trials removed because of inattentiveness 

@@ -1,0 +1,4 @@
+"Condition"	"facet"	"dodg"	"mean"	"se"
+"vanilla"	"C-C"	"D"	367	NA
+"vanilla"	"C-D"	"D"	967.91679197995	45.320637546161
+"vanilla"	"C-T"	"D"	975.919855968422	36.9370553684506
