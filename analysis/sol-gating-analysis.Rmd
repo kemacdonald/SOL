@@ -1,0 +1,76 @@
+---
+title: "Sol-Gating Analysis"
+author: "Kyle MacDonald"
+date: "April 27, 2015"
+output: html_document
+---
+
+This script analyzes data for sol-gating experiment. The goal 
+of this analysisis to find the precise gate when participants 
+can reliably identify the sign for each sign used in the SOL 
+stimulus set.
+
+Load libraries.
+
+```{r, echo=F, warning=F, message=FALSE}
+rm(list=ls())
+source("useful.R")
+```
+
+Read in data.
+
+```{r}
+df <- read.csv("../data/sol-gating/sol-gating-processed-df.csv")
+```
+
+### Descriptives
+
+```{r}
+df %>%
+    group_by(id) %>%
+    mutate(num_trials = max(trial)) %>%
+    select(id, gender, age, asl_fluency, age_learned_asl, num_trials) %>%
+    distinct()
+```
+
+Histogram of main outcome variable --> Correct on 2-AFC measure
+
+```{r}
+qplot(x=correct, data=df)
+```
+
+Histogram rt just to make sure nothing weird is going on 
+
+```{r}
+qplot(x=rt, data=df)
+```
+
+### Main analysis
+
+Plot accuracy for each gate within each sign.
+
+```{r}
+ms <- df %>%
+    group_by(gate_name, gate_num) %>%
+    summarise(mean_correct = mean(correct))
+    
+ms_2 <- df %>% 
+    group_by(gate_name) %>%
+    summarise(tot_correct = sum(correct))
+
+ms <- left_join(ms, ms_2, by = "gate_name") 
+```
+
+Now plot
+
+```{r, fig.height=12, fig.width=10}
+ms <- ms %>%
+    ungroup %>%
+    arrange(tot_correct)
+    
+# now plot
+qplot(x=gate_num, y=mean_correct, data=ms, color=as.factor(tot_correct)) +
+    facet_wrap(tot_correct ~ gate_name, nrow=8, ncol=5) +
+    geom_line() +
+    theme_bw()
+```

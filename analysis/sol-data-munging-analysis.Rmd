@@ -25,8 +25,8 @@ setwd("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/plots/srcd")
 Set paths for loading data
 
 ```{r set paths}
-path_v1 <- "/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/vanilla-1/"
-path_v2 <- "/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/vanilla-2-fixed-orders/srcd-analysis/"
+path_v1 <- "/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-iCharts/vanilla-1/"
+path_v2 <- "/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-iCharts/vanilla-2-fixed-orders/srcd-analysis/"
 path_demo_v1 <- "/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/"
 path_demo_v2 <- "/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/"
 ```
@@ -1130,7 +1130,7 @@ ss_collapsed_acc <- merge(ss_collapsed_acc, prop_correct_shift, by="Sub.Num")
 
 Now we plot the relationships between first shift accuracy and age
 
-```{r first shift acc and age}
+```{r first shift acc and age plot}
 first_shift_age_scatter <- qplot(data=ss_collapsed_acc, x=age_months, y=prop_shift) +
     geom_smooth(method = "lm") + 
     xlab("Age Months") + 
@@ -1155,7 +1155,7 @@ cor.test(ss_collapsed_acc$age_months,
 
 First shift acc and rt
 
-```{r first shift acc and age}
+```{r first shift rt and age}
 qplot(data=ss_collapsed_acc, x=prop_shift, y=mean_ct_rt) +
     geom_smooth(method = "lm") 
 
@@ -1217,8 +1217,8 @@ ms_trio <- cbind(ms_trio, ms_sol_mean_ct)
 
 # merge with mean RTs from Trio-Face and Trio-Bull
 ms_trio_face_bull <- read.csv("/Users/kmacdonald/Documents/Projects/SOL/SOL-Data/SOL-raw-data/ms-trio-comp.csv", sep = ",")
-ms_trio_final <- rbind(ms_trio, ms_trio_face_bull)
 
+ms_trio_final <- rbind(ms_trio, ms_trio_face_bull)
 
 # reorder factor levels for plotting
 ms_trio_final$Experiment <- factor(ms_trio_final$Experiment, 
@@ -1239,11 +1239,8 @@ trio.comparison.plot <- qplot(data=ms_trio_final, x=Experiment, y=mean_prop, geo
           legend.text = element_text(size=13),
           legend.title = element_text(size=13, face="bold"))
 
-ggsave("sol-trio-comp-srcd",trio.comparison.plot, width=7, height=3.5)
-
 ## rt plot
 limits.rt <- aes(ymax = mean_rt + ci.high.rt, ymin= mean_rt - ci.low.rt)
-
 
 trio_rt_plot <- qplot(data=ms_trio_final, x=Experiment, y=mean_rt, geom="bar",
                               stat="identity", position = "dodge", ylim=c(0,1250),
@@ -1256,11 +1253,7 @@ trio_rt_plot <- qplot(data=ms_trio_final, x=Experiment, y=mean_rt, geom="bar",
           axis.text.y = element_text(colour="grey20",size=12,angle=0,hjust=0.5,vjust=0,face="plain"),
           legend.text = element_text(size=13),
           legend.title = element_text(size=13, face="bold"))
-
-ggsave("sol-trio-rt-srcd",trio_rt_plot, width=7, height=3.5)
 ```
-
-
 
 
 #### Compare Van1 vs. Van2 for trials removed because of inattentiveness 

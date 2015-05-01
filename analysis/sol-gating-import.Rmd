@@ -1,0 +1,158 @@
+---
+title: "sol-gating-import"
+author: "Kyle MacDonald"
+date: "April 27, 2015"
+output: html_document
+---
+
+#### Import SOL-gating Data
+
+Script to munge ipad data for sol-gating experiment. 
+
+
+Load libraries for data manipulation
+
+```{r load_libraries, warning=FALSE, message=FALSE}
+rm(list=ls())
+library(plyr)
+library(dplyr)
+library(stringr)
+setwd("../data/sol-gating/")
+```
+
+Read in data
+
+```{r read in version 2 data}
+all.data <- as.data.frame(matrix(ncol = 0, nrow = 0))
+
+#grab all file names from data dir. 
+all_results <- list.files(pattern="*.txt")
+
+#function to munge the data
+#takes in a list of filenames (.txt of each sub's data), 
+#strips html escape characters, and grabs the relevant info for each trial
+#returns data frame with all the data
+
+gating_import <- function(filename) {
+        x <- readLines(filename, warn=FALSE)
+        x <- unlist(strsplit(x,'<li>'))
+        
+        #grab id
+        regexp <- "[[:digit:]]+" # extract just numbers
+        id <- x[2067]
+        id <- str_extract(id, regexp)
+        id <- as.numeric(id)
+
+        #strip html characters
+        x <- gsub('\\"',"", x)
+        x <- gsub("\\\\\"","",x)
+        x <- gsub("</li>","",x)
+        x <- gsub("</ul>\\},\\{<ul>","",x)
+        x[length(x)] <- gsub("</ul>\\}]","",x[length(x)])
+        x <- gsub("^.*?: ","",x)
+        x <- gsub("</ul>}]","",x)
+        
+        #grab date 
+        date <- str_sub(filename,20,36)
+        date <- gsub('_','',date)
+        date <- gsub('\\.','',date)
+        
+        # grab other sub info
+        gender <- x[4]
+        age <- x[5]
+        asl_fluency <- x[6]
+        age_learned_asl <- x[7]
+        
+         # grab trial information 
+        x <- x[9:2060]
+        
+        #bind to data frame
+        x <- as.data.frame(matrix(x,nrow=length(x),ncol=9,byrow=TRUE), 
+                           stringsAsFactors=F)
+        x$V10 <- date
+        x$V11 <- id
+        x$V12 <- gender
+        x$V13 <- age
+        x$V14 <- asl_fluency
+        x$V15 <- age_learned_asl
+        return(unique(x)) ## need this to get the data frame!
+}
+
+#apply munging function to each kid's data file
+all.data <- ldply(.data = all_results, .fun = gating_import)
+
+#add variable names to columns
+names(all.data) <- c("trial","trial_in_block","block","gate","target_image",
+              "chosen_image","chosen_img_index","correct","rt","date", "id",
+              "gender", "age", "asl_fluency", "age_learned_asl")
+```
+
+Chop up gate filename, so we can analyze each timeslice (1-6) for 
+each gate. 
+
+```{r}
+# list of gate names
+gate_list <- c("ball_find", "ball_where_1", "ball_where_4", "ball_which",
+               "bear_look", "bear_where_1", "bear_where_2", 
+               "bear_where_4","bear_which",
+               "bird_look", "bird_where_1", "bird_where_2", "bird_where_4", 
+               "book_look", "book_where_2", "book_where_4", "book_which",
+               "car_where_1", "car_where_3", "car_which", 
+               "cat_where", "cat_which", 
+               "doll_find", "doll_where_1", "doll_where_3", 
+               "doll_where_4","doll_which",
+               "kitty_hey", "kitty_where",
+               "love_ball", "love_bear", "love_bird", "love_book",
+               "love_car", "love_cat" ,"love_doll", "love_shoes", 
+               "shoe_hey", "shoe_where", "shoes_where", "shoes_which")
+
+# extract string from long ugly gate name
+gates <- sapply(all.data$gate, function (x) str_extract(x, gate_list))
+
+# remove NAs
+gates <- gates[!is.na(gates)]
+
+# add to data frame
+all.data$gate_name <- gates
+
+# revalue following gates
+# "bear_where_2" --> "bear_where_1"
+# "bird_where_2" --> "bird_where_1"
+# "doll_where_4" --> "doll_where_3"
+
+all.data$gate_name<- revalue(all.data$gate_name, 
+                             c("bear_where_2" = "bear_where_1",
+                               "bird_where_2" = "bird_where_1",
+                               "doll_where_4" = "doll_where_3"))
+```
+
+Now that we have separated the gate name, we need to get the number
+of the gate (1-6).
+
+```{r}
+# get gate numbers
+gate_nums <- as.vector(sapply(all.data$gate, function (x)
+    substr(x, str_length(x), str_length(x))))
+
+# add to data frame
+all.data$gate_num <- gate_nums
+
+# change correct to logical 
+all.data$correct <- as.logical(all.data$correct)
+```
+
+Check to make sure we have six gates for each sign
+
+```{r}
+gate_df <- all.data %>%
+    group_by(gate_name) %>%
+    summarise(num_gates = n())
+gate_df
+```
+
+Save output
+
+```{r}
+write.csv(all.data, file = "sol-gating-processed-df.csv", row.names=F)
+```
+
