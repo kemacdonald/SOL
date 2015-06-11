@@ -1,3 +1,0 @@
-"Condition"	"facet"	"dodg"	"mean"	"se"
-"vanilla"	"C-D"	"D"	971.63537414966	49.0508488415042
-"vanilla"	"C-T"	"D"	980.017130290577	39.930677076898

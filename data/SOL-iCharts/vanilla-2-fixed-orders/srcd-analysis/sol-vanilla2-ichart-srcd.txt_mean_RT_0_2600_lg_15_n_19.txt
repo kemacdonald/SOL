@@ -1,2 +1,0 @@
-"Condition"	"dodg"	"mean"	"se"
-"vanilla-2"	"D"	1188.35482579741	79.3098261892396
