@@ -3,7 +3,7 @@
 # create function for flagging these trial types
 trial_type_fun <- function(trial) { 
     start_col <- which(names(trial)=="0")
-    end_col <- which(names(trial)=="3000")
+    end_col <- which(names(trial)=="2700")
     trial_type <- "no-shift"
     for (col in start_col:end_col) {
         curr_val <- trial[col]

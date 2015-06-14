@@ -4,7 +4,7 @@ Sol Data Processing
 
 2. Export
 
-3a. Remove all frames before F0. This allows you to easliy merge the two data files in R. We want to leave a few frames before F0 in case we want to see what participants were doing before we (as experimenters) defined F0. (The gating study will hopefully address any concerns about this.)
+3a. Remove frames before F0. This allows you to easliy merge the two data files in R. We want to leave a few frames before F0 in case we want to see what participants were doing before we (as experimenters) defined F0. (The gating study will hopefully address any concerns about this.)
 
 3b. Add column headers tracking time in ms out to F4995. For some reason Datawiz doesn't do this(?). The end result is that we save 0-5000ms or the 5 seconds after the start of the target sign.
 

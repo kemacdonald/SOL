@@ -1,0 +1,73 @@
+---
+title: "sol-munging"
+author: "Kyle MacDonald"
+date: "June 12, 2015"
+output: html_document
+---
+
+## Script to munge sol eye movement data
+
+```{r}
+rm(list=ls())
+```
+
+```{r}
+source("../../helpers/libraries_v_3.6.R")
+library(dplyr)
+library(stringr)
+```
+
+### Read in icharts for V1 and V2 
+
+```{r}
+v1_df <- readiChart("sol-ichart-v1-processed.txt")
+v2_df <- readiChart("sol-ichart-v2-processed.txt")
+```
+
+### Add variable to track stimuli 
+
+```{r}
+v1_df$stimuli <- "V1"
+v2_df$stimuli <- "V2"
+```
+
+### Make sure that all columns with eye-tracking data are character class
+
+Not totally sure why the readiChart function doesn't read all of these as characters (?)
+
+```{r}
+# first we grab the first/last columns that are class logical 
+start_col <- grep("4900", colnames(v1_df))
+end_col <- grep("5033", colnames(v1_df))
+
+# now we can change the class for each column 
+v1_df[, start_col:end_col] <- as.character(unlist(v1_df[, start_col:end_col]))
+```
+
+### Bind data frames together
+
+```{r}
+v1_v2_df <- bind_rows(v1_df, v2_df)
+```
+
+### Change F. in column name to - (codes for looking behavior before F0; noun onset)
+
+```{r}
+colnames(v1_v2_df) <- sapply(colnames(v1_v2_df), function (x) {
+    str_replace(x, "F\\.", "-")  
+})
+```
+
+One child completed two PEEKs because the fire alarm went off after first 8 trials in PEEK1 – here, we read in the data as two subjects (30036 and 99999) and now we revalue subject 99999 to be 30036.
+
+After running this, 30036 should have 22 vanilla trials and 99999 should no longer exist.
+
+```{r}
+v1_v2_df$Sub.Num[v1_v2_df$Sub.Num == "99999"] <- "30036" 
+```
+
+### Save final/merged data frame
+
+```{r}
+write.csv(v1_v2_df, file = "sol-ichart-merged.csv", row.names = F, na = "NA")
+```
