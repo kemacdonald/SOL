@@ -4,22 +4,38 @@
 trial_type_fun <- function(trial) { 
     start_col <- which(names(trial)=="0")
     end_col <- which(names(trial)=="2700")
-    trial_type <- "no-shift"
-    for (col in start_col:end_col) {
-        curr_val <- trial[col]
-        next_val <- trial[col+1]
-        
-        if(curr_val == "." & next_val %in% c("0", "1", "0.5", ".5")) {
-            if(next_val == "1") {
-                trial_type <- "C-T"
-            } else if(next_val == "0.5" | next_val == ".5") {
-                trial_type <- "C-C"
+    trial_type <- "no_shift"
+    response <- trial[which(names(trial)=="Response")]
+    first_look_signer <- FALSE
+    
+    if (response == "D") {
+        for (col in start_col:end_col) {
+            curr_val <- trial[col]
+            next_val <- trial[col+1]
+            
+            if(first_look_signer) {
+                if(curr_val == "." & next_val %in% c("0", "1", "0.5", ".5")) {
+                    if(next_val == "1") {
+                        trial_type <- "C_T"
+                    } else if(next_val == "0.5" | next_val == ".5") {
+                        trial_type <- "C_C"
+                    } else {
+                        trial_type <- "C_D"    
+                    }
+                    break
+                }
             } else {
-                trial_type <- "C-D"    
+                ## check if current value is look to signer
+                ## if it is then we should start checking for trial_type
+                if(curr_val %in% c("0.5", ".5")) {
+                    first_look_signer <- TRUE
+                }
             }
-            break
         }
+    } else {
+        trial_type <- "off_signer"
     }
+    
     return(trial_type)
 }
 
@@ -482,16 +498,38 @@ defineOnset <- function(iChart, critonset, includeAways=FALSE) {
 
 ## includeAways == FALSE -> only include trials child was looking at center at F0
 ## includeOffCenter == TRUE -> include trials child was looking at center, target, or distractor at F0 
-defineOnsetSOL <- function(iChart, critonset, includeOffCenter=FALSE) {
+
+defineOnsetSOL <- function(iChart, critonset, end_critonset, includeOffCenter=FALSE, includeWindow=FALSE) {
       
-      F0 <- critonset
+    # assign values
+      F0 <- as.character(critonset)
       F0 <- which(names(iChart)==F0)
-      iChart$Response <- ifelse(iChart[,F0] == ".5" | iChart[,F0] == 0.5, "D", 
-                                ifelse(iChart[,F0] == "", "A", "A")) 
+      end_critonset <- as.character(end_critonset)
+      end_col <- which(names(iChart)==end_critonset)
       
-      if(includeOffCenter) iChart$Response <- ifelse(iChart[,F0] == ".5" | iChart[,F0] == "0.5", "D", 
-                                                 ifelse(iChart[,F0] == "1" | 
-                                                              iChart[,F0] == "0", "D", "A")) 
+    # this lets you expand the window for determining response  
+      if(includeWindow) {
+          iChart <- iChart %>% 
+              select(Sub.Num, Tr.Num, F0:end_col) %>%
+              mutate_each(funs(. %in% c("0.5", ".5"))) %>% 
+              mutate(Response_redefined = ifelse(rowSums(.) == 0, "A", "D")) %>% 
+              select(Response_redefined) %>% 
+              bind_cols(iChart)
+      } else {
+          iChart$Response <- ifelse(iChart[,F0] == ".5" | iChart[,F0] == "0.5", "D", 
+                                    ifelse(iChart[,F0] == "", "A", "A")) 
+      }
+          
+
+      if(includeOffCenter) {
+          iChart$Response <- ifelse(iChart[,F0] == ".5" | iChart[,F0] == "0.5", "D", 
+                                    ifelse(iChart[,F0] == "1" | 
+                                               iChart[,F0] == "0", "D", "A")) 
+          
+          
+      } 
+
+      
       
       return(iChart)
       

@@ -17,7 +17,7 @@ rm(list=ls())
 library(plyr)
 library(dplyr)
 library(stringr)
-setwd("../../data/sol-gating/")
+setwd("../../raw_data/sol-gating/")
 ```
 
 Read in data
@@ -93,6 +93,7 @@ each gate.
 ```{r}
 # extract string from long ugly gate name
 gate_extract <- function (gate_name) {
+    regexp <- "[[:digit:]]"
     #locate the first digit in string
     digit_idx <- str_locate(gate_name, regexp)
     digit_idx <- as.numeric(digit_idx[1])
@@ -142,18 +143,27 @@ all.data$gate_num <- gate_nums
 all.data$correct <- as.logical(all.data$correct)
 ```
 
+Extract the signer initial from front of gate
+
+```{r}
+all.data$gate_signer <- as.vector(sapply(all.data$gate, function (x)
+    substr(x, 1, 1)))
+
+all.data$gate_signer <- as.factor(all.data$gate_signer)
+```
+
 Check to make sure we have six gates for each sign
 
 ```{r}
 gate_df <- all.data %>%
     group_by(gate_name) %>%
-    summarise(num_gates = n())
-gate_df
+    summarise(num_gates = n()) %>% 
+    print()
 ```
 
 Save output
 
 ```{r}
-write.csv(all.data, file = "sol-gating-processed-df.csv", row.names=F)
+write.csv(all.data, file = "../../analysis/gating/sol_gating_processed-df.csv", row.names=F)
 ```
 
