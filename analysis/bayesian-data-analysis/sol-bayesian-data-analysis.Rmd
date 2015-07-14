@@ -21,9 +21,53 @@ library(gridExtra)
 library(reshape2)
 library(ggplot2)
 library(dplyr)
+library(MASS)
 
 df_correct <- read.csv("sol_ss_kids.csv")
 df_correct <- mutate(df_correct, total_trials_shifting = C_T_count + C_D_count)
+df_filt <- filter(df_correct, exclude_chance_shifter == "include")
+```
+
+First I start with multiple regression
+
+```{r}
+fit1_rt <- lm(mean_rt ~ signs_produced, data=df_correct)
+fit2_rt <- lm(mean_rt ~ Months + signs_produced, data=df_correct)
+
+anova(fit1, fit2)
+
+fit1_acc <- lm(mean_accuracy ~ signs_produced, data=df_correct)
+fit2_acc <- lm(mean_accuracy ~ Months + signs_produced, data=df_correct)
+
+anova(fit1_acc, fit2_acc)
+```
+
+```{r}
+fit1_rt <- lm(mean_rt ~ signs_produced, data=df_filt)
+fit2_rt <- lm(mean_rt ~ Months + signs_produced, data=df_filt)
+
+summary(fit1_rt)
+summary(fit2_rt)
+
+anova(fit1, fit2)
+
+fit1_acc <- lm(mean_accuracy ~ signs_produced, data=df_filt)
+fit2_acc <- lm(mean_accuracy ~ Months + signs_produced, data=df_filt)
+
+summary(fit1_acc)
+summary(fit2_acc)
+
+anova(fit1_acc, fit2_acc)
+```
+
+Then we try robust regression 
+
+```{r}
+fit1_rlm <- rlm(mean_rt ~ signs_produced, data=df_correct)
+fit2_rlm <- rlm(mean_rt ~ signs_produced + Months, data=df_correct)
+anova(fit1_rlm, fit2_rlm)
+
+summary(rlm(mean_accuracy ~ signs_produced + Months, data=df_correct))
 ```
 
 Here I adjusted the model to allow for different number of trials for each participants.
