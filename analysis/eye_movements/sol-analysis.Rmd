@@ -313,9 +313,9 @@ acc_ss <- poolData(meanAccuracy(iChart, startWindowAcc=500, endWindowAcc=2000),
                 breaks=c(0.25, 0.50, 0.75))
 
 ## Compute reaction time for each age group only on C_T trials
-rt_ss <- poolData(filter(iChart, trial_types %in% c("C_T")), 
+rt_ss <- poolData(iChart, 
                RejectFirstGap=TRUE, RejectLongestGap=TRUE,
-               RejectRT=TRUE, color=FALSE, dependent="RT", group="", 
+               RejectRT=TRUE, color=FALSE, dependent="RT", group="trial_types", 
                facet="", dodge="Response",
                xlab="", ylab="mean RT (ms)", 
                paired=TRUE, 
@@ -340,7 +340,7 @@ acc <- poolData(meanAccuracy(iChart, startWindowAcc=500, endWindowAcc=2000),
                 breaks=c(0.25, 0.50, 0.75))
 
 ## Compute reaction time for each age group only on C_T trials
-rt <- poolData(filter(iChart, trial_types %in% c("C_T")), 
+rt <- poolData(iChart, 
                RejectFirstGap=TRUE, RejectLongestGap=TRUE,
                RejectRT=TRUE, color=FALSE, dependent="RT", group="age_group", 
                facet="", dodge="Response",
@@ -381,7 +381,8 @@ ss <- merge(ss, ss_age_bins, by="Sub.Num")
 
 # clean up variable names in data frame
 names(ss)[names(ss)=="Vanilla"] <- "mean_accuracy"
-names(ss)[names(ss)=="Vanilla_D"] <- "mean_rt"
+names(ss)[names(ss)=="Vanilla_C_D_D"] <- "mean_incorrect_rt"
+names(ss)[names(ss)=="Vanilla_C_T_D"] <- "mean_correct_rt"
 ```
 
 ## First shifts 
@@ -416,7 +417,12 @@ ss <- ss_first_shifts_prop %>%
 # flag chance first shifters -- need to find a principled way to do this
 ss <- ss %>% 
     mutate(C_D_prop = ifelse(C_T_prop == 1, 0, C_D_prop),
-           exclude_chance_shifter = ifelse(Sub.Num %in% c("30050", "30018", "30051", "30086", "30088"), "exclude", "include"))
+           exclude_chance_shifter = ifelse(Sub.Num %in% c("30050", 
+                                                          "30018", 
+                                                          "30051", 
+                                                          "30086", 
+                                                          "30088"), 
+                                           "exclude", "include"))
 ```
 
 Set up filter to just include kids for correlation analyses.
@@ -433,9 +439,10 @@ write.csv(ss_kids, "../../paper/sol_ss_kids.csv", row.names = F)
 ## Look at all correlations 
 
 ```{r, fig.height=8, fig.width=10, warning=F}
-Hmisc::rcorr(as.matrix(select(ss_kids, mean_accuracy, C_T_prop, mean_rt, signs_produced, Months)))
+Hmisc::rcorr(as.matrix(select(ss_kids, mean_accuracy, C_T_prop, mean_correct_rt,
+                              signs_produced, Months)))
 
-ggpairs(data = select(ss_kids, mean_accuracy, C_T_prop, mean_rt, signs_produced, Months),
+ggpairs(data = select(ss_kids, mean_accuracy, C_T_prop, mean_correct_rt, signs_produced, Months),
         upper = list(continuous = "smooth", combo = "cor", 
                      params = c(method = "lm", color="darkblue")),
         lower = list(continuous = "cor"),
@@ -446,9 +453,9 @@ ggpairs(data = select(ss_kids, mean_accuracy, C_T_prop, mean_rt, signs_produced,
 Just RT.
 
 ```{r, fig.height=8, fig.width=10, warning = F}
-Hmisc::rcorr(as.matrix(select(ss_rt, mean_rt, signs_produced, Months)))
+Hmisc::rcorr(as.matrix(select(ss_rt, mean_correct_rt, signs_produced, Months)))
 
-ggpairs(data = select(ss_rt, mean_rt, signs_produced, Months),
+ggpairs(data = select(ss_rt, mean_correct_rt, signs_produced, Months),
         upper = list(continuous = "smooth", combo = "cor", 
                      params = c(method = "lm", color="darkblue")),
         lower = list(continuous = "cor"),
@@ -460,11 +467,10 @@ ggpairs(data = select(ss_rt, mean_rt, signs_produced, Months),
 
 ```{r}
 t.test(mean_accuracy ~ age_group, data=ss_kids)
-t.test(mean_rt ~ age_group, data=ss_kids)
+t.test(mean_correct_rt ~ age_group, data=ss_kids)
 ```
 
-
-# Plot individual participants performance
+### Get confidence interval for graph values
 
 ```{r, warning=F, message=F, eval=F}
 createPlots(iChart, startWindow=0, endWindow=2000, RejectLongestGap=FALSE, 
@@ -507,26 +513,6 @@ ss.et.long <- ss.et.long %>%
            accuracy = as.numeric(accuracy))
 ```
 
-### Exploratory Plots
-
-```{r, message=F, warning=F, fig.height=8, fig.width=14}
-# set breaks for x-axis
-breaks <- seq(0,2000, by=500)
-
-qplot(data = ss.et.long, x = Time.ms, y = accuracy,
-      color=groupping, geom="smooth", method = "loess",
-      ylim=c(0.2,1), xlab=c("Time (ms) from noun onset"), 
-      ylab=c("Proportion Looking to target")) + 
-    geom_hline(yintercept = 0.5, linetype="dashed") +
-    scale_x_discrete(breaks = breaks) +
-    facet_wrap(Months+signs_produced~Sub.Num, ncol=8) +
-    #guides(color=FALSE) +
-    geom_vline(xintercept=1200, linetype = "dashed") +
-    theme(axis.text.x = element_text(angle = 75, hjust = 1)) +
-    theme_bw()
-```
-
-### Get confidence interval for graph values
 
 ```{r, warning=F, message=F}
 ms_graph_values <- ss.et.long %>% 
@@ -542,7 +528,7 @@ y_breaks <- seq(0.25,1.0, by = 0.25)
 points <- seq(0,1900, by = 100)
 
 qplot(data = ms_graph_values, x = Time.ms, y = mean_accuracy,
-      color=groupping, geom = "blank", xlab=c("Time in msec from onset of noun"), 
+      color=groupping, geom = "blank", xlab=c("Time in ms from onset of noun"), 
       ylab=c("ACCURACY\nProportion\nlooking\nto target")) + 
     geom_point(data = filter(ms_graph_values, Time.ms %in% points), size=3) +
     geom_line(size=0.7) +
