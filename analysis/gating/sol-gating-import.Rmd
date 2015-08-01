@@ -152,7 +152,7 @@ all.data$gate_signer <- as.vector(sapply(all.data$gate, function (x)
 all.data$gate_signer <- as.factor(all.data$gate_signer)
 ```
 
-Check to make sure we have six gates for each sign
+Check the number of gates for each sign
 
 ```{r}
 gate_df <- all.data %>%

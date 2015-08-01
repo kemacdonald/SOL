@@ -58,13 +58,13 @@ df %>% group_by(include_good_rt) %>% summarise(n())
 df <- filter(df, include_good_rt == "include")
 ```
 
-
 ### Main analysis
 
 Plot accuracy for each gate within each sign.
 
 ```{r}
 ms <- df %>%
+    na.omit() %>% 
     group_by(gate_name, gate_num, gate_signer) %>%
     summarise(mean_correct = mean(correct),
               ci_h = ci.high(correct),
@@ -75,7 +75,7 @@ Now plot
 
 ```{r, fig.height=12, fig.width=10}
 qplot(x=gate_num, y=mean_correct, color = gate_signer, data=ms) +
-    facet_wrap( ~ gate_name, nrow=8, ncol=5) +
+    facet_wrap( ~ gate_name,ncol=8) +
     geom_line() +
     geom_pointrange(aes(ymin=mean_correct - ci_l, 
                         ymax=mean_correct + ci_h), 

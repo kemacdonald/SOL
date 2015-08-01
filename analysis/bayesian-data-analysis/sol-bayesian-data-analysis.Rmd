@@ -21,6 +21,7 @@ library(gridExtra)
 library(reshape2)
 library(ggplot2)
 library(dplyr)
+library(magrittr)
 library(MASS)
 ```
 
@@ -28,58 +29,15 @@ Load data
 
 ```{r}
 df_correct <- read.csv("sol_ss_kids.csv")
-df_correct <- mutate(df_correct, total_trials_shifting = C_T_count + C_D_count)
 df_filt <- filter(df_correct, exclude_chance_shifter == "include")
 ```
 
-First I start with multiple regression
-
 ```{r}
-fit1_rt <- lm(mean_rt ~ signs_produced, data=df_correct)
-fit2_rt <- lm(mean_rt ~ Months + signs_produced, data=df_correct)
-
-anova(fit1_rt, fit2_rt)
-
-fit1_acc <- lm(mean_accuracy ~ signs_produced, data=df_correct)
-fit2_acc <- lm(mean_accuracy ~ Months + signs_produced, data=df_correct)
-
-anova(fit1_acc, fit2_acc)
-```
-
-```{r}
-fit1_rt <- lm(mean_rt ~ signs_produced, data=df_filt)
-fit2_rt <- lm(mean_rt ~ Months + signs_produced, data=df_filt)
-
-summary(fit1_rt)
-summary(fit2_rt)
-
-anova(fit1_rt, fit2_rt)
-
-fit1_acc <- lm(mean_accuracy ~ signs_produced, data=df_filt)
-fit2_acc <- lm(mean_accuracy ~ Months + signs_produced, data=df_filt)
-
-summary(fit1_acc)
-summary(fit2_acc)
-
-anova(fit1_acc, fit2_acc)
-```
-
-Then we try robust regression 
-
-```{r}
-fit1_rlm <- rlm(mean_rt ~ signs_produced, data=df_correct)
-fit2_rlm <- rlm(mean_rt ~ signs_produced + Months, data=df_correct)
-anova(fit1_rlm, fit2_rlm)
-
-summary(rlm(mean_accuracy ~ signs_produced + Months, data=df_correct))
-summary(rlm(mean_rt ~ signs_produced + Months, data=df_correct))
-```
-
-## Plot
-
-```{r}
-qplot(signs_produced, mean_rt, data = df_correct)
-qplot(Months, mean_accuracy, data = df_correct)
+df_correct %<>%  
+    mutate(
+        C_D_count = ifelse(is.na(C_D_count), 0, C_D_count),
+        total_trials_shifting = C_T_count + C_D_count
+    )
 ```
 
 Here I adjusted the model to allow for different number of trials for each participants.
@@ -103,19 +61,18 @@ model{
   }
 }', file={f<-tempfile()})
 
-k <- df_correct$C_T_count # number correct
-p <- length(k) # number of people
-n <- df_correct$total_trials_shifting
+k <- df_correct$C_T_count              # number correct for each participant
+p <- length(k)                         # number of participants
+n <- df_correct$total_trials_shifting  # number of trials for each participant
 
 data <- list("p", "k", "n") # to be passed on to JAGS)
-myinits <-  list(
-    list(phi = 0.75, z = round(runif(p)))) # Initial group assignment
+myinits <-  list(list(phi = 0.75, z = round(runif(p)))) # Initial group assignment
 
 # parameters to be monitored:	
 parameters <- c("phi","z")
 
 samples <- jags(data, inits=myinits, parameters,
-                model.file =f, n.chains=1, n.iter=1000, 
+                model.file=f, n.chains=1, n.iter=1000, 
                 n.burnin=1, n.thin=1, DIC=T)
 
 df <- data.frame(phi = samples$BUGSoutput$sims.list$phi,
@@ -147,9 +104,12 @@ Get the participants flagged as likely guessers. So we can compare across model 
 ```{r}
 m1_guessers <- df_melt %>% 
     group_by(Sub.Num) %>% 
-    summarise(count = sum(group_membership)) %>% 
-    filter(count <= 500) %>% 
-    print()
+    summarise(knowledge_count = sum(group_membership)) %>% 
+    filter(knowledge_count <= 500) %>% # determines the proportion of posterior == "guessing"
+    mutate(
+        guessing_count = 1000 - knowledge_count,
+        posterior_mass = round(guessing_count / 1000, 2)
+    )
 ```
 
 ## Compare inference from latent mixture model to binomial test across participants
@@ -165,7 +125,6 @@ binom_guessers <- df_correct %>%
 ### Change prior expectation of guessing
 
 What happens if you change the initial expectation that everybody is equally likely to belong to either group, and have an expectation that people generally are not guessing, with (say), z_i ~ Bernoulli(0.9)?
-
 
 ```{r 6.1.5,fig.width=12, fig.height=6, echo=FALSE}
 cat('# Exam Scores
