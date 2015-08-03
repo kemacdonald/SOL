@@ -6,26 +6,30 @@ author: |
   | 2. University of California Davis
 bibliography: references.bib
 output:
+  word_document:
+    fig_caption: yes
   pdf_document:
     fig_caption: yes
     keep_tex: yes
-  word_document:
-    fig_caption: yes
 fontsize: 12pt
 csl: apa6.csl
-abstract: Children learning sign language must use vision to process *both* linguistic information and the visual world, creating a challenge for young learners' real-time
+abstract: Children learning sign language must use vision to process *both* linguistic
+  information and the visual world, creating a challenge for young learners' real-time
   language comprehension. Extensive research with children learning spoken language
-  shows that the ability to link words to objects with high efficiency is
-  critical to language development [@fernald2012individual]. But, we know relatively
-  little about how visual language learners develop this important language skill.
-  This cross-sectional study provides the first measures of young children's American Sign
-  Language (ASL) comprehension abilities, and explores links between these skills, 
-  children’s age, and vocabulary development. 29 native ASL learners (16-53 mos) and 19
-  fluent adult signers completed a novel task measuring ASL processing efficiency. 
-  Children’s comprehension skills improved with age, with adult signers being most efficient. Importantly, children’s processing skills strongly correlated with their
-  age and vocabulary size, providing evidence that the ability to establish
-  reference in real-time is linked to meaningful language development. These novel
-  findings show striking parallels between visual language learners and children learning spoken languages, with both groups making impressive gains in the efficiency of language interpretation over the first few years of life as they progress towards adult-like levels of fluency.
+  shows that the ability to link words to objects with high efficiency is critical
+  to language development [@fernald2012individual]. But, we know relatively little
+  about how visual language learners develop this important language skill. This cross-sectional
+  study provides the first measures of young children's American Sign Language (ASL)
+  comprehension abilities, and explores links between these skills, children’s age,
+  and vocabulary development. 29 native ASL learners (16-53 mos) and 19 fluent adult
+  signers completed a novel task measuring ASL processing efficiency. Children’s comprehension
+  skills improved with age, with adult signers being most efficient. Importantly,
+  children’s processing skills strongly correlated with their age and vocabulary size,
+  providing evidence that the ability to establish reference in real-time is linked
+  to meaningful language development. These novel findings show striking parallels
+  between visual language learners and children learning spoken languages, with both
+  groups making impressive gains in the efficiency of language interpretation over
+  the first few years of life as they progress towards adult-like levels of fluency.
 ---
 \newpage
 
@@ -39,7 +43,10 @@ rm(list=ls())
 library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(car)
+```
 
+```{r load data}
 # load summary data
 ss_kids_df <- read.csv("sol_ss_kids.csv", stringsAsFactors = F)
 
@@ -227,18 +234,7 @@ rt_dist <- qplot(rts$RT) +
 ```
 
 # Results 
-
-```{r profile plot png, cache=T, fig.width=6, fig.height=4, fig.cap="The timecourse of participants' responses to the target picture in relation to the unfolding sign for younger children, older children, and adults. Curves show changes over time in the mean proportion looking to the correct picture, measured in ms from noun onset; error bars represent +/- 95% CI computed by non-parametric bootstrap. The dashed vertical line indicates mean offset of target nouns (1134 ms)."}
-
-pp_png <- png::readPNG("Figs/profile_plot.png")
-grid::grid.raster(pp_png)
-```
-
-First we present an overview of performance on the VLP task, showing that children become faster and more accurate at comprehending familiar signs as they get older and make progress towards adult levels of language fluency. Then we present analyses of the links between children’s real-time ASL processing skills and both age and productive ASL vocabulary. 
-
-TODO: Add t-test by age group for both accuracy and reaction time. 
-
-```{r correlations}
+```{r correlations age}
 # correlations age
 cor_acc_age <- cor.test(ss_kids_df$mean_accuracy, ss_kids_df$Months)
 cor_rt_age <- cor.test(ss_kids_rt_df$mean_correct_rt, ss_kids_rt_df$Months)
@@ -260,31 +256,47 @@ acc_rt_p <- as.character(round(cor_acc_rt$p.value, 3))   # get p values
 acc_rt_df <- as.character(cor_acc_rt$parameter)          # get df 
 ```
 
-```{r, multiple regression acc}
-fit_acc1 <- lm(mean_accuracy ~ signs_produced, data = ss_kids_df)
-fit_acc2 <- lm(mean_accuracy ~ signs_produced + age_peek_months, data = ss_kids_df)
-acc_lm_anova <- anova(fit_acc1, fit_acc2)
+```{r t-test rt}
+levene_rt <- leveneTest(mean_correct_rt ~ age_group, data=ss_kids_rt_df)
+rt_ttest <- t.test(mean_correct_rt ~ age_group, alternative = "greater", 
+                   var.equal=T, data = ss_kids_rt_df)
+
+rt_tval <- round(rt_ttest$statistic, 2)
+rt_tdf <- rt_ttest$parameter
+
+## compute effect size
+ms_rt <- ss_kids_rt_df %>% 
+    group_by(age_group) %>% 
+    summarise(mean = mean(mean_correct_rt),
+              sd = sd(mean_correct_rt),
+              n_group = n())
+
+rt_cohd <- round( (ms_rt$mean[1] - ms_rt$mean[2]) / 
+    sqrt( ((ms_rt$n_group[1] - 1) * ms_rt$sd[1]^2) + ((ms_rt$n_group[2] - 1) * ms_rt$sd[2]^2) / 
+              (ms_rt$n_group[1] + ms_rt$n_group[2] - 2) ), 2 )
 ```
 
-```{r, multiple regression rt}
-fit_rt1 <- lm(mean_correct_rt ~ signs_produced, data = ss_kids_rt_df)
-fit_rt2 <- lm(mean_correct_rt ~ signs_produced + age_peek_months, data = ss_kids_rt_df)
-rt_lm_anova <- anova(fit_rt1, fit_rt2)
+```{r t-test acc}
+levene_acc <- leveneTest(mean_accuracy ~ age_group, data=ss_kids_df)
+acc_ttest <- t.test(mean_accuracy ~ age_group, alternative = "less", 
+                   var.equal=T, data = ss_kids_df)
+
+acc_tval <- round(acc_ttest$statistic, 2)
+acc_tdf <- acc_ttest$parameter
+
+## compute effect size
+ms_acc <- ss_kids_df %>% 
+    group_by(age_group) %>% 
+    summarise(mean = mean(mean_accuracy),
+              sd = sd(mean_accuracy),
+              n_group = n())
+
+acc_cohd <- round( (ms_acc$mean[2] - ms_acc$mean[1]) / 
+    sqrt( ((ms_acc$n_group[1] - 1) * ms_acc$sd[1]^2) + ((ms_acc$n_group[2] - 1) * ms_acc$sd[2]^2) / 
+              (ms_acc$n_group[1] + ms_acc$n_group[2] - 2) ), 2 )
 ```
 
-### ASL processing efficiency
-
-Figure 2 provides an overview of the timecourse of correct orienting to the referent in response to the target sign. The three curves show changes in the mean proportion of trials on which participants in each age group fixated the correct referent at every 33 ms interval as the target sign unfolded. Before seeing the target sign, all participants fixated on the signer. Interestingly, both adults and children began to increase their looking to the target picture before the offset of the target noun, providing evidence that signers were not waiting until the end of the linguistic utterance to seek out the target image. Children were slower to respond and less accurate than adults. They maintained their gaze on the center signer for approximately 700 ms and reached a lower asymptote. The youngest children took the longest to orient to the target and were less accurate than both older children and adults. 
-
-### Links between processing efficiency and age
-
-Mean accuracy scores, computed over the `r analysis.window[1]`–`r analysis.window[2]` ms window from noun onset, were examined as a function of age. Accuracy was strongly correlated with age (r(`r acc_age_df`) = `r acc_age_r`), indicating that older ASL learners were more reliable than younger children in fixating the target picture. Mean reaction times were negatively correlated with age (r(`r rt_age_df`) = `r rt_age_r`), indicating that older ASL-learning children were faster to shift to the target picture than younger ones. Mean reaction times were also negatively correlated with mean accuracy scores (r(`r acc_rt_df`) = `r acc_rt_r`) such that those children who were faster to shift to the target were also more likely to stick on the target image throughout the analysis window.
-
-Together, the Accuracy and Reaction Time analyses show that signers will reliably leave a central signer to shift to a target image in the VLP task, even before the end of the linguistic utterance. Importantly, signers varied in their response times and accuracy, and this variation was meaningfully linked to age. Thus, like children learning spoken language, ASL learners improve their real-time language processing skills over the second and third years of life, progressing towards adult levels of language fluency. 
- 
-### Links between processing efficiency and vocabulary
-
-```{r stats voc and peek}
+```{r correlations voc and peek}
 # correlations vocab
 cor_acc_voc <- cor.test(ss_kids_df$mean_accuracy, ss_kids_df$signs_produced)
 cor_rt_voc <- cor.test(ss_kids_rt_df$mean_correct_rt, ss_kids_rt_df$signs_produced)
@@ -303,6 +315,27 @@ rt_voc_p <- as.character(round(cor_rt_voc$p.value, 3))
 acc_voc_df <- as.character(cor_acc_voc$parameter)
 rt_voc_df <- as.character(cor_rt_voc$parameter)
 age_voc_df <- as.character(cor_age_voc$parameter)
+```
+
+```{r, multiple regression acc}
+fit_acc1 <- lm(mean_accuracy ~ signs_produced, data = ss_kids_df)
+fit_acc2 <- lm(mean_accuracy ~ signs_produced + age_peek_months, data = ss_kids_df)
+
+fit_acc3 <- lm(mean_accuracy ~ age_peek_months, data = ss_kids_df)
+fit_acc4 <- lm(mean_accuracy ~ signs_produced + age_peek_months, data = ss_kids_df)
+acc_lm_anova <- anova(fit_acc1, fit_acc2)
+```
+
+```{r, multiple regression rt}
+fit_rt1 <- lm(mean_correct_rt ~ signs_produced, data = ss_kids_rt_df)
+fit_rt2 <- lm(mean_correct_rt ~ signs_produced + age_peek_months, data = ss_kids_rt_df)
+rt_lm_anova <- anova(fit_rt1, fit_rt2)
+```
+
+```{r profile plot png, cache=T, fig.width=6, fig.height=4, fig.cap="The timecourse of participants' responses to the target picture in relation to the unfolding sign for younger children, older children, and adults. Curves show changes over time in the mean proportion looking to the correct picture, measured in ms from noun onset; error bars represent +/- 95% CI computed by non-parametric bootstrap. The dashed vertical line indicates mean offset of target nouns (1134 ms)."}
+
+pp_png <- png::readPNG("Figs/profile_plot.png")
+grid::grid.raster(pp_png)
 ```
 
 ```{r vocab scatter plots, fig.height = 5, fig.width = 10, fig.cap="Relationship between VLP measures and productive ASL vocabulary. Each data point is an individual child. Panel A shows the positive relationship between accuracy and vocabulary. Panel B shows the negative relationship between RT and vocabulary"}
@@ -349,27 +382,39 @@ rt_voc_plot <- qplot(x = signs_produced, y = mean_correct_rt, data = ss_kids_rt_
 gridExtra::grid.arrange(acc_voc_plot, rt_voc_plot, ncol = 2)
 ```
 
-Figure 3 shows the relationships between both VLP processing measures and children's productive ASL vocabulary. Mean accuracy was positively related to vocabulary size (r(`r acc_voc_df`) = `r acc_voc_r`) such that children with higher accuracy scores also had larger productive vocabularies. Mean reaction times were negatively correlated with vocabulary (r(`r rt_voc_df`) = `r rt_voc_r`) indicating that children who were faster to recognize ASL signs also had larger vocabularies. 
+First we present an overview of performance on the VLP task, showing that children become faster and more accurate at comprehending familiar signs as they get older and make progress towards adult levels of language fluency. Then we present analyses of the links between children’s real-time ASL processing skills and both age and productive ASL vocabulary. 
 
-### Multiple regression analyses
+### ASL processing efficiency
 
-It is important to point out that age and vocabulary were strongly intercorrelated in our sample (r(`r age_voc_df`) = `r age_voc_r`). In a multiple regression analysis... (TODO: figure out how to talk about regression analysis) 
+Figure 2 provides an overview of the timecourse of correct orienting to the referent in response to the target sign. The three curves show changes in the mean proportion of trials on which participants in each age group fixated the correct referent at every 33 ms interval as the target sign unfolded. Before seeing the target sign, all participants fixated on the signer. Interestingly, both adults and children began to increase their looking to the target picture before the offset of the target noun, providing evidence that signers were not waiting until the end of the linguistic utterance to seek out the target image. Children were slower to respond and less accurate than adults, maintaining their gaze on the center signer for approximately 700 ms and reaching a lower asymptote. The youngest children took longer to orient to the target ($Myounger = `r round(ms_rt$mean[2],0)`$ ms, $Molder = `r round(ms_rt$mean[1],0)`$ ms, $t(`r rt_tdf`) = `r rt_tval`, d = `r rt_cohd`$) and were less accurate than older children ($Myounger = `r round(ms_acc$mean[1],2)`$, $Molder = `r round(ms_acc$mean[2],2)`$, $t(`r acc_tdf`) = `r acc_tval`, d = `r acc_cohd`$). 
+
+### Links between processing efficiency and age
+
+Mean accuracy scores, computed over the `r analysis.window[1]`–`r analysis.window[2]` ms window from noun onset, were examined as a function of age. Accuracy was strongly correlated with age ($r$(`r acc_age_df`) = `r acc_age_r`), indicating that older ASL learners were more reliable than younger children in fixating the target picture. Mean reaction times were negatively correlated with age ($r$(`r rt_age_df`) = `r rt_age_r`), indicating that older ASL-learning children were faster to shift to the target picture than younger ones. Mean reaction times were also negatively correlated with mean accuracy scores ($r$(`r acc_rt_df`) = `r acc_rt_r`) such that those children who were faster to shift to the target were also more likely to stick on the target image throughout the analysis window.
+
+Together, the Accuracy and Reaction Time analyses show that signers will reliably leave a central signer to shift to a target image in the VLP task, even before the end of the linguistic utterance. Importantly, signers varied in their response times and accuracy, and this variation was meaningfully linked to age. Thus, like children learning spoken language, ASL learners improve their real-time language processing skills over the second and third years of life, progressing towards adult levels of language fluency. 
+ 
+### Links between processing efficiency and vocabulary
+
+Figure 3 shows the relationships between both VLP processing measures and children's productive ASL vocabulary. Mean accuracy was positively related to vocabulary size ($r$(`r acc_voc_df`) = `r acc_voc_r`) such that children with higher accuracy scores also had larger productive vocabularies. Mean reaction times were negatively correlated with vocabulary ($r$(`r rt_voc_df`) = `r rt_voc_r`) indicating that children who were faster to recognize ASL signs also had larger vocabularies. 
+
+It is important to point out that age and vocabulary were strongly intercorrelated in our sample ($r$(`r age_voc_df`) = `r age_voc_r`). Multiple regression analyses indicated that together these factors accounted for approximately `r round(summary(fit_acc2)$r.squared, 3)*100`% of the variance in accuracy ($F$(`r round(summary(fit_acc2)$fstatistic[2])`, `r round(summary(fit_acc2)$fstatistic[3])`) = `r round(summary(fit_acc2)$fstatistic[1], 1)`). Although vocabulary did not contribute significant variance after age was taken into account ($r^2$-change: `r round(summary(fit_acc4)$r.squared, 3) * 100 - round(summary(fit_acc3)$r.squared, 3) * 100`%), age contributed approximately `r round(summary(fit_acc2)$r.squared, 3) * 100 - round(summary(fit_acc1)$r.squared, 3) * 100`% additional variance beyond vocabulary. Thus, the majority of the variation in accuracy that was accounted for by age and vocabulary size was attributable to the shared variance between these two factors, yet some sources of individual differences in accuracy were attributable to age above and beyond vocabulary. 
+
+Multiple regression analyses also indicated that age and vocabulary together accounted for approximately `r round(summary(fit_rt2)$r.squared, 3) * 100`% of the variance in RT. However, in contrast to the accuracy measure, neither age nor vocabulary contributed significant unique variance ($r^2$-change: `r round(summary(fit_rt2)$r.squared, 3) * 100 - round(summary(fit_rt1)$r.squared, 3) * 100`%) on the RT measure. Thus, all of the variation in RT accounted for by age and vocabulary was attributable to the shared variance between these two factors. 
+
+Taken together, these results indicate that children learning ASL were more accurate and efficient in identifying the referents of familiar signs as they got older and developed a larger expressive vocabulary. These findings are consistent with previous research with children learning English and Spanish.
 
 # Discussion 
 
-Processing words/signs and linking them to objects in real-time is a fundamental component of language aquisition. To establish reference, young ASL users must learn to resolve an apparent conflict between attending to the source of linguistic information and shifting their gaze to objects in the world. Moreover, they must learn to do this efficiently because language unfolds rapidly, and if a child does not see a sign, or does not see the target object, the information in that naming event is effectively unavailable to the child. With this study, we aimed to develop and validate the first measures of young ASL learners’ real-time language comprehension skills and explore the links between these skills and both age and vocabulary. There are three main findings from this work. 
+Establishing reference in real-time is a fundamental component of language learning. To link signs to objects, young ASL users must learn to resolve an apparent conflict between attending to the source of linguistic information and shifting their gaze to the surrounding visual scene. Moreover, they must learn to do this efficiently because language unfolds rapidly, and if a child does not see a sign, or does not see the intended referent, the information in that naming event is effectively unavailable. With this study, we aimed to develop and validate the first measures of young ASL learners’ real-time language comprehension skills and explore the links between these skills and both age and vocabulary. There are three main findings from this work. 
 
-First, tracking eye movements during sentence processing is a valid way to measure young ASL learners' linguistic processing skills. Because gaze serves a variety of functions in ASL, using eye movements as an index of language skill might not have been possible. For example, proficient ASL users rely on vision for: (a) processing linguistic information, (b) processing the visual world, (c) regulating turn-taking during conversation [@baker1978focusing], and role shifts and direct quotation during narrative production [@bahan1995line]. Gaze also plays a syntactic role in ASL, marking pronominal reference and supplementing manual marking of verb agreement [@thompson2006relationship]. However, despite these modality-driven differences in the use of gaze, we found that ASL users exhibited remarkably similar patterns of looking behavior during the VLP task compared to spoken language users. Importantly, both adults and children reliably began shifting to the target image before the end of the target noun, showing the signature rapid processing skills thought to be so important for fluent language comprehension. 
+First, measuring gaze shifts during real-time sentence processing is a valid way to measure young ASL learners' language development. Previous work using online measures with adult ASL users has revealed important aspects of the psycholinguistics of sentence processing. For example, @lieberman2014real showed evidence of real-time activation of sublexical features of sign and that incremental semantic processing occurs during real-time sign comprehension. But we did not yet know whether these online measures would work with very young learners. Moreover, because gaze serves a variety of functions in ASL, using eye movements as an index of language comprehension ability might not have been possible. For example, proficient ASL users rely on vision for: (a) processing linguistic information, (b) processing the visual world, (c) regulating turn-taking during conversation [@baker1978focusing], and (d) role shifts during narrative production [@bahan1995line]. However, despite these modality-driven differences, we found that both adults and children reliably began shifting to the target picture before the end of the target noun, showing the signature rapid processing skills thought to be so important for fluent language comprehension. It is also interesting to consider how the rapid gaze shifts we measured in the VLP paradigm would compare to the gaze shifting behavior required in naturalistic interactions to establish mutual gaze to objects (i.e., joint attention), which is thought to be critical for early lexical development (see @lieberman2014learning for a discussion of joint attention behavior in ASL). 
 
-Second, like children learning spoken language [@fernald1998rapid], ASL learners' show age-related improvement in the efficiency with which they processed language. All of the target signs were familiar to children in this age range, yet older children more quickly and accurately identified the correct referent than younger children. Thus, like children learning spoken language, young ASL learners showed significant developmental gains in speech processing abilities over the second and third years of life. 
+The second main finding was that, like children learning spoken language [@fernald1998rapid], young ASL learners' show measurable age-related improvement in the efficiency with which they processed language. All of the target signs were familiar to children in this age range, yet older children more quickly and accurately identified the correct referent than younger children. This finding provides additional evidence that ASL acquisition in native, natural contexts follows a strikingly similar developmental path to children learning spoken language [@lillo1999modality; @mayberry2006sign]. Moreover, this is the first study to show that real-time ASL *comprehension* skills are linked to early language development. Prior work on the developmental trajectories of deaf children has relied on aspects of language production often because production is easier to see, making it easier to measure. However, a large amount of research on language acquisition shows that comprehension often precedes production (see @clark2009first). Thus, by developing a fine-grained measure of ASL comprehension, we hope to allow reserachers and educators to measure children's language skills earlier in development.
 
-The third result was the discovery of a link between early ASL processing skills and children's productive ASL vocabularies. Several studies have found that English-learning two-year-olds who were lexically more advanced were also faster and more accurate in spoken word recognition, even after controlling for age [@fernald2001half; @fernald2006picking; @zangl2005dynamics]. Here we found that ASL-learning children who knew more signs were also faster and more accurate in speech processing than those who were lexically less advanced. However, the factors of age and vocabulary size were highly intercorrelated in this sample and the majority of the associations between vocabulary and efficiency of language processing were attributable to variance that was shared between these two factors. Nevertheless, these results with children learning ASL were consistent with previous studies with English- and Spanish- learning children that demonstrate relations between efficiency in online language comprehension and other concurrent measures of linguistic achievement.
+The third result was the discovery of a link between early ASL processing skills and children's productive ASL vocabularies. We found that ASL-learning children who knew more signs were also faster and more accurate in language processing than those who were lexically less advanced. However, the factors of age and vocabulary size were highly intercorrelated in this sample and the majority of the associations between vocabulary and efficiency of language processing were attributable to variance that was shared between these two factors. Nevertheless, these results with children learning ASL are consistent with other studies with English- and Spanish- learning children, which test a narrower age range and find strong relations between efficiency in online language comprehension and other concurrent and longitudinal measures of linguistic achievement [@fernald2001half; @fernald2006picking; @zangl2005dynamics]. It is important to point out that the direction of the relationship between vocabulary and processing skills is unclear (for a detailed discussion see @hurtado2007spoken). It could be that initial differences in processing speed makes it easier for some children to learn words more quickly. It is also likely that having a larger vocabulary facilitates sign processing. It might also be the case that knowing more signs is associated with more efficient word-recognition skills because lexical growth has led to changes in the way that lexical forms are represented. Thus, children with larger vocabularies may be faster and more efficient processors of spoken language because lexical growth itself has contributed to a shift to more segmentally-based lexical representations. 
 
-It is important to point out that the direction of the relationship between vocabulary and processing skills is unclear[^6]. It could be that initial differences in processing speed makes it easier for some children to learn words more quickly. It is also likely that having a larger vocabulary facilitates sign processing. It might also be the case that knowing more signs is associated with more efficient word-recognition skills because lexical growth has led to changes in the way that lexical forms are represented. Thus, children with larger vocabularies may be faster and more efficient processors of spoken language because lexical growth itself has contributed to a shift to more segmentally-based lexical representations. Future work could be designed to test these possibilities.
-
-[^6]: For a detailied disucssion see @hurtado2007spoken.
-
-In sum, this study provides the first evidence that tracking eye movements during real-time ASL sentence processing is a valid measure of individual and group differences in language skill. These findings contribute to the now significant body of literature highlighting the parallels between signed and spoken language development when young ASL learners are exposed to native sign input. We hope that the development of the VLP task will allow researchers to measure the progress of deaf children with more heterogeneous language exposure, the norm for deaf children.
+In sum, this study provides the first evidence that measuring eye movements during real-time ASL sentence processing is a valid measure of age-related changes in young children's visual language comprehension skills. These findings contribute to the now significant body of literature highlighting the parallels between signed and spoken language development when children are exposed to native sign input. We hope that the development of the VLP task will provide a useful method for researchers and educators, providing earlier measures of the developmental trajectories of deaf children, most of whom have much more heterogeneous and inconsistent language exposure than the ones tested in the current work.
 
 # Acknowledgements
 
