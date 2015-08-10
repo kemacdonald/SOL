@@ -49,6 +49,7 @@ qplot(x=rt, data=df)
 
 ```{r}
 df <- df %>%
+    filter(id != "NA") %>% 
     mutate(include_good_rt = ifelse(log(rt) > mean(log(rt)) + 2 * sd(log(rt)) |
                                         log(rt) < mean(log(rt)) - 2 * sd(log(rt)),
                                     "exclude", "include"))
@@ -75,7 +76,7 @@ Now plot
 
 ```{r, fig.height=12, fig.width=10}
 qplot(x=gate_num, y=mean_correct, color = gate_signer, data=ms) +
-    facet_wrap( ~ gate_name,ncol=8) +
+    facet_wrap( ~ gate_name,ncol=10) +
     geom_line() +
     geom_pointrange(aes(ymin=mean_correct - ci_l, 
                         ymax=mean_correct + ci_h), 
