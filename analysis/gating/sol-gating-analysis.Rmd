@@ -82,6 +82,7 @@ qplot(x=gate_num, y=mean_correct, color = gate_signer, data=ms) +
     geom_pointrange(aes(ymin=mean_correct - ci_l, 
                         ymax=mean_correct + ci_h), 
                     width = .05, size=0.6) +
+    geom_hline(y=0.5, lty="dashed") +
     theme_bw()
 ```
 
