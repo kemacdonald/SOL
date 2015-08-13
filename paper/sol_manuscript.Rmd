@@ -4,34 +4,35 @@ author: |
   | Kyle MacDonald^1^, Todd LeMarr^1^, David Corina^2^, Virginia A. Marchman^1^, & Anne Fernald^1^
   | 1. Stanford University
   | 2. University of California Davis
-bibliography: references.bib
+bibliography: references-sol.bib
 output:
   word_document:
     fig_caption: yes
+    reference_docx: template_final.docx
   pdf_document:
     fig_caption: yes
     keep_tex: yes
+  html_document: default
 fontsize: 12pt
 csl: apa6.csl
-abstract: Research with children learning spoken language
-  shows that the ability to link the auditory signal to objects in the world with
-  high efficiency is critical
-  to language development [@fernald2012individual]. Children learning sign language must use 
-  vision to process *both* linguistic information and objects in the visual world, creating a 
-  challenge for young learners' real-time language comprehension.  This cross-sectional
-  study is the first study to explore how young learners of American Sign Language (ASL)
-  comprehend signed language in real time, and explores links between these skills, children’s age,
-  and vocabulary development. Native ASL-learning children (16-53 mos, n=29) and fluent adult
-  signers (n=19) participated in a real-time language comprehension task of 
-  ASL processing efficiency. Children’s comprehension skills improved with age, with 
-  adult signers being most efficient. Importantly,
+abstract: Research with children learning spoken language shows that the ability to
+  link the auditory signal to objects in the world with high efficiency is critical
+  to language development [@fernald2012individual]. Children learning sign language
+  must use vision to process *both* linguistic information and objects in the visual
+  world, creating a challenge for young learners' real-time language comprehension.  This
+  cross-sectional study is the first study to explore how young learners of American
+  Sign Language (ASL) comprehend signed language in real time, and explores links
+  between these skills, children’s age, and vocabulary development. Native ASL-learning
+  children (16-53 mos, n=29) and fluent adult signers (n=19) participated in a real-time
+  language comprehension task of ASL processing efficiency. Children’s comprehension
+  skills improved with age, with adult signers being most efficient. Importantly,
   children’s processing skills significantly correlated with age and vocabulary size,
   providing evidence that the ability to establish reference in real-time is linked
   meaningfully to language development. These novel findings show striking parallels
-  between efficiency of language comprehension in visual language learners
-  and children learning spoken languages, with both
-  groups making impressive gains in the efficiency of language interpretation over
-  the first few years of life as they progress towards adult-like levels of fluency.
+  between efficiency of language comprehension in visual language learners and children
+  learning spoken languages, with both groups making impressive gains in the efficiency
+  of language interpretation over the first few years of life as they progress towards
+  adult-like levels of fluency.
 ---
 \newpage
 
@@ -85,15 +86,17 @@ ASL is a visual-gestural language expressed with hands, arms and face, a modalit
 
 Another line of research has explored the consequences of delayed first language acquisition for language processing, finding consistent processing advantages for early learners. For example, @mayberry1989looking had native and non-native signers complete a linguistic shadowing task and found that non-native signers expended more cognitive resources processing signs at the phonological level. Processing advantages for native signers also show up in sentence recall tasks [@mayberry1991long], grammaticality judgments [@boudreault2006grammatical], and a variety of receptive and productive tasks [@newport1990maturational]. In addition, @emmorey1990lexical found that late signers were delayed relative to native signers in isolating signs as well as in individual phonological parameters (i.e. handshape, movement, location) in lexical recognition. 
 
-More recent work using a novel adapation of the visual world paradigm [@tanenhaus1995integration] has investigated questions about the online comprehension of sign language by measuring adult signers' eye movements as they process ASL. @lieberman2014real found that early, but not late-learners, show evidence of real-time activation of sublexical features of sign and that incremental semantic processing occurs during real-time sign comprehension. Also using online measures, @thompson2013lexical showed that both semantic and phonological aspects of signs affect real-time lexical processing. Thus, there is considerable evidence that signs, like spoken words, are processed incrementally by adults, and that there are substantial individual differences in adults' linguistic processing skills.  At the same time, we know very little about how young ASL learners develop these critical, real-time language processing skills and whether these skills are linked to lexical development.
+More recent work using a novel adapation of the visual world paradigm [@tanenhaus1995integration] has investigated questions about the online comprehension of sign language by measuring adult signers' eye movements as they process ASL. @lieberman2014real found that early, but not late-learners, show evidence of real-time activation of sublexical features of sign and that incremental semantic processing occurs during real-time sign comprehension. And @thompson2013lexical showed that both semantic and phonological aspects of signs affect real-time lexical processing. Thus, there is considerable evidence that signs, like spoken words, are processed incrementally by adults, and that there are substantial individual differences in adults' linguistic processing skills. At the same time, we know very little about how young ASL learners develop these critical, real-time language processing skills and whether these skills are linked to lexical development.
 
 ### Lexical development in ASL
 
-Since the seminal work of @bellugi1979signs established that signed languages are natural human languages not derivative from spoken languages, researchers have explored the effects of a visual-manual communication system on lexical development. The upshot of the majority of this work is that acquisition of ASL in native, natural contexts follows a strikingly similar developmental path to children learning spoken language [@lillo1999modality; @mayberry2006sign]. For example, like children learning spoken languages, young signers produce first signs typically before the end of the first year and two-sign sentences by their 2nd birthday [@newport1985acquisition]. Moreover, young ASL learners show a preponderance of nouns, rather than verbs or other predicates, in the early lexicon [@anderson2002macarthur]. 
+Since the seminal work of @bellugi1979signs established that signed languages are natural human languages not derivative from spoken languages, researchers have explored the effects of a visual-manual communication system on lexical development. The upshot of this work is that acquisition of ASL in native, natural contexts follows a strikingly similar developmental path to children learning spoken language [@lillo1999modality; @mayberry2006sign]. For example, like children learning spoken languages, young signers produce first signs typically before the end of the first year and two-sign sentences by their 2nd birthday [@newport1985acquisition]. Moreover, young ASL learners show a preponderance of nouns, rather than verbs or other predicates, in the early lexicon [@anderson2002macarthur]. 
 
-Another line of research has investigated how deaf children alternate gaze between linguistic information and objects and people in real-world learning contexts to achieve joint visual attention [@waxman1997mothers]. For example, @harris1997learning found that at 18 months, deaf children frequently shifted visual attention towards their mothers during a free play interaction, and these shifts were either spontaneous, in response to an event, or elicited by the mother. Work by @lieberman2014learning showed that deaf children make frequent shifts in gaze during book reading in order to perceive both linguistic input and the non-linguistic context. Thus, gaze shifts are a natural and necessary component of sign language comprehension. 
+A separate body of research has investigated how children learning ASL alternate gaze between linguistic information and objects in real-world learning contexts to achieve joint attention [@waxman1997mothers]. [^3] For example, @harris1997learning found that at 18 months, deaf children frequently shifted visual attention towards their mothers during a free play interaction. More recent work by @lieberman2014learning showed that deaf children make frequent shifts in gaze during book reading in order to perceive both linguistic input and the non-linguistic context. Thus, gaze shifts are a critical aspect of sign language comprehension, but we do not have precise experimental measures of how young ASL users develop these visual attention skills. 
 
-However, data on the developmental trajectories of deaf children learning signed languages has been largely confined to diary studies and small-group investigations. These studies have also overwhelmingly focused on aspects of language production, for example, the development of ASL articulatory skills [@meier1998motoric] or the appearance of specific grammatical forms [@lillo2000early]. Moreover, no prior studies have systematically investigated how young ASL learners link signs to objects during real-time sentence processing, or whether early language comprehension skills are linked to other meaningful linguistic outcomes.
+[^3]: Both experimental and observational data with children learning spoken language shows that joint attention facilitates language acquisition [@baldwin1995understanding; @brooks2008infant].
+
+In sum, data on the developmental trajectories of deaf children learning signed languages has been largely confined to diary studies and small-group investigations. These studies have also overwhelmingly focused on aspects of language production, for example, the development of ASL articulatory skills [@meier1998motoric] or the appearance of specific grammatical forms [@lillo2000early]. Moreover, no prior studies have systematically investigated how young ASL learners link signs to objects during real-time sentence processing, or whether early language comprehension skills are linked to other meaningful linguistic outcomes. In the current work, we address this gap by developing the first measures of young learners' visual language comprehension skills.  
 
 ### Current study
 
@@ -142,7 +145,9 @@ max_sign_length <- 1947
 average_sign_length <- 1134
 ```
 
-`r n_deaf` deaf and `r n_hearing` hearing children with native exposure to ASL (`r n_female` females, `r n_male` males, Mage = `r mean_age` months, range = `r age_range[1]`-`r age_range[2]` months) and 19 fluent adults were recruited from several locations by bi-cultural/bilingual researchers fluent in ASL. All children were exposed to ASL at birth from at least one fluent ASL caregiver and currently used ASL as their primary mode of communication at home. The majority of children attended a center-based early childhood education program in which ASL was the primary mode of instruction. Thus, all children in the sample had at least one deaf caregiver and were immersed in ASL from birth, both at home and in the daycare setting. An additional `r n_excluded` participants were tested, but not included in the analyses due to fussiness (n = `r ss_exclusions$n_excluded[3]`), being outside the target age range (n = `r ss_exclusions$n_excluded[1]`), or not receiving enough ASL exposure (n = `r ss_exclusions$n_excluded[2]`). For visualization purposes, children were divided into two groups using a median split by age: Younger (`r descriptives_df$age_group[1]`), Older (`r descriptives_df$age_group[2]`), but we conduct all statistical tests using continuous measures.
+`r n_deaf` deaf and `r n_hearing` hearing children with native exposure to ASL (`r n_female` females, `r n_male` males, Mage = `r mean_age` months, range = `r age_range[1]`-`r age_range[2]` months) and 19 fluent adults were recruited from several locations by bi-cultural/bilingual researchers fluent in ASL. All children were exposed to ASL at birth from at least one fluent ASL caregiver and currently used ASL as their primary mode of communication at home. The majority of children attended a center-based early childhood education program in which ASL was the primary mode of instruction. Thus, all children in the sample had at least one deaf caregiver and were immersed in ASL from birth, both at home and in the daycare setting. An additional `r n_excluded` participants were tested, but not included in the analyses due to fussiness (n = `r ss_exclusions$n_excluded[3]`), being outside the target age range (n = `r ss_exclusions$n_excluded[1]`), or not receiving enough ASL exposure (n = `r ss_exclusions$n_excluded[2]`). For visualization purposes, children were divided into two groups using a median split by age: Younger (`r descriptives_df$age_group[1]`), Older (`r descriptives_df$age_group[2]`), but we conduct all critical statistical tests using a continuous measure of age [^4].
+
+[^4]: See @mcclelland2015median for a discussion of the potential for increasing Type I and Type II errors through the loss of power caused by using median splits. 
 
 ```{r table, eval = F}
 knitr::kable(descriptives_df, digits=2, 
@@ -154,15 +159,15 @@ knitr::kable(descriptives_df, digits=2,
 
 ### Measures
  
-*Parent report of vocabulary size*: Parents completed a 90-item vocabulary checklist based on the MacArthur-Bates Communicative Development Inventories [@fenson1994variability] [SHOULD BE FENSON ET AL., 2007] and designed to be culturally and linguistically appropriate for children learning ASL. Parents completed the checklist during the visit, and vocabulary size was computed as the number of signs reported to be produced.
+*Parent report of vocabulary size*: Parents completed a 90-item vocabulary checklist based on the MacArthur-Bates Communicative Development Inventories [@fenson2007macarthur] and designed to be culturally and linguistically appropriate for children learning ASL. Parents completed the checklist during the visit, and vocabulary size was computed as the number of signs reported to be produced.
  
 *ASL Processing*: Efficiency in online comprehension was assessed using a version of the looking-while-listening procedure (LWL) [@fernald2006picking] adapted for ASL learners, which we call the Visual Language Processing (VLP) task. Since this was the first study to measure online ASL processing efficiency in children of this age, several important modifications to the procedure were made, which we describe below.
 
 ### Apparatus
 
-To facilitate recrutiment[^4], we created a portable version of the VLP task with stimuli presented on a 27” monitor using a Macbook Pro laptop. Video of the child’s gaze was recorded using a digital camcorder set up behind the monitor. To minimize visual distractions, children sat on their caregivers’ laps inside of a portable 5’ by 5’ tent with opaque walls. The tent reduced the potential for visual distractions to occur during the task.
+To facilitate recrutiment[^5], we created a portable version of the VLP task with stimuli presented on a 27” monitor using a Macbook Pro laptop. Video of the child’s gaze was recorded using a digital camcorder set up behind the monitor. To minimize visual distractions, children sat on their caregivers’ laps inside of a portable 5’ by 5’ tent with opaque walls. The tent reduced the potential for visual distractions to occur during the task.
 
-[^4]: Native ASL learners are a difficult population to recruit because approximately 95% of deaf children are born to hearing parents with little prior exposure to a signed language [@mitchell2004chasing].
+[^5]: Native ASL learners are a difficult population to recruit because approximately 95% of deaf children are born to hearing parents with little prior exposure to a signed language [@mitchell2004chasing].
 
 ```{r timeline, cache=T, fig.width=6, fig.height=3, fig.cap = "Timeline of a trial on the VLP task."}
 grid::grid.raster(png::readPNG("Figs/timeline.png"))
@@ -175,9 +180,9 @@ Figure 1 shows an example of the stimuli and the timeline of one trial in the VL
 ### Linguistic and visual stimuli
 
 The linguistic stimuli were designed to be comparable to those used in previous research and to allow for generalization beyond characteristics of a specific signer and 
-sentence structure. To accomplish this, ASL stimuli were recorded by two different native ASL users using two different but acceptable ASL sentence structures for asking questions[^3]:
+sentence structure. To accomplish this, ASL stimuli were recorded by two different native ASL users using two different but acceptable ASL sentence structures for asking questions[^6]:
 
-[^3]: See @neidle1998wh for a detailed discussion of the acceptability of these two question structures. It is important to point out that we first analyzed responses for the two sentence frames separately and found no significant differences between the two. Thus all analyses we report are collapsed across the two sentence structures.
+[^6]: See @neidle1998wh for a detailed discussion of the acceptability of these two question structures. It is important to point out that we first analyzed responses for the two sentence frames separately and found no significant differences between the two. Thus, all analyses we report are collapsed across the two sentence structures.
 
 - Sentence-initial wh-phrase: “HEY! WHERE [target noun]?”
 - Sentence-final wh-phrase: “HEY! [target noun] WHERE?”
@@ -209,11 +214,11 @@ rts <- filter(sol_iChart_df, trial_types %in% c("C_T"))
 analysis.window <- c(500, 2000)
 ```
  
-*Accuracy:* Correct looking is a function of the child’s tendency to shift quickly away from the central signer to the target picture in response to the target sign, and also to remain fixated on the target picture. To determine the degree to which participants fixated the appropriate picture across trials, mean proportion looking to target was calculated for each participant at each 33 ms frame from the onset of the target noun. Accuracy was defined as the mean proportion of time spent looking at the target picture out of the total time spent on either the target picture, the distracter picture, or the signer from `r analysis.window[1]` to `r analysis.window[2]` ms from target noun onset. We selected this window after looking at the distribution of children's first shifts with the goal of maximizing the amount of meaningful looking behavior. This window includes 90% of children's first shifts off the center signer. Importantly, the VLP task includes a central signer, which functions as a central fixation point similar to adult psycholinguistic experiments. Thus children could produce four different types of responses on a given trial: (1) signer-to-target shift, (2) signer-to-distractor shift, (3) signer-to-away shift, (4) no-shift. All four trial types contribute to accuracy analyses and all 29 children were included. 
+*Accuracy:* Correct looking is a function of the child’s tendency to shift quickly away from the central signer to the target picture in response to the target sign, and also to remain fixated on the target picture. To determine the degree to which participants fixated the appropriate picture across trials, mean proportion looking to target was calculated for each participant at each 33 ms frame from the onset of the target noun. Accuracy was defined as the mean proportion of time spent looking at the target picture out of the total time spent on either the target picture, the distracter picture, or the signer from `r analysis.window[1]` to `r analysis.window[2]` ms from target noun onset. We selected this window after looking at the distribution of children's first shifts, with the goal of maximizing the amount of meaningful looking behavior. This window includes 90% of children's first shifts off the center signer. Importantly, the VLP task includes a central signer, which functions as a central fixation point similar to adult psycholinguistic experiments. Thus children could produce four different types of responses on a given trial: (1) signer-to-target shift, (2) signer-to-distractor shift, (3) signer-to-away shift, (4) no-shift. All four trial types contribute to accuracy analyses and all 29 children were included. 
 
-*Reaction Time:* Reaction time (RT) corresponds to the latency to shift away from the signer to the target picture, measured from the onset of the target sign. Incorrect shifts from the signer to the distractor picture were not included in the computation of mean RT. To determine whether children's initial shifts were the result of guessing, we applied a Bayesian latent mixture guessing model implemented in JAGS [@plummer2003jags]. In this model, data are assumed to be generated by two different processes (guessing and knowledge) which have different probabilities of success, with the guessing group having a probability of 0.5 and the knowledge group having a probability greater than 0.5. The group membership of each participant is a latent variable that we infer based on their proportion of correct shifts to the target picture relative to the overall proportion of correct shifts across all participants (see @lee2013bayesian for a discussion of this modeling approach). Data from 5 children were excluded because more than 50% of their posterior mass indicated a guessing strategy with relatively little uncertainty: posterior probabilities of 0.99, 0.58, 0.97, 0.98, and 0.82 respectively, suggesting that RTs for these children are not a meaningful measure of their language processing skill [^5]. Thus, only signer-to-target shifts for 24 children were included in the RT analyses.
+*Reaction Time:* Reaction time (RT) corresponds to the latency to shift away from the signer to the target picture, measured from the onset of the target sign. Incorrect shifts from the signer to the distractor picture were not included in the computation of mean RT. To determine whether children's initial shifts were the result of guessing, we applied a Bayesian latent mixture guessing model implemented in JAGS [@plummer2003jags]. In this model, data are assumed to be generated by two different processes (guessing and knowledge) which have different probabilities of success, with the guessing group having a probability of 0.5 and the knowledge group having a probability greater than 0.5. The group membership of each participant is a latent variable that we infer based on their proportion of correct shifts to the target picture relative to the overall proportion of correct shifts across all participants (see @lee2013bayesian for a discussion of this modeling approach). Data from 5 children were excluded because more than 50% of their posterior mass indicated a guessing strategy with relatively little uncertainty -- posterior probabilities of 0.99, 0.78, 0.98, 0.98, and 0.94 respectively -- suggesting that RTs for these children are not a meaningful measure of their language processing skill [^7]. Thus, only signer-to-target shifts for 24 children were included in the RT analyses.
 
-[^5]: Mean accuracy scores for these participants were: 0.54, 0.60, 0.42, 0.29, 0.40.
+[^7]: Mean proportion accuracy scores for these participants were: 0.54, 0.58, 0.42, 0.29, 0.33.
 
 Within children, shifts that occurred prior to `r analysis.window[1]` ms from noun onset were excluded because it is likely that these shifts were initiated before the child had enough time to process sufficient linguistic input and to mobilize an eye movement; shifts that occurred after `r analysis.window[2]` ms were excluded because these delayed looks are less likely to reflect a response to the target sign (see @fernald2001half). In addition, `r prop_no_shifts`% of trials were excluded because children never shifted off of the signer. Since children vary in the likelihood that they will shift on a given trial, mean RTs are based on different numbers of trials across participants (M = `r mean_n_ct` trials, range = `r range_ct[1]`—`r range_ct[2]`). 
 
@@ -236,6 +241,7 @@ rt_dist <- qplot(rts$RT) +
 ```
 
 # Results 
+
 ```{r correlations age}
 # correlations age
 cor_acc_age <- cor.test(ss_kids_df$mean_accuracy, ss_kids_df$Months)
@@ -274,7 +280,8 @@ ms_rt <- ss_kids_rt_df %>%
               n_group = n())
 
 rt_cohd <- round( (ms_rt$mean[1] - ms_rt$mean[2]) / 
-    sqrt( ((ms_rt$n_group[1] - 1) * ms_rt$sd[1]^2) + ((ms_rt$n_group[2] - 1) * ms_rt$sd[2]^2) / 
+    sqrt( ((ms_rt$n_group[1] - 1) * ms_rt$sd[1]^2) + 
+              ((ms_rt$n_group[2] - 1) * ms_rt$sd[2]^2) / 
               (ms_rt$n_group[1] + ms_rt$n_group[2] - 2) ), 2 )
 ```
 
@@ -294,7 +301,8 @@ ms_acc <- ss_kids_df %>%
               n_group = n())
 
 acc_cohd <- round( (ms_acc$mean[2] - ms_acc$mean[1]) / 
-    sqrt( ((ms_acc$n_group[1] - 1) * ms_acc$sd[1]^2) + ((ms_acc$n_group[2] - 1) * ms_acc$sd[2]^2) / 
+    sqrt( ((ms_acc$n_group[1] - 1) * ms_acc$sd[1]^2) + 
+              ((ms_acc$n_group[2] - 1) * ms_acc$sd[2]^2) / 
               (ms_acc$n_group[1] + ms_acc$n_group[2] - 2) ), 2 )
 ```
 
@@ -322,15 +330,14 @@ age_voc_df <- as.character(cor_age_voc$parameter)
 ```{r, multiple regression acc}
 fit_acc1 <- lm(mean_accuracy ~ signs_produced, data = ss_kids_df)
 fit_acc2 <- lm(mean_accuracy ~ signs_produced + age_peek_months, data = ss_kids_df)
-
 fit_acc3 <- lm(mean_accuracy ~ age_peek_months, data = ss_kids_df)
-fit_acc4 <- lm(mean_accuracy ~ signs_produced + age_peek_months, data = ss_kids_df)
 acc_lm_anova <- anova(fit_acc1, fit_acc2)
 ```
 
 ```{r, multiple regression rt}
 fit_rt1 <- lm(mean_correct_rt ~ signs_produced, data = ss_kids_rt_df)
 fit_rt2 <- lm(mean_correct_rt ~ signs_produced + age_peek_months, data = ss_kids_rt_df)
+fit_rt3 <- lm(mean_correct_rt ~ age_peek_months, data = ss_kids_rt_df)
 rt_lm_anova <- anova(fit_rt1, fit_rt2)
 ```
 
@@ -338,50 +345,6 @@ rt_lm_anova <- anova(fit_rt1, fit_rt2)
 
 pp_png <- png::readPNG("Figs/profile_plot.png")
 grid::grid.raster(pp_png)
-```
-
-```{r vocab scatter plots, fig.height = 5, fig.width = 10, fig.cap="Relationship between VLP measures and productive ASL vocabulary. Each data point is an individual child. Panel A shows the positive relationship between accuracy and vocabulary. Panel B shows the negative relationship between RT and vocabulary"}
-acc_voc_plot <- qplot(x = signs_produced, y = mean_accuracy, data = ss_kids_df,
-      ylab=c("Accuracy"), 
-      xlab=c("Signs Produced")) +
-    ylim(0.44, 0.8) +
-    xlim(15, 85) +
-    geom_smooth(method = "lm", se=F, color="black", size = 1.5) +
-    geom_point(color = "black", size = 5.5) +
-    geom_point(color = "grey50", size = 4) +
-    annotate("text", x = 30, y = 0.75, label = paste("r =", acc_voc_r), size=8) +
-    theme_bw() + 
-    theme(axis.title.x = element_text(colour="grey30",size=22,
-                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.title.y = element_text(colour="grey30",size=22,
-                                      hjust=0.5,vjust=0.5,face="plain"),
-          axis.text.x = element_text(colour="grey20",size=18,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.text.y = element_text(colour="grey20",size=18,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          panel.grid.major=element_blank())
-
-rt_voc_plot <- qplot(x = signs_produced, y = mean_correct_rt, data = ss_kids_rt_df,
-      ylab=c("Reaction Time"), 
-      xlab=c("Signs Produced")) +
-    ylim(800, 1600) +
-    xlim(15, 85) +
-    geom_smooth(method = "lm", se=F, color="black", size = 1.5) +
-    geom_point(color = "black", size = 5.5) +
-    geom_point(color = "grey50", size = 4) +
-    annotate("text", x = 70, y = 1500, label = paste("r =", rt_voc_r), size=8) +
-    theme_bw() + 
-    theme(axis.title.x = element_text(colour="grey30",size=22,
-                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.title.y = element_text(colour="grey30",size=22,
-                                      hjust=0.5,vjust=0.5,face="plain"),
-          axis.text.x = element_text(colour="grey20",size=18,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.text.y = element_text(colour="grey20",size=18,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          panel.grid.major=element_blank())
-
-gridExtra::grid.arrange(acc_voc_plot, rt_voc_plot, ncol = 2)
 ```
 
 First we present an overview of performance on the VLP task, showing that children become faster and more accurate at comprehending familiar signs as they get older and make progress towards adult levels of language fluency. Then we present analyses of the links between children’s real-time ASL processing skills and both age and productive ASL vocabulary. 
@@ -399,18 +362,62 @@ The youngest children took longer to orient to the target ($Myounger = `r round(
 Mean accuracy scores, computed over the `r analysis.window[1]`–`r analysis.window[2]` ms window from noun onset, were examined as a function of age. Accuracy was strongly correlated with age ($r$(`r acc_age_df`) = `r acc_age_r`), indicating that older ASL learners were more reliable than younger children in fixating the target picture. Mean reaction times were negatively correlated with age ($r$(`r rt_age_df`) = `r rt_age_r`), indicating that older ASL-learning children were faster to shift to the target picture than younger ones. Mean reaction times were also negatively correlated with mean accuracy scores ($r$(`r acc_rt_df`) = `r acc_rt_r`) such that those children who were faster to shift to the target were also more likely to stick on the target image throughout a greater proportion of the analysis window.
 
 Together, the Accuracy and Reaction Time analyses show that signers will reliably leave a central signer to shift to a target image in the VLP task, even before the end of the linguistic utterance. Importantly, signers varied in their response times and accuracy, and this variation was meaningfully linked to age. Thus, like children learning spoken language, ASL learners improve their real-time language processing skills over the second and third years of life, progressing towards adult levels of language fluency. 
+
+```{r vocab scatter plots, fig.height = 5, fig.width = 10, fig.cap="Relationship between VLP measures and productive ASL vocabulary. Each data point is an individual child. Panel A shows the positive relationship between accuracy and vocabulary. Panel B shows the negative relationship between RT and vocabulary"}
+acc_voc_plot <- qplot(x = signs_produced, y = mean_accuracy, data = ss_kids_df,
+      ylab=c("Accuracy"), 
+      xlab=c("Signs Produced")) +
+    ylim(0.44, 0.85) +
+    xlim(15, 85) +
+    geom_smooth(method = "lm", se=F, color="black", size = 1.5) +
+    geom_point(color = "black", size = 5.5) +
+    geom_point(color = "grey50", size = 4) +
+    annotate("text", x = 30, y = 0.8, label = paste("r =", acc_voc_r), size=8) +
+    theme_bw() + 
+    theme(axis.title.x = element_text(colour="grey30",size=22,
+                                      angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.title.y = element_text(colour="grey30",size=22,
+                                      hjust=0.5,vjust=0.5,face="plain"),
+          axis.text.x = element_text(colour="grey20",size=18,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.text.y = element_text(colour="grey20",size=18,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
+          panel.grid.major=element_blank())
+
+rt_voc_plot <- qplot(x = signs_produced, y = mean_correct_rt, data = ss_kids_rt_df,
+      ylab=c("Reaction Time (ms)"), 
+      xlab=c("Signs Produced")) +
+    ylim(800, 1950) +
+    xlim(15, 85) +
+    geom_smooth(method = "lm", se=F, color="black", size = 1.5) +
+    geom_point(color = "black", size = 5.5) +
+    geom_point(color = "grey50", size = 4) +
+    annotate("text", x = 65, y = 1750, label = paste("r =", rt_voc_r), size=8) +
+    theme_bw() + 
+    theme(axis.title.x = element_text(colour="grey30",size=22,
+                                      angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.title.y = element_text(colour="grey30",size=22,
+                                      hjust=0.5,vjust=0.5,face="plain"),
+          axis.text.x = element_text(colour="grey20",size=18,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.text.y = element_text(colour="grey20",size=18,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
+          panel.grid.major=element_blank())
+
+gridExtra::grid.arrange(acc_voc_plot, rt_voc_plot, ncol = 2)
+```
  
 ### Links between processing efficiency and vocabulary
 
 Figure 3 shows the relationships between both VLP processing measures and children's productive ASL vocabulary. Mean accuracy was positively related to vocabulary size ($r$(`r acc_voc_df`) = `r acc_voc_r`) such that children with higher accuracy scores also had larger productive vocabularies. Mean reaction times were negatively correlated with vocabulary ($r$(`r rt_voc_df`) = `r rt_voc_r`) indicating that children who were faster to recognize ASL signs were those children with larger sign vocabularies. 
 
-It is important to point out that age and vocabulary were strongly intercorrelated in our sample ($r$(`r age_voc_df`) = `r age_voc_r`). Multiple regression analyses indicated that together these factors accounted for approximately `r round(summary(fit_acc2)$r.squared, 3)*100`% of the variance in accuracy ($F$(`r round(summary(fit_acc2)$fstatistic[2])`, `r round(summary(fit_acc2)$fstatistic[3])`) = `r round(summary(fit_acc2)$fstatistic[1], 1)`). Although vocabulary did not contribute significant variance after age was taken into account ($r^2$-change: `r round(summary(fit_acc4)$r.squared, 3) * 100 - round(summary(fit_acc3)$r.squared, 3) * 100`%), age contributed approximately `r round(summary(fit_acc2)$r.squared, 3) * 100 - round(summary(fit_acc1)$r.squared, 3) * 100`% additional variance beyond vocabulary. Thus, the majority of the variation in accuracy that was accounted for by age and vocabulary size was attributable to the shared variance between these two factors, yet some sources of individual differences in accuracy were attributable to age above and beyond vocabulary. 
+It is important to point out that age and vocabulary were strongly intercorrelated in our sample ($r$(`r age_voc_df`) = `r age_voc_r`). Multiple regression analyses indicated that together these factors accounted for approximately `r round(summary(fit_acc2)$r.squared, 3)*100`% of the variance in accuracy ($F$(`r round(summary(fit_acc2)$fstatistic[2])`, `r round(summary(fit_acc2)$fstatistic[3])`) = `r round(summary(fit_acc2)$fstatistic[1], 1)`). Although vocabulary did not contribute significant variance after age was taken into account ($r^2$-change: `r round(summary(fit_acc2)$r.squared, 3) * 100 - round(summary(fit_acc1)$r.squared, 3) * 100`%), age contributed approximately `r round(summary(fit_acc3)$r.squared, 3) * 100 - round(summary(fit_acc1)$r.squared, 3) * 100`% additional variance beyond vocabulary. Thus, the majority of the variation in accuracy that was accounted for by age and vocabulary size was attributable to the shared variance between these two factors, yet some sources of individual differences in accuracy were attributable to age above and beyond vocabulary. 
+
+****************
 
 Multiple regression analyses also indicated that age and vocabulary together accounted for approximately `r round(summary(fit_rt2)$r.squared, 3) * 100`% of the variance in RT. However, in contrast to the accuracy measure, neither age nor vocabulary contributed significant unique variance ($r^2$-change: `r round(summary(fit_rt2)$r.squared, 3) * 100 - round(summary(fit_rt1)$r.squared, 3) * 100`%) on the RT measure. Thus, all of the variation in RT accounted for by age and vocabulary was attributable to the shared variance between these two factors. 
 
-Taken together, these results indicate that children learning ASL were more accurate and efficient in identifying the referents of familiar signs as they got older and developed a larger expressive vocabulary. These findings are consistent with previous research with children learning English and Spanish 
-
-(REFS: Hurtado et al., Fernald et al.)
+Taken together, these results indicate that children learning ASL were more accurate and efficient in identifying the referents of familiar signs as they got older and developed a larger expressive vocabulary. These findings are consistent with previous research with children learning English and Spanish [@hurtado2007spoken; @fernald2006picking]. 
 
 # Discussion 
 

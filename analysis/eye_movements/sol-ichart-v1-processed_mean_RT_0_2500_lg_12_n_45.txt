@@ -1,4 +1,0 @@
-"Condition"	"group"	"dodg"	"mean"	"se"
-"Vanilla"	"< 26.5 Months"	"D"	1222.69958444916	57.8022312363198
-"Vanilla"	"> 26.5 Months"	"D"	1106.21030880878	29.3440476576461
-"Vanilla"	"Adults"	"D"	886.591295215202	43.8049040456129

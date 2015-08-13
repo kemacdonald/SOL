@@ -5,7 +5,9 @@ date: "June 19, 2015"
 output: html_document
 ---
 
-## From Lee and Wagenmakers Chapter 6: Latent Mixture Models
+## Latent Mixture Models
+
+From Lee and Wagenmakers (2013) Chapter 6.
 
 Suppose a group of 15 people sit an exam made up of 40 true-or-false questions, and they get 21, 17, 21, 18, 22, 31, 31, 34, 34, 35, 35, 36, 39, 36, and 35 right. These scores suggest that the first 5 people were just guessing, but the last 10 had some level of knowledge.
 
@@ -28,8 +30,7 @@ library(MASS)
 Load data
 
 ```{r}
-df_correct <- read.csv("sol_ss_kids.csv")
-df_filt <- filter(df_correct, exclude_chance_shifter == "include")
+df_correct <- read.csv("../../paper/sol_ss_kids.csv")
 ```
 
 ```{r}
@@ -43,7 +44,7 @@ df_correct %<>%
 Here I adjusted the model to allow for different number of trials for each participants.
 To do this, I changed n to n[i] in the for loop.
 
-```{r 6.1.1,fig.width=12, fig.height=6}
+```{r 6.1.1,fig.width=12, fig.height=6, cache=T}
 cat('# Exam Scores
 model{
   # Each Person Belongs To One Of Two Latent Groups
@@ -107,9 +108,17 @@ m1_guessers <- df_melt %>%
     summarise(knowledge_count = sum(group_membership)) %>% 
     filter(knowledge_count <= 500) %>% # determines the proportion of posterior == "guessing"
     mutate(
+        Sub.Num = as.character(Sub.Num),
         guessing_count = 1000 - knowledge_count,
         posterior_mass = round(guessing_count / 1000, 2)
     )
+
+m1_guessers <- df_correct %>% 
+    mutate(Sub.Num = as.character(Sub.Num)) %>% 
+    dplyr::select(C_T_prop, Sub.Num) %>% 
+    left_join(x = m1_guessers, by = "Sub.Num")
+
+knitr::kable(m1_guessers)
 ```
 
 ## Compare inference from latent mixture model to binomial test across participants
@@ -121,72 +130,3 @@ binom_guessers <- df_correct %>%
               binom_p = binom.test(C_T_count, total_trials_shifting)$p.value) %>% 
     filter(binom_p >= .10)
 ```
-
-### Change prior expectation of guessing
-
-What happens if you change the initial expectation that everybody is equally likely to belong to either group, and have an expectation that people generally are not guessing, with (say), z_i ~ Bernoulli(0.9)?
-
-```{r 6.1.5,fig.width=12, fig.height=6, echo=FALSE}
-cat('# Exam Scores
-model{
-  # Each Person Belongs To One Of Two Latent Groups
-  for (i in 1:p){
-    z[i] ~ dbern(0.9)
-  }
-  # First Group Guesses
-  psi <- 0.5
-  # Second Group Has Some Unknown Greater Rate Of Success
-  phi ~ dunif(0,1)
-  # Data Follow Binomial With Rate Given By Each Persons Group Assignment
-  for (i in 1:p){
-    theta[i] <- equals(z[i],0)*psi+equals(z[i],1)*phi
-    k[i] ~ dbin(theta[i],n[i])
-  }
-}', file={f<-tempfile()})
-
-
-data <- list("p", "k", "n") # to be passed on to JAGS
-myinits <-  list(
-    list(phi = 0.75, z = round(runif(p)))) # Initial group assignment
-
-# parameters to be monitored:  
-parameters <- c("phi","z")
-
-samples <- jags(data, inits=myinits, parameters,
-                model.file =f, n.chains=1, n.iter=1000, 
-                n.burnin=1, n.thin=1, DIC=T)
-
-df<-data.frame(phi = samples$BUGSoutput$sims.list$phi,
-               z = samples$BUGSoutput$sims.list$z)
-
-# grab subject numbers
-colnames(df)[which(names(df)=="z.1"):which(names(df)=="z.29")] <- as.character(df_correct$Sub.Num)
-
-df_melt <- melt(df[,2:length(df)], variable.name = "Sub.Num", value.name = "group_membership")
-
-
-a <- qplot(data=melt(df$phi),x=value,geom='histogram',binwidth=0.008)+
-    theme_bw()+
-    xlab('phi')+
-    xlim(0,1)
-
-b <- ggplot(data=df_melt,aes(x=factor(group_membership),fill=factor(group_membership)))+
-    facet_wrap(~Sub.Num,scales='fixed')+
-    geom_histogram(binwidth=0.1)+
-    guides(fill=F) +
-    theme_bw()+
-    xlab('z (group membership): 0=Guessing, 1=Not-guessing')
-
-grid.arrange(a,b,nrow=1, main='Success rate and group+5 membership, Uniform(0,1) Prior \n z_i~Bernoulli(0.9)')
-```
-
-Get the participants flagged as likely guessers. So we can compare across model specifications.
-
-```{r}
-m2_guessers <- df_melt %>% 
-    group_by(Sub.Num) %>% 
-    summarise(count = sum(group_membership)) %>% 
-    filter(count <= 500) %>% 
-    print()
-```
-
