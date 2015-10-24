@@ -1,9 +1,9 @@
 # this script removes all current objects and loads the necessary libraries 
 
 # create function for flagging these trial types
-trial_type_fun <- function(trial) { 
-    start_col <- which(names(trial)=="0")
-    end_col <- which(names(trial)=="2700")
+trial_type_fun <- function(trial, start, end) { 
+    start_col <- which(names(trial)==start)
+    end_col <- which(names(trial)==end)
     trial_type <- "no_shift"
     response <- trial[which(names(trial)=="Response")]
     first_look_signer <- FALSE
