@@ -173,7 +173,7 @@ To facilitate recrutiment[^5], we created a portable version of the VLP task wit
 [^5]: Native ASL learners are a difficult population to recruit because approximately 95% of deaf children are born to hearing parents with little prior exposure to a signed language [@mitchell2004chasing].
 
 ```{r timeline, cache=T, fig.width=6, fig.height=3, fig.cap = "Timeline of a trial on the VLP task."}
-grid::grid.raster(png::readPNG("Figs/timeline.png"))
+# grid::grid.raster(png::readPNG("Figs/timeline.png"))
 ```
 
 ### Trial Structure
@@ -207,6 +207,8 @@ shifts_df <- sol_iChart_df %>%
 
 # percentage of trials no-shifts
 prop_no_shifts <- round(shifts_df$count[3] / sum(shifts_df$count), 2) * 100
+prop_cd_shifts <- round(shifts_df$count[1] / sum(shifts_df$count), 2) * 100
+prop_away_shifts <- round(shifts_df$count[4] / sum(shifts_df$count), 2) * 100
 
 # center to target shifts
 mean_n_ct <- round(mean(ss_kids_rt_df$C_T_count),1)
@@ -214,7 +216,7 @@ range_ct <- round(range(ss_kids_rt_df$C_T_count),1)
 
 # analysis window
 rts <- filter(sol_iChart_df, trial_types %in% c("C_T"))
-analysis.window <- c(600, 2100)
+analysis.window <- c(600, 2500)
 ```
  
 *Computing critical sign onset.* Computing accuracy and RT requires defining the appropriate response window, starting at the earliest moment when there is sufficient information to shift gaze off of the central signer and initiate a looking response to the target image.  In studies of spoken language processing, critical word onset is typically identified using acoustic analysis software that measures the moment in the speech when the target noun begins. Because of co-articulation in ASL, it was difficult to precisely determine the beginning of the target sign. In order to make an initial judgment, the first and second authors, both fluent signers, viewed each stimulus sentence and achieved a consensus regarding target noun onset. To validate these judgments, we conducted an additional study in which naive fluent adult signers (n = 10) made forced choice decisions indicating which of two images was the referent for all of our stimulus sentences. We selected six tokens for each sentence, with each token containing a different amount of the target sign (+/- three frames of video from the noun onset defined by the initial consensus judgments). Participants saw a total of 168 trials (28 sentences x 6 tokens), with order randomized across participants. We derived the final noun onset values for each stimulus sentence based on the earliest point when participants' judgments achieved 100% agreement. 
@@ -249,7 +251,7 @@ rt_dist <- qplot(rts$RT) +
 
 ```{r correlations age}
 # correlations age
-cor_acc_age <- cor.test(ss_kids_df$mean_accuracy, ss_kids_df$Months)
+cor_acc_age <- cor.test(ss_kids_df$target_looking_signer, ss_kids_df$Months)
 cor_rt_age <- cor.test(ss_kids_rt_df$mean_correct_rt, ss_kids_rt_df$Months)
 
 # get r values
@@ -263,7 +265,7 @@ acc_age_df <- as.character(cor_acc_age$parameter)
 rt_age_df <- as.character(cor_rt_age$parameter)
 
 # correlations acc and rt
-cor_acc_rt <- cor.test(ss_kids_rt_df$mean_accuracy, ss_kids_rt_df$mean_correct_rt)
+cor_acc_rt <- cor.test(ss_kids_rt_df$target_looking_signer, ss_kids_rt_df$mean_correct_rt)
 acc_rt_r <- as.character(round(cor_acc_rt$estimate, 2))  # get r values
 acc_rt_p <- as.character(round(cor_acc_rt$p.value, 3))   # get p values
 acc_rt_df <- as.character(cor_acc_rt$parameter)          # get df 
@@ -272,8 +274,8 @@ acc_rt_df <- as.character(cor_acc_rt$parameter)          # get df
 ```{r means}
 ms_all <- ss_all_df %>% 
     group_by(age_group_collapsed) %>% 
-    summarise(mean_acc = mean(mean_accuracy),
-              st_dev_acc = sd(mean_accuracy),
+    summarise(mean_acc = mean(target_looking_signer),
+              st_dev_acc = sd(target_looking_signer),
               mean_rt = mean(mean_correct_rt),
               st_dev_rt = sd(mean_correct_rt))
 ```
@@ -301,8 +303,8 @@ rt_cohd <- round(effsize::cohen.d(rt_younger$mean_correct_rt,
 ```
 
 ```{r t-test acc}
-levene_acc <- leveneTest(mean_accuracy ~ age_group, data=ss_kids_df)
-acc_ttest <- t.test(mean_accuracy ~ age_group, alternative = "two.sided", 
+levene_acc <- leveneTest(target_looking_signer ~ age_group, data=ss_kids_df)
+acc_ttest <- t.test(target_looking_signer ~ age_group, alternative = "two.sided", 
                    var.equal=T, data = ss_kids_df)
 
 acc_tval <- round(acc_ttest$statistic, 2)
@@ -311,15 +313,15 @@ acc_tdf <- acc_ttest$parameter
 # get means
 ms_acc <- ss_kids_df %>% 
     group_by(age_group) %>% 
-    summarise(mean = mean(mean_accuracy),
-              sd = sd(mean_accuracy))
+    summarise(mean = mean(target_looking_signer),
+              sd = sd(target_looking_signer))
 
 ## compute effect size
-acc_younger <- ss_kids_df %>% filter(age_group == "< 27 Months") %>% select(mean_accuracy)
-acc_older <- ss_kids_df %>% filter(age_group == ">= 27 Months") %>% select(mean_accuracy)
+acc_younger <- ss_kids_df %>% filter(age_group == "< 27 Months") %>% select(target_looking_signer)
+acc_older <- ss_kids_df %>% filter(age_group == ">= 27 Months") %>% select(target_looking_signer)
 
-acc_cohd <- round(effsize::cohen.d(acc_older$mean_accuracy, 
-                                   acc_younger$mean_accuracy)$estimate, 2)
+acc_cohd <- round(effsize::cohen.d(acc_older$target_looking_signer, 
+                                   acc_younger$target_looking_signer)$estimate, 2)
 ```
 
 ```{r t-test first_shift}
@@ -338,9 +340,43 @@ c_t_older <- ss_kids_df %>% filter(age_group == ">= 27 Months") %>% select(C_T_p
 coh_d_fs <- round(effsize::cohen.d(c_t_older$C_T_prop, c_t_younger$C_T_prop)$estimate, 2)
 ```
 
+```{r t-test acc adults vs. kids}
+levene_rt_kids_adults <- leveneTest(mean_correct_rt ~ as.factor(age_code), data = ss_all_df)
+
+rt_ttest_kids_adults <- t.test(mean_correct_rt ~ as.factor(age_code), alternative = "less", 
+                   var.equal=T, data = ss_all_df)
+
+rt_tval_kids_adults <- round(rt_ttest_kids_adults$statistic, 2)
+rt_tdf_kids_adults <- rt_ttest_kids_adults$parameter
+
+## compute effect size
+rt_kids <- ss_all_df %>% filter(age_code == "child") %>% select(mean_correct_rt)
+rt_adults <- ss_all_df %>% filter(age_code == "adult") %>% select(mean_correct_rt)
+
+coh_d_rt_adults_kids <- round(effsize::cohen.d(rt_kids$mean_correct_rt, 
+                                                rt_adults$mean_correct_rt)$estimate, 2)
+```
+
+```{r t-test RT adults vs. kids}
+levene_acc_kids_adults <- leveneTest(target_looking_signer ~ as.factor(age_code), data = ss_all_df)
+
+acc_ttest_kids_adults <- t.test(target_looking_signer ~ as.factor(age_code), alternative = "greater", 
+                   var.equal=T, data = ss_all_df)
+
+acc_tval_kids_adults <- round(acc_ttest_kids_adults$statistic, 2)
+acc_tdf_kids_adults <- acc_ttest_kids_adults$parameter
+
+## compute effect size
+acc_kids <- ss_all_df %>% filter(age_code == "child") %>% select(target_looking_signer)
+acc_adults <- ss_all_df %>% filter(age_code == "adult") %>% select(target_looking_signer)
+
+coh_d_acc_adults_kids <- round(effsize::cohen.d(acc_kids$target_looking_signer, 
+                                                acc_adults$target_looking_signer)$estimate, 2)
+```
+
 ```{r correlations voc and peek}
 # correlations vocab
-cor_acc_voc <- cor.test(ss_kids_df$mean_accuracy, ss_kids_df$signs_produced)
+cor_acc_voc <- cor.test(ss_kids_df$target_looking_signer, ss_kids_df$signs_produced)
 cor_rt_voc <- cor.test(ss_kids_rt_df$mean_correct_rt, ss_kids_rt_df$signs_produced)
 cor_age_voc <- cor.test(ss_kids_rt_df$Months, ss_kids_rt_df$signs_produced)
 
@@ -361,13 +397,13 @@ age_voc_df <- as.character(cor_age_voc$parameter)
 
 ```{r multiple regression acc}
 # use the logit to transform mean acc scores from bounded [0-1] to unbounded scale 
-ss_kids_df %<>% mutate(mean_acc_logit = logit(mean_accuracy))
+ss_kids_df %<>% mutate(mean_acc_logit = logit(target_looking_signer))
 
-fit_acc1 <- lm(mean_accuracy ~ signs_produced, data = ss_kids_df)
-fit_acc2 <- lm(mean_accuracy ~ signs_produced + age_peek_months, data = ss_kids_df)
-fit_acc3 <- lm(mean_accuracy ~ age_peek_months, data = ss_kids_df)
+fit_acc1 <- lm(target_looking_signer ~ signs_produced, data = ss_kids_df)
+fit_acc2 <- lm(target_looking_signer ~ signs_produced + age_peek_months, data = ss_kids_df)
+fit_acc3 <- lm(target_looking_signer ~ age_peek_months, data = ss_kids_df)
 
-fit_acc2_prop <- lm(mean_accuracy ~ signs_produced + age_peek_months, data = ss_kids_df)
+fit_acc2_prop <- lm(target_looking_signer ~ signs_produced + age_peek_months, data = ss_kids_df)
 acc_lm_anova <- anova(fit_acc1, fit_acc2)
 ```
 
@@ -380,8 +416,8 @@ rt_lm_anova <- anova(fit_rt1, fit_rt2)
 
 ```{r profile plot png, cache=T, fig.width=6, fig.height=4, fig.cap="The timecourse of participants' responses to the target picture in relation to the unfolding sign for younger children, older children, and adults. Curves show changes over time in the mean proportion looking to the correct picture, measured in ms from noun onset; error bars represent +/- 95% CI computed by non-parametric bootstrap. The dashed vertical line indicates mean offset of target nouns (1134 ms)."}
 
-pp_png <- png::readPNG("Figs/profile_plot.png")
-grid::grid.raster(pp_png)
+#pp_png <- png::readPNG("Figs/profile_plot.png")
+#grid::grid.raster(pp_png)
 ```
 
 First we present an overview of performance on the VLP task, showing that children become faster and more accurate at comprehending familiar signs as they get older and make progress towards adult levels of language fluency. Then we present multiple regression analyses of the links between children’s real-time ASL processing skills and both age and productive ASL vocabulary. 
@@ -393,10 +429,8 @@ Figure 2 provides an overview of the timecourse of correct orienting to the refe
 ```{r table descriptive stats, results = 'asis'}
 ms_table <- ss_all_df %>% 
     group_by(age_group) %>% 
-    summarise(mean_acc = mean(mean_accuracy),
-              st_dev_acc = sd(mean_accuracy),
-              mean_first_shift_acc = mean(C_T_prop, na.rm=T),
-              st_dev_first_shift_acc = sd(C_T_prop, na.rm=T))
+    summarise(mean_acc = mean(target_looking_signer),
+              st_dev_acc = sd(target_looking_signer))
 
 ms_table <- ss_all_df %>%  
     group_by(age_group) %>% 
@@ -405,7 +439,7 @@ ms_table <- ss_all_df %>%
     select(-age_group) %>% 
     bind_cols(x=ms_table)
 
-colnames(ms_table) <- c("Age Group", "Accuracy", "SD Accuracy", "Shift Accuracy", "SD Shift Accuracy", "RT", "SD RT")
+colnames(ms_table) <- c("Age Group", "Accuracy", "SD Accuracy", "RT", "SD RT")
 
 pander::pander(ms_table, 
                caption = "Summary statistics for all language processing measures for each age group.",
@@ -420,15 +454,16 @@ Mean accuracy scores, computed over the `r analysis.window[1]`–`r analysis.win
 Together, the Accuracy and Reaction Time analyses show that signers will reliably leave a central signer to shift to a target image in the VLP task, even before the end of the linguistic utterance. Importantly, signers varied in their response times and accuracy, and this variation was meaningfully linked to age. Thus, like children learning spoken language, ASL learners improve their real-time language processing skills over the second and third years of life, progressing towards adult levels of language fluency. 
 
 ```{r vocab scatter plots, fig.height = 5, fig.width = 10, fig.cap="Relationship between VLP measures and productive ASL vocabulary. Each data point is an individual child. Panel A shows the positive relationship between accuracy and vocabulary. Panel B shows the negative relationship between RT and vocabulary"}
-acc_age_plot <- qplot(x = Months, y = mean_accuracy, data = ss_kids_df,
+acc_age_plot <- qplot(x = Months, y = target_looking_signer, data = ss_kids_df,
       ylab=c("Accuracy"), 
       xlab=c("Child's Age (months)")) +
-    ylim(0.44, 0.85) +
+    ylim(0.1, 0.7) +
     xlim(15, 55) +
     geom_smooth(method = "lm", se=F, color="black", size = 1.5) +
     geom_point(color = "black", size = 5.5) +
     geom_point(color = "grey50", size = 4) +
-    annotate("text", x = 22, y = 0.82, label = paste("r =", acc_age_r), size=8) +
+    geom_hline(yintercept = 0.33, linetype = "dashed") +
+    annotate("text", x = 45, y = 0.65, label = paste("r =", acc_age_r), size=8) +
     theme_bw() + 
     theme(axis.title.x = element_text(colour="grey30",size=22,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
@@ -438,8 +473,7 @@ acc_age_plot <- qplot(x = Months, y = mean_accuracy, data = ss_kids_df,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
           axis.text.y = element_text(colour="grey20",size=18,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          panel.grid.major=element_blank()
-          )
+          panel.grid.major=element_blank())
 
 rt_age_plot <- qplot(x = Months, y = mean_correct_rt, data = ss_kids_rt_df,
       ylab=c("Reaction Time (ms)"), 
@@ -461,15 +495,16 @@ rt_age_plot <- qplot(x = Months, y = mean_correct_rt, data = ss_kids_rt_df,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
           panel.grid.major=element_blank())
 
-acc_voc_plot <- qplot(x = signs_produced, y = mean_accuracy, data = ss_kids_df,
+acc_voc_plot <- qplot(x = signs_produced, y = target_looking_signer, data = ss_kids_df,
       ylab=c("Accuracy"), 
       xlab=c("Signs Produced")) +
-    ylim(0.44, 0.85) +
+    ylim(0.1, 0.7) +
     xlim(15, 85) +
     geom_smooth(method = "lm", se=F, color="black", size = 1.5) +
     geom_point(color = "black", size = 5.5) +
     geom_point(color = "grey50", size = 4) +
-    annotate("text", x = 30, y = 0.8, label = paste("r =", acc_voc_r), size=8) +
+    geom_hline(yintercept = 0.33, linetype = "dashed") +
+    annotate("text", x = 30, y = 0.6, label = paste("r =", acc_voc_r), size=8) +
     theme_bw() + 
     theme(axis.title.x = element_text(colour="grey30",size=22,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
@@ -489,6 +524,7 @@ rt_voc_plot <- qplot(x = signs_produced, y = mean_correct_rt, data = ss_kids_rt_
     geom_smooth(method = "lm", se=F, color="black", size = 1.5) +
     geom_point(color = "black", size = 5.5) +
     geom_point(color = "grey50", size = 4) +
+    geom_hline(yintercept = 0.33, linteype = "dashed") +
     annotate("text", x = 65, y = 1750, label = paste("r =", rt_voc_r), size=8) +
     theme_bw() + 
     theme(axis.title.x = element_text(colour="grey30",size=22,

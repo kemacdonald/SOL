@@ -1,0 +1,3 @@
+"Condition"	"group"	"dodg"	"mean"	"se"
+"Vanilla"	"< 27 Months"	"D"	1401.46729504049	59.363494921476
+"Vanilla"	">= 27 Months"	"D"	1253.84006361058	45.2637726476812

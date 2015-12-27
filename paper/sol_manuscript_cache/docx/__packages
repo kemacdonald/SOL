@@ -1,0 +1,7 @@
+base
+dplyr
+tidyr
+magrittr
+ggplot2
+car
+pander

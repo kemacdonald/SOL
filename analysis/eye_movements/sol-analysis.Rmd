@@ -244,7 +244,7 @@ iChart$Condition <- "Vanilla"
 
 ## define critical onset, change Cs to Ds and everything else to As
 iChart <- defineOnsetSOL(iChart, critonset=0, end_critonset=300, 
-                         includeOffCenter=FALSE, includeWindow = FALSE)
+                         includeOffCenter = FALSE, includeWindow = FALSE)
 
 iChart %>% group_by("0", Response) %>% dplyr::summarise(Trials = n())
 ```
@@ -271,7 +271,7 @@ iChart <- cbind(iChart, trial_types)
 iChart %>% group_by(trial_types) %>% dplyr::summarise(Trials = n())
 ```
 
-Next, we compute statistics over long window 0-5000 ms. This will allow us to see a 
+Next, we compute statistics over long window 0-4000 ms. This will allow us to see a 
 distribution of RTs, which we will use to determine our analysis window.
 
 First, for adults.
@@ -310,14 +310,14 @@ qplot(rts$RT) +
               label = "Analysis Window \n (90% RTs)")
 ```
 
-Compute statistics over analysis window: 0-2700ms. We use 2700 ms because
-it is 500 ms longer than the end of our analysis window (2200ms). This allows
+Compute statistics over analysis window: 0-3000ms. We use 3000 ms because
+it is 500 ms longer than the end of our analysis window (2500ms). This allows
 us to include trials in which the participant to initiates and completes a 
 shift at the very end of the analysis window.
 
 ```{r, message=F, warning=F}
-iChart <- computeStatistics(iChart, startWindow=0, endWindow=analysis.window[2]+500)
-iChart_kids <- computeStatistics(iChart_kids, startWindow=0, endWindow=analysis.window[2]+500)
+iChart <- computeStatistics(iChart, startWindow=0, endWindow=3000)
+iChart_kids <- computeStatistics(iChart_kids, startWindow=0, endWindow=3000)
 iChart_adults <- computeStatistics(iChart_adults, startWindow=0, endWindow=analysis.window_adults[2]+500)
 ```
 
@@ -329,18 +329,18 @@ at the signer.
 # filter for both kids and adults
 iChart <- filteriChart(iChart, minRT = analysis.window[1], 
                        maxRT = analysis.window[2], 
-                       maxfirstgap=15, maxlonggap=15)
+                       maxfirstgap=15, maxlonggap=15)  
 
 
 # filter for kids
 iChart_kids <- filteriChart(iChart_kids, minRT = analysis.window[1], 
                        maxRT = analysis.window[2], 
-                       maxfirstgap=15, maxlonggap=15)
+                       maxfirstgap=15, maxlonggap=15) 
 
 # filter for adults
 iChart_adults <- filteriChart(iChart_adults, minRT = analysis.window_adults[1], 
                               maxRT = analysis.window_adults[2], 
-                              maxfirstgap=15, maxlonggap=15)
+                              maxfirstgap=15, maxlonggap=15) 
 ```
 
 ### Mean Accuracy and RT for each participant 
@@ -419,7 +419,8 @@ rt_hearing_status <- poolData(iChart_kids,
                legend.position="bottom", 
                breaks=c(400, 800, 1200))
 
-acc <- poolData(meanAccuracy(iChart_kids, startWindowAcc=analysis.window[1], endWindowAcc=analysis.window[2]), 
+acc <- poolData(meanAccuracy(iChart_kids, startWindowAcc = analysis.window[1], 
+                             endWindowAcc = analysis.window[2]), 
                 RejectFirstGap=TRUE,RejectLongestGap=TRUE, 
                 RejectRT=FALSE, color=TRUE, dependent="Accuracy", 
                 group="age_group", facet="", dodge="", 
@@ -467,9 +468,143 @@ rt_adults <- poolData(iChart_adults,
                       breaks=c(400, 800, 1200))
 ```
 
+### Mean Acc and RT for each participant by condition using Tanenhaus computation
+
+Here we analyze window accuracy based on proportion looking to either target, distractor, or signer. Since there are three fixations points, chance looking behavior is 0.33.
+
+First, we munge the raw iChart data.
+
+Grab just the eye movement data and group information
+
+```{r}
+ss_iChart <- iChart %>% 
+    filter(GoodFirstGap == T, GoodLongestGap == T) %>% 
+    select(Sub.Num, Tr.Num, age_group, Response, `0`:`4000`) 
+```
+
+Convert to long format
+
+```{r}
+ss_iChart_long <- ss_iChart %>% 
+    gather(key = Time.ms, value = value, `0`:`4000`) %>% 
+    filter(value %in% c("0", "1", "0.5", ".", "-")) %>%
+    mutate(value = ifelse(value == "-", ".", value),
+           value_cat = factor(value, labels = c("Away", "Distractor", "Signer", "Target")),
+           Time.ms_numeric = to.n(Time.ms)) 
+```    
+
+### Summarize looking behavior for each participant: Signer included
+
+* First, we get proportion looking to Target, Distractor, Away, and Signer at each time slice.
+
+```{r}
+ms_iChart_count <- ss_iChart_long %>% 
+    filter(value %in% c("0", "1", ".", "0.5")) %>%  ## specify acc computation
+    group_by(Sub.Num, Time.ms, age_group, value_cat) %>% 
+    dplyr::summarise(count = ifelse(n() == 0, 0, n())) %>% 
+    dplyr::summarise(sum_count = sum(count))
+    
+ms_iChart <- as.data.frame(xtabs(~ Sub.Num + value_cat + Time.ms, 
+                                 data = filter(ss_iChart_long, 
+                                               value %in% c("0", "1", ".", "0.5")))) %>% 
+    left_join(x = ms_iChart_count, by = c("Sub.Num", "Time.ms")) %>% 
+    mutate(proportion_looking = Freq / sum_count,
+           age_group_factor = as.factor(age_group))
+```
+
+Now we can compute mean proportion looking to signer, target, and distractor for each participant and for each age group.
+
+```{r}
+ss_tanenhaus_comp <- ms_iChart %>% 
+    filter(to.n(Time.ms) >= analysis.window[1], to.n(Time.ms) <= analysis.window[2]) %>% 
+    group_by(Sub.Num, value_cat, age_group) %>% 
+    dplyr::summarise(mean_prop_looking_signer = mean(proportion_looking, na.rm = T),
+              ci_low_signer = ci.low(proportion_looking),
+              ci_high_signer = ci.high(proportion_looking))
+```
+
+Finally, we get the mean proportion looking to each location for each age group.
+
+```{r}
+ms_tanenhaus_comp <- ss_tanenhaus_comp %>% 
+    group_by(age_group, value_cat) %>% 
+    dplyr::summarise(mean_group_prop_looking_signer = mean(mean_prop_looking_signer),
+              ci_low_signer = ci.low(mean_prop_looking_signer),
+              ci_high_signer = ci.high(mean_prop_looking_signer))
+```
+
+### Summarize looking behavior for each participant: Signer not included
+
+* First, we get proportion looking to Target, Distractor, Away, and Signer at each time slice.
+
+```{r}
+ms_iChart_count <- ss_iChart_long %>% 
+    filter(value %in% c("0", "1", ".")) %>%  ## this is where you specify what goes into acc computation
+    group_by(Sub.Num, Time.ms, age_group, value_cat) %>% 
+    dplyr::summarise(count = ifelse(n() == 0, 0, n())) %>% 
+    dplyr::summarise(sum_count = sum(count))
+    
+ms_iChart <- as.data.frame(xtabs(~ Sub.Num + value_cat + Time.ms, 
+                                 data = filter(ss_iChart_long, 
+                                               value %in% c("0", "1", ".")))) %>% ## specify acc computation
+    left_join(x = ms_iChart_count, by = c("Sub.Num", "Time.ms")) %>% 
+    mutate(proportion_looking = Freq / sum_count,
+           age_group_factor = as.factor(age_group))
+```
+
+Now we can compute mean proportion looking to signer, target, and distractor for each participant and for each age group.
+
+```{r}
+ss_tanenhaus_comp_no_signer <- ms_iChart %>% 
+    filter(to.n(Time.ms) >= analysis.window[1], to.n(Time.ms) <= analysis.window[2]) %>% 
+    filter(value_cat != "Signer") %>%  ## to add/remove signer looking from computation
+    group_by(Sub.Num, value_cat, age_group) %>% 
+    dplyr::summarise(mean_prop_looking_no_signer = mean(proportion_looking, na.rm = T),
+              ci_low = ci.low(proportion_looking),
+              ci_high = ci.high(proportion_looking))
+```
+
+Finally, we get the mean proportion looking to each location for each age group.
+
+```{r}
+ms_tanenhaus_comp_no_signer <- ss_tanenhaus_comp_no_signer %>% 
+    group_by(age_group, value_cat) %>% 
+    dplyr::summarise(mean_group_prop_looking = mean(mean_prop_looking_no_signer),
+              ci_low = ci.low(mean_prop_looking_no_signer),
+              ci_high = ci.high(mean_prop_looking_no_signer))
+```
+
+Merge the two accuracy computations together in one data frame so we can compare.
+
+```{r}
+ss_tanenhaus_comp_all <- left_join(ss_tanenhaus_comp, ss_tanenhaus_comp_no_signer,
+                                   by = c("Sub.Num", "value_cat", "age_group"))
+
+ms_tanenhaus_comp_all <- left_join(ms_tanenhaus_comp, ms_tanenhaus_comp_no_signer, 
+                                   by = c("age_group", "value_cat"))
+```
+
+Plot individual conistency in accuracy computations
+
+```{r}
+ss_tan_gather <- gather(ss_tanenhaus_comp_all, key = signer_included, value = mean_looking, 
+                        mean_prop_looking_signer, mean_prop_looking_no_signer) %>% 
+    mutate(signer_included = ifelse(signer_included == "mean_prop_looking_signer", 
+                                    "signer_included", "signer_not_included"))
+```
+
+```{r}
+qplot(x = signer_included, y = mean_looking, data = filter(ss_tan_gather, value_cat == "Target"), 
+      color = age_group, group = Sub.Num) +
+    geom_line() +
+    ylim(0, 1) +
+    theme_bw() +
+    ggtitle("Individual consistency across Accuracy Computations")
+```
+
 ## Statistics 
 
-Get mean accuracy and rt for each participant
+Get mean accuracy and rt for each participant.
 
 Some munging to get data frame for analysis. Variables needed for each subject: 
 
@@ -493,6 +628,15 @@ ss <- left_join(ss, filter(sol_demo, include=="yes"), by="Sub.Num")
 names(ss)[names(ss)=="Vanilla"] <- "mean_accuracy"
 names(ss)[names(ss)=="Vanilla_C_D_D"] <- "mean_incorrect_rt"
 names(ss)[names(ss)=="Vanilla_C_T_D"] <- "mean_correct_rt"
+```
+
+Add in Tanenhaus proportion looking computation for each participant.
+
+```{r}
+ss <- ss_tanenhaus_comp_all %>% 
+    select(Sub.Num, value_cat, age_group, mean_prop_looking_signer, value_cat) %>% 
+    rename(prop_looking = mean_prop_looking_signer) %>% 
+    left_join(ss, by = c("Sub.Num"))
 ```
 
 ## First shift accuracy analysis
@@ -530,7 +674,7 @@ ss_first_shifts <- iChart_adults %>%
     group_by(Sub.Num, trial_types, age_group, Months) %>% 
     dplyr::summarise(count = n()) %>% 
     spread(trial_types, count) %>% 
-     mutate(C_D = ifelse(is.na(C_D), 0, C_D),
+    mutate(C_D = ifelse(is.na(C_D), 0, C_D),
            no_shift = ifelse(is.na(no_shift), 0, C_D),
            total_trials_shifting = C_D + C_T,
            total_trials = C_D + C_T + no_shift,
@@ -543,9 +687,9 @@ ss_first_shifts <- iChart_adults %>%
 # add shifts to full data frame
 ss <- ss_first_shifts %>% 
     dplyr::rename(Sub.Num = Sub.Num, C_D_count = C_D, C_T_count = C_T) %>% 
-    left_join(ss, by = "Sub.Num")
+    left_join(ss, by = c("Sub.Num", "age_group"))
 
-# flag chance first shifters -- more than 50% posterior mass on guessing strategy
+# flag chance first shifters = more than 50% posterior mass on guessing strategy
 # in latent mixture model
 ss <- ss %>% 
     mutate(C_D_prop = ifelse(C_T_prop == 1, 0, C_D_prop),
@@ -602,7 +746,6 @@ ss_kids %>%
 ```
 
 
-
 ```{r, eval=F}
 write.csv(ss, "../../paper/sol_ss_all.csv", row.names = F)
 ```
@@ -610,11 +753,13 @@ write.csv(ss, "../../paper/sol_ss_all.csv", row.names = F)
 ### Correlations 
 
 ```{r, fig.height=8, fig.width=10, warning=F}
-Hmisc::rcorr(as.matrix(select(ss_kids, mean_accuracy, C_T_prop, 
-                              mean_correct_rt, median_ct_rt, signs_produced, 
-                              Months)))
+ss_corr <- ss_kids %>% 
+    filter(value_cat == "Target") %>% 
+    select(mean_accuracy, C_T_prop, prop_looking,signs_produced, Months)
 
-ggpairs(data = select(ss_kids, mean_accuracy, C_T_prop, signs_produced, Months),
+Hmisc::rcorr(as.matrix(ss_corr))
+
+ggpairs(data = ss_corr,
         upper = list(continuous = "smooth", combo = "cor", 
                      params = c(method = "lm", color="darkblue")),
         lower = list(continuous = "cor"),
@@ -623,19 +768,19 @@ ggpairs(data = select(ss_kids, mean_accuracy, C_T_prop, signs_produced, Months),
 ```
 
 ```{r}
-qplot(C_T_prop, mean_accuracy, data = ss_kids) +
-    geom_abline(intercept = 0, slope = 1) +
-    xlim(0,1) +
+qplot(mean_accuracy, prop_looking, data = filter(ss_kids, value_cat == "Target")) +
     ylim(0,1) +
+    xlim(0.35,1) +
+    geom_abline(intercept = 0, slope = 1) +
     geom_text(aes(label = Sub.Num), position = "dodge")
 ```
 
 Just RT.
 
 ```{r, fig.height=8, fig.width=10, warning = F}
-Hmisc::rcorr(as.matrix(select(ss_rt, mean_correct_rt, median_ct_rt, signs_produced, Months)))
+Hmisc::rcorr(as.matrix(select(ss_rt, mean_correct_rt, signs_produced, Months)))
 
-ggpairs(data = select(ss_rt, mean_correct_rt, median_ct_rt, signs_produced, Months),
+ggpairs(data = select(ss_rt, mean_correct_rt, signs_produced, Months),
         upper = list(continuous = "smooth", combo = "cor", 
                      params = c(method = "lm", color="darkblue")),
         lower = list(continuous = "cor"),
@@ -646,25 +791,33 @@ ggpairs(data = select(ss_rt, mean_correct_rt, median_ct_rt, signs_produced, Mont
 ### T.tests
 
 ```{r t-tests age}
-t.test(mean_correct_rt ~ age_group, alternative = "two.sided", 
-                   var.equal=T, data = ss_rt)
+t.test(mean_correct_rt ~ age_group, alternative = "two.sided", var.equal=T, 
+       data = filter(ss_rt, value_cat == "Target"))
 
-t.test(mean_accuracy ~ age_group, alternative = "two.sided", 
-                   var.equal=T, data = ss_kids)
+t.test(prop_looking ~ age_group, alternative = "two.sided", var.equal=T, 
+       data = filter(ss_kids, value_cat == "Target"))
 
-t.test(mean_correct_rt ~ age_group_collapsed, alternative = "two.sided",
-       var.equal = T, data = ss)
+t.test(prop_looking ~ age_group, alternative = "two.sided", var.equal=T, 
+       data = filter(ss_kids, value_cat == "Distractor"))
+
+t.test(prop_looking ~ age_group, alternative = "two.sided", var.equal=T, 
+       data = filter(ss_kids, value_cat == "Signer"))
+
+t.test(mean_correct_rt ~ age_group_collapsed, alternative = "two.sided", var.equal = T, 
+       data = ss)
+
+t.test(prop_looking ~ age_group_collapsed, alternative = "two.sided", var.equal = T, 
+       data = filter(ss, value_cat == "Distractor"))
 ```
 
 ```{r t-tests hearing status}
-t.test(mean_accuracy ~ hearing_status_participant, alternative = "two.sided", 
-                   var.equal=T, data = ss_kids)
+t.test(mean_accuracy ~ hearing_status_participant, alternative = "two.sided", var.equal=T, data = ss_kids)
 
-t.test(C_T_prop ~ hearing_status_participant, alternative = "two.sided", 
-                   var.equal=T, data = ss_kids)
+t.test(target_looking_no_signer ~ hearing_status_participant, alternative = "two.sided", var.equal=T, data = ss_kids)
 
-t.test(mean_correct_rt ~ hearing_status_participant, alternative = "two.sided", 
-                   var.equal=T, data = ss_kids)
+t.test(C_T_prop ~ hearing_status_participant, alternative = "two.sided", var.equal=T, data = ss_kids)
+
+t.test(mean_correct_rt ~ hearing_status_participant, alternative = "two.sided", var.equal=T, data = ss_rt)
 ```
 
 ### Get confidence intervals for graph values
@@ -680,7 +833,7 @@ createPlots(iChart_kids, startWindow=0, endWindow=4000, RejectLongestGap=FALSE,
 
 # keeping age bins
 createPlots(iChart_adults, startWindow=0, endWindow=4000, RejectLongestGap=FALSE, 
-            RejectFirstGap=FALSE, RejectRT=FALSE, color=TRUE, smooth=400, 
+            RejectFirstGap=FALSE, RejectRT=FALSE, color=TRUE, smooth=400,  
             targetEnd=800, carrier="", targets=c(""), 
             group="age_group",  plotStats="PP", miny = 0.4, maxy=0.95, size=15, 
             legend.direction = "vertical", legend.position=c(0.85, 0.9), 
@@ -747,7 +900,7 @@ ss.et.long <- ss.et.long %>%
     rename(age_group = groupping)
 ```
 
-dplyr::summarise graph values for all participants.
+summarise graph values for all participants.
 
 ```{r, warning=F, message=F}
 ms_graph_values <- ss.et.long %>% 
@@ -808,9 +961,9 @@ ms_all <- ss %>%
               m_fs = mean(C_T_prop),
               ci.h_ct = ci.high(C_T_prop),
               ci.l_ct = ci.low(C_T_prop),
-              m_acc = mean(mean_accuracy),
-              ci.h_acc = ci.high(mean_accuracy),
-              ci.l_acc = ci.low(mean_accuracy))
+              m_acc = mean(target_looking_signer),
+              ci.h_acc = ci.high(target_looking_signer),
+              ci.l_acc = ci.low(target_looking_signer))
 
 ms_all <- ss %>% 
     filter(exclude_chance_shifter == "include") %>%
@@ -851,11 +1004,11 @@ all_acc <- qplot(age_group, m_acc, data = ms_all,
     geom_linerange(aes(ymax = m_acc + ci.h_acc, ymin = m_acc - ci.l_acc)) +
     scale_fill_brewer(type = "qual", palette = "Set1") +
     guides(fill=F) +
-    ylim(0, 0.85) +
+    ylim(0, 0.7) +
     xlab("Age Group") +
     ylab("Prop. Looking to Target") +
     ggtitle("Accuracy") +
-    geom_hline(yintercept = 0.5, linetype = "dashed") + 
+    geom_hline(yintercept = 0.3, linetype = "dashed") + 
     scale_x_discrete(labels=c("Younger", "Older", "Adults")) +
     theme(plot.title = element_text(face = "bold", size = 20),
         axis.title.x = element_text(colour="grey40",size=18,
@@ -888,7 +1041,7 @@ all_rt <- qplot(age_group, m_rt, data = ms_all,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
          plot.margin = unit(c(0.5,2,1,1), "cm"))
 
-gridExtra::grid.arrange(all_fs, all_acc, all_rt, ncol = 1)
+gridExtra::grid.arrange(all_acc, all_rt, ncol = 2)
 ```
 
 ## Tanenhaus plot: all types of looking
@@ -899,8 +1052,8 @@ Grab just the eye movement data and group information
 
 ```{r}
 ss_iChart <- iChart %>% 
-    select(Sub.Num, age_group, Response, `0`:`4000`) %>% 
-    filter(Response == "D") 
+    filter(Response == "D", GoodFirstGap == T, GoodLongestGap == T) %>% 
+    select(Sub.Num, Tr.Num, age_group, Response, `0`:`4000`) 
 ```
 
 Convert to long format
@@ -933,12 +1086,12 @@ Get means and CIs for proportion looking at each time slice across particpants
 ```{r}
 ms_mean_iChart <- ms_iChart %>% 
     group_by(Time.ms, age_group, value_cat) %>% 
-    dplyr::summarise(mean_prop_looking = mean(proportion_looking, na.rm = T),
+    dplyr::summarise(mean_prop_looking = mean(proportion_looking),
               ci_low = ci.low(proportion_looking),
               ci_high = ci.high(proportion_looking))
 ```
 
-Now we make Tanenhaus style plot.
+Now we plot proportion looking to target, distractor, and signer for each age bin.
 
 ```{r tanenhaus-plot}
 breaks <- seq(0,4000, by=500)
@@ -948,12 +1101,14 @@ points <- seq(0,4000, by = 200)
 ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, color = value_cat), 
        data = ms_mean_iChart) + 
     ylim(0,1) +
+    geom_rect(aes(xmin = 600, xmax = 2500, ymin = -Inf, ymax = Inf), alpha = 0.1, fill = "grey90", color = NA) +
     geom_line(data = filter(ms_mean_iChart, to.n(Time.ms) %in% points), size=0.7) +
     geom_linerange(data = filter(ms_mean_iChart, Time.ms %in% points),
                    aes(ymin=mean_prop_looking - ci_low, 
                        ymax=mean_prop_looking + ci_high), alpha = 0.5) +
-    geom_point(data = filter(ms_mean_iChart, to.n(Time.ms) %in% points), size=3) +
+    geom_point(data = filter(ms_mean_iChart, to.n(Time.ms) %in% points), size=4) +
     xlim(0,4000) +
+    geom_hline(yintercept = 0.33, linetype = "dashed") +
     facet_grid(. ~ age_group) +
     scale_color_brewer(palette = "Set1", type = "qual") +
     xlab("Time in ms from onset of noun") +
@@ -973,7 +1128,7 @@ ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, color = value_cat),
          panel.margin = unit(1, "lines"))
 ```
 
-## Window accuracy analysis 
+## Window accuracy analysis OLD
 
 Here I want to see what happens to window accuracy when we don't penalize kids for looking at the signer.
 
@@ -981,8 +1136,8 @@ Grab just the eye movement data and group information
 
 ```{r}
 ss_iChart_window_acc <- iChart %>% 
-    select(Sub.Num, age_group, hearing_status_participant, Response, `600`:`2500`) %>% 
-    filter(Response == "D") 
+    filter(Response == "D", GoodFirstGap == T, GoodLongestGap == T) %>% 
+    select(Sub.Num, age_group, hearing_status_participant, Response, `600`:`2500`) 
 ```
 
 Convert to long format
@@ -1008,14 +1163,14 @@ ms_mean_iChart_window_acc_no_signer <- ss_iChart_long_window_acc %>%
     dplyr::summarise(mean_prop_looking_subs = mean(to.n(value_signer_removed), na.rm = T))
 ```
 
-Get means and CIS collapsing across participants 
+Get means and CIs collapsing across participants 
 
 ```{r}
 ms_mean_iChart_window_acc_collapsed <- ms_mean_iChart_window_acc %>% 
     group_by(Time.ms, age_group) %>% 
     dplyr::summarise(mean_prop_looking = mean(mean_prop_looking_subs, na.rm = T),
-              ci_low = ci.low(mean_prop_looking_subs),
-              ci_high = ci.high(mean_prop_looking_subs))
+                     ci_low = ci.low(mean_prop_looking_subs),
+                     ci_high = ci.high(mean_prop_looking_subs))
 
 ms_mean_iChart_window_acc_collapsed_no_signer <- ms_mean_iChart_window_acc_no_signer %>% 
     group_by(Time.ms, age_group) %>% 
@@ -1103,9 +1258,9 @@ ms_coda_deaf <- ss_kids %>%
               m_fs = mean(C_T_prop),
               ci.h_ct = ci.high(C_T_prop),
               ci.l_ct = ci.low(C_T_prop),
-              m_acc = mean(mean_accuracy),
-              ci.h_acc = ci.high(mean_accuracy),
-              ci.l_acc = ci.low(mean_accuracy),
+              m_acc = mean(target_looking_signer),
+              ci.h_acc = ci.high(target_looking_signer),
+              ci.l_acc = ci.low(target_looking_signer),
               m_rt = mean(mean_correct_rt),
               ci.h_rt = ci.high(mean_correct_rt),
               ci.l_rt = ci.low(mean_correct_rt))
@@ -1142,7 +1297,7 @@ codas_deaf_acc <- qplot(hearing_status_participant, m_acc, data = ms_coda_deaf,
     xlab("Hearing Status") +
     ylab("Prop. Looking to Target") +
     ggtitle("Accuracy") +
-    geom_hline(yintercept = 0.5, linetype = "dashed") + 
+    geom_hline(yintercept = 0.3, linetype = "dashed") + 
     theme(plot.title = element_text(face = "bold", size = 20),
         axis.title.x = element_text(colour="grey40",size=18,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
@@ -1173,13 +1328,14 @@ codas_deaf_rt <- qplot(hearing_status_participant, m_rt, data = ms_coda_deaf,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
          plot.margin = unit(c(0.5,2,1,1), "cm"))
 
-gridExtra::grid.arrange(codas_deaf_fs, codas_deaf_acc, codas_deaf_rt, ncol = 1)
+gridExtra::grid.arrange(codas_deaf_acc, codas_deaf_rt, ncol = 2)
 ```
 
 T.tests deaf vs. codas
 
 ```{r stats coda_deaf}
 ## hearing status
+t.test(target_looking_signer ~ hearing_status_participant, data = ss_kids, var.equal = T)
 t.test(mean_accuracy ~ hearing_status_participant, data = ss_kids, var.equal = T)
 t.test(C_T_prop ~ hearing_status_participant, data = ss_kids, var.equal = T)
 t.test(mean_correct_rt ~ hearing_status_participant, data = ss_kids, var.equal = T)
@@ -1407,9 +1563,8 @@ t.test(m_acc ~ hearing_status_participant, data = ss_acc_measures, var.equal = T
 ```{r coda-deaf-plot-munging}
 # grab just the eye movement data and group information
 ss_iChart_coda <- iChart %>% 
-    filter(age_group != "Adults") %>% 
-    select(Sub.Num, hearing_status_participant, Response, `0`:`4000`) %>% 
-    filter(Response == "D") 
+    filter(age_group != "Adults", Response == "D", GoodFirstGap == T, GoodLongestGap == T) %>% 
+    select(Sub.Num, hearing_status_participant, Response, `0`:`4000`) 
 
 # convert to long format
 ss_iChart_long_coda <- ss_iChart_coda %>% 
@@ -1441,25 +1596,27 @@ ms_mean_iChart_coda <- ms_iChart_coda %>%
 ```{r coda-deaf-plot}
 breaks <- seq(0,4000, by=500)
 y_breaks <- seq(0.25,1.0, by = 0.25)
-points <- seq(0,4000, by = 100)
+points <- seq(0,4000, by = 200)
 
 ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, linetype = hearing_status_participant, 
-           shape = hearing_status_participant, color = value_cat), 
+           color = value_cat, shape = hearing_status_participant), 
        data = ms_mean_iChart_coda) + 
     ylim(0,1) +
-    geom_point(data = filter(ms_mean_iChart_coda, to.n(Time.ms) %in% points), size=3) +
-    geom_line(data = filter(ms_mean_iChart_coda, Time.ms %in% points), size=0.7) +
-    #facet_grid(. ~ hearing_status_participant) +
+    geom_rect(aes(xmin = 600, xmax = 2500, ymin = -Inf, ymax = Inf), alpha = 0.1, fill = "grey90", color = NA) +
+    geom_line(data = filter(ms_mean_iChart_coda, Time.ms %in% points), size=1) +
     geom_linerange(data = filter(ms_mean_iChart_coda, Time.ms %in% points),
                    aes(ymin=mean_prop_looking - ci_low, 
                        ymax=mean_prop_looking + ci_high), 
                    width = .03, size=0.3, alpha = 0.7) +
+    geom_point(data = filter(ms_mean_iChart_coda, to.n(Time.ms) %in% points), size=5, fill = "white") +
+    scale_shape_manual(values = c(19, 21)) +
     scale_color_brewer(palette = "Set1", type = "qual") +
     xlim(0, 4000) +
+    geom_hline(yintercept = 0.33, linetype = "dashed") +
     xlab("Time in ms from onset of noun") +
     ylab("Proportion looking") +
     theme_bw() +
-    guides(color = F, linetype = F, shape = F) +
+    guides(color = F, linetype = F, fill = F, shape = F) +
     theme(axis.title.x = element_text(colour="grey40",size=22,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
           axis.title.y = element_text(colour="grey40",size=22,
@@ -1736,8 +1893,8 @@ ggplot(data = ms_rt_item, aes(x=mean_diff_rt, fill=stimuli)) +
 ## Scatter plots of individual differences
 
 ```{r plot correlations}
-acc_age_plot <- qplot(x = Months, y = mean_accuracy, data = ss_kids,
-      ylab=c("Accuracy"), 
+acc_age_plot <- qplot(x = Months, y = target_looking_no_signer, data = ss_kids,
+      ylab=c("Window Accuracy"), 
       xlab=c("Child's Age (months)")) +
     ylim(0.44, 0.85) +
     xlim(15, 55) +
@@ -1777,8 +1934,8 @@ rt_age_plot <- qplot(x = Months, y = median_ct_rt,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
           panel.grid.major=element_blank())
 
-acc_voc_plot <- qplot(x = signs_produced, y = mean_accuracy, data = ss_kids,
-      ylab=c("Accuracy"), 
+acc_voc_plot <- qplot(x = signs_produced, y = target_looking_no_signer, data = ss_kids,
+      ylab=c("Window Accuracy"), 
       xlab=c("Signs Produced")) +
     ylim(0.44, 0.85) +
     xlim(15, 85) +
@@ -1797,7 +1954,7 @@ acc_voc_plot <- qplot(x = signs_produced, y = mean_accuracy, data = ss_kids,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
           panel.grid.major=element_blank())
 
-rt_voc_plot <- qplot(x = signs_produced, y = mean_correct_rt, data = ss_rt,
+rt_voc_plot <- qplot(x = signs_produced, y = median_ct_rt, data = ss_rt,
       ylab=c("Reaction Time (ms)"), 
       xlab=c("Signs Produced")) +
     ylim(800, 1950) +
@@ -1817,7 +1974,9 @@ rt_voc_plot <- qplot(x = signs_produced, y = mean_correct_rt, data = ss_rt,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
           panel.grid.major=element_blank())
 
-gridExtra::grid.arrange(acc_age_plot, rt_age_plot, acc_voc_plot, rt_voc_plot, ncol = 2)
+gridExtra::grid.arrange(acc_age_plot, rt_age_plot, ncol = 2)
+
+gridExtra::grid.arrange(acc_voc_plot, rt_voc_plot, ncol = 2)
 
 ```
 
