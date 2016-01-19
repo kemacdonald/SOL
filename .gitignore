@@ -3,3 +3,5 @@
 *.results
 .png
 .mov
+sol_manuscript_cache/
+sol-ichart*
