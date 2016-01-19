@@ -1,2 +1,0 @@
-"Condition"	"group"	"dodg"	"mean"	"se"
-"Vanilla"	"Adults"	"D"	716.472637118751	46.8074504011682

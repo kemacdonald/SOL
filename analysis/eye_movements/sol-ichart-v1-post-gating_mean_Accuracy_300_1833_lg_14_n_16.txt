@@ -1,2 +1,0 @@
-"Condition"	"group"	"mean"	"se"
-"Vanilla"	"Adults"	0.772635824168332	0.021759765753722
