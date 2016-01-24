@@ -285,9 +285,10 @@ rts_adults <- filter(iChart_adults, trial_types %in% c("C_T"))
 
 analysis.window_adults <- quantile(rts_adults$RT, probs=c(0.05, 0.95), na.rm=T)
 
-qplot(rts_adults$RT) +
-    geom_vline(x=analysis.window_adults[1], col="red", lwd=1.5) +
-    geom_vline(x=analysis.window_adults[2], col="red", lwd=1.5) +
+ggplot(aes(RT), data = rts_adults) +
+    geom_histogram() +
+    geom_vline(xintercept = analysis.window_adults[1], col="red", lwd=1.5) +
+    geom_vline(xintercept = analysis.window_adults[2], col="red", lwd=1.5) +
     annotate("text", x = 2500, y = 30, 
               label = "Analysis Window \n (90% RTs)")
 ```
@@ -303,9 +304,10 @@ rts <- filter(iChart_kids, trial_types %in% c("C_T"), age_group != "Adults")
 
 analysis.window <- quantile(rts$RT, probs=c(0.05, 0.95), na.rm=T)
 
-qplot(rts$RT) +
-    geom_vline(x=analysis.window[1], col="red", lwd=1.5) +
-    geom_vline(x=analysis.window[2], col="red", lwd=1.5) +
+ggplot(aes(x=RT), data=rts)  +
+    geom_histogram() +
+    geom_vline(xintercept=analysis.window[1], col="red", lwd=1.5) +
+    geom_vline(xintercept=analysis.window[2], col="red", lwd=1.5) +
     annotate("text", x = 2500, y = 30, 
               label = "Analysis Window \n (90% RTs)")
 ```
@@ -330,7 +332,6 @@ at the signer.
 iChart <- filteriChart(iChart, minRT = analysis.window[1], 
                        maxRT = analysis.window[2], 
                        maxfirstgap=15, maxlonggap=15)  
-
 
 # filter for kids
 iChart_kids <- filteriChart(iChart_kids, minRT = analysis.window[1], 
@@ -760,8 +761,7 @@ ss_corr <- ss_kids %>%
 Hmisc::rcorr(as.matrix(ss_corr))
 
 ggpairs(data = ss_corr,
-        upper = list(continuous = "smooth", combo = "cor", 
-                     params = c(method = "lm", color="darkblue")),
+        upper = list(continuous = "smooth", combo = "cor"),
         lower = list(continuous = "cor"),
         diag = list(continuous = "density")) +
     theme_bw() 
@@ -770,9 +770,9 @@ ggpairs(data = ss_corr,
 ```{r}
 qplot(mean_accuracy, prop_looking, data = filter(ss_kids, value_cat == "Target")) +
     ylim(0,1) +
-    xlim(0.35,1) +
+    xlim(0,1) +
     geom_abline(intercept = 0, slope = 1) +
-    geom_text(aes(label = Sub.Num), position = "dodge")
+    ggrepel::geom_text_repel(aes(label = Sub.Num))
 ```
 
 Just RT.
@@ -781,8 +781,7 @@ Just RT.
 Hmisc::rcorr(as.matrix(select(ss_rt, mean_correct_rt, signs_produced, Months)))
 
 ggpairs(data = select(ss_rt, mean_correct_rt, signs_produced, Months),
-        upper = list(continuous = "smooth", combo = "cor", 
-                     params = c(method = "lm", color="darkblue")),
+        upper = list(continuous = "smooth", combo = "cor"),
         lower = list(continuous = "cor"),
         diag = list(continuous = "density")) +
     theme_bw() 
@@ -924,15 +923,16 @@ breaks <- seq(0,3000, by=500)
 y_breaks <- seq(0.25,1.0, by = 0.25)
 points <- seq(0,3000, by = 200)
 
-qplot(data = ms_graph_values, x = Time.ms, y = mean_accuracy,
-      color=age_group, geom = "blank", xlab=c("Time in ms from onset of noun"), 
-      ylab=c("ACCURACY\nProportion\nlooking\nto target")) + 
+ggplot(aes(x = Time.ms, y = mean_accuracy, color=age_group), data = ms_graph_values) +
+    xlab(label = c("Time in ms from onset of noun")) +
+    ylab(label = c("ACCURACY\nProportion\nlooking\nto target")) + 
     geom_point(data = filter(ms_graph_values, Time.ms %in% points), size=3) +
     geom_line(size=0.7) +
     geom_linerange(data = filter(ms_graph_values, Time.ms %in% points),
                    aes(ymin=mean_accuracy - ci.low, 
                        ymax=mean_accuracy + ci.high), 
-                   width = .03, size=0.3, alpha = 1) +
+                   size=0.3, 
+                   alpha = 1) +
     scale_color_brewer(type = "qual", palette = "Set1") +
     scale_x_discrete(breaks = breaks) +
     scale_y_continuous(limits=c(0.25, 1.0), breaks = y_breaks) +
