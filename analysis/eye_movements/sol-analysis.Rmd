@@ -1606,8 +1606,7 @@ ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, linetype = hearing_status_p
     geom_line(data = filter(ms_mean_iChart_coda, Time.ms %in% points), size=1) +
     geom_linerange(data = filter(ms_mean_iChart_coda, Time.ms %in% points),
                    aes(ymin=mean_prop_looking - ci_low, 
-                       ymax=mean_prop_looking + ci_high), 
-                   width = .03, size=0.3, alpha = 0.7) +
+                       ymax=mean_prop_looking + ci_high), size=0.3, alpha = 0.7) +
     geom_point(data = filter(ms_mean_iChart_coda, to.n(Time.ms) %in% points), size=5, fill = "white") +
     scale_shape_manual(values = c(19, 21)) +
     scale_color_brewer(palette = "Set1", type = "qual") +
