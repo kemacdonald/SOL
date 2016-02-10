@@ -35,14 +35,11 @@ sol_demo <- read.csv("../../../raw_data/sol_demo_all.csv", stringsAsFactors = F)
 sol_demo$Sub.Num <- as.character(sol_demo$Sub.Num)
 
 # Eye movement data
-
 iChart <- read.csv("../../../processed_data/vanilla/sol-ichart-merged-post-gating.csv", 
-                   check.names=F, stringsAsFactors=F)
-
-iChart %<>% mutate(Sub.Num =  as.character(Sub.Num))
+                   check.names=F, stringsAsFactors=F) %>%  
+    mutate(Sub.Num =  as.character(Sub.Num))
 
 # Stimuli information
-
 sol_target_signs_df <- read.csv("../target_sign_lengths.csv")
 ```
 
@@ -91,7 +88,6 @@ iChart <- left_join(iChart, ss_unknown_signs, by = "Sub.Num")
 
 
 # Now we can filter the iChart, removing the "unknown" signs.
-
 ss_trials_df <- iChart %>% 
     group_by(Sub.Num, parent_report_unknown_signs) %>% 
     dplyr::summarise(Trials = n()) 
@@ -483,7 +479,6 @@ Get proportion looking to Target, Distractor, Away, and Signer at each time slic
 
 ```{r}
 ## Include all types of looking
-
 ms_iChart_count <- ss_iChart_long %>% 
     filter(value %in% c("0", "1", ".", "0.5")) %>%  ## specify acc computation
     group_by(Sub.Num, Time.ms, age_group, value_cat) %>% 
@@ -498,7 +493,6 @@ ms_iChart <- as.data.frame(xtabs(~ Sub.Num + value_cat + Time.ms,
            age_group_factor = as.factor(age_group))
 
 ## Only include Target and Distractor looking
-
 ms_iChart_count_TD <- ss_iChart_long %>% 
     filter(value %in% c("0", "1")) %>%  ## specify acc computation
     group_by(Sub.Num, Time.ms, age_group, value_cat) %>% 
@@ -527,9 +521,9 @@ ss_tanenhaus_comp <- ms_iChart %>%
 ss_tanenhaus_comp_TD <- ms_iChart_TD %>% 
     filter(to.n(Time.ms) >= analysis.window[1], to.n(Time.ms) <= analysis.window[2]) %>% 
     group_by(Sub.Num, value_cat, age_group) %>% 
-    dplyr::summarise(mean_prop_looking_signer = mean(proportion_looking, na.rm = T),
-              ci_low_signer = ci.low(proportion_looking),
-              ci_high_signer = ci.high(proportion_looking))
+    dplyr::summarise(mean_prop_looking_TD = mean(proportion_looking, na.rm = T),
+              ci_low_TD = ci.low(proportion_looking),
+              ci_high_TD = ci.high(proportion_looking))
 ```
 
 ## Create summary table
@@ -564,15 +558,18 @@ Add in Tanenhaus proportion looking computation for each participant.
 
 ```{r}
 ss <- ss_tanenhaus_comp %>% 
+    filter(value_cat %in% c("Target", "Distractor", "Signer")) %>% 
     select(Sub.Num, value_cat, age_group, mean_prop_looking_signer, value_cat) %>% 
     dplyr::rename(prop_looking = mean_prop_looking_signer) %>% 
     left_join(ss, ., by = c("Sub.Num"))
 
 ss <- ss_tanenhaus_comp_TD %>% 
-    select(Sub.Num, value_cat, age_group, mean_prop_looking_signer, value_cat) %>% 
-    dplyr::rename(prop_looking_TD = mean_prop_looking_signer) %>% 
-    left_join(ss, ., by = c("Sub.Num"))
+    filter(value_cat %in% c("Target", "Distractor", "Signer")) %>% 
+    select(Sub.Num, value_cat, age_group, mean_prop_looking_TD, value_cat) %>% 
+    left_join(ss, ., by = c("Sub.Num", "value_cat", "age_group"))
 ```
+
+## First Shift Analysis
 
 First we need to categorize each trial type based on the analysis window.
 
@@ -627,7 +624,6 @@ ss <- ss_first_shifts %>%
 ss <- ss %>% 
     mutate(C_D_prop = ifelse(C_T_prop == 1, 0, C_D_prop),
            exclude_chance_shifter = ifelse(Sub.Num %in% c("30018",
-                                                          "30024",
                                                           "20028",
                                                           "30051", 
                                                           "30086", 
@@ -788,4 +784,3 @@ Write graph values to CSV.
 ```{r, echo=F, eval=F, message=F, warning=F}
 write.csv(x = ms_mean_iChart_coda, file = "../sol_gvals_coda.csv", row.names = F)
 ```
-

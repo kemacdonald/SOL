@@ -29,6 +29,11 @@ ss <- read.csv("sol_ss_all.csv", stringsAsFactors = F)
 ss_kids <- filter(ss, age_group != "Adults")
 ss_rt <- filter(ss, age_group != "Adults", exclude_chance_shifter == "include")
 
+ss_kids %>% 
+    filter(exclude_chance_shifter == "exclude") %>% 
+    select(Sub.Num, age_cdi_months) %>% 
+    unique()
+
 # tanenhaus graph values
 gv_all <- read.csv("sol_gvals_all.csv", stringsAsFactors = F)
 gv_coda <- read.csv("sol_gvals_coda.csv", stringsAsFactors = F)
@@ -114,9 +119,9 @@ ms_coda_deaf <- ss_kids %>%
               m_fs = mean(C_T_prop),
               ci.h_ct = ci.high(C_T_prop),
               ci.l_ct = ci.low(C_T_prop),
-              m_acc = mean(target_looking_signer),
-              ci.h_acc = ci.high(target_looking_signer),
-              ci.l_acc = ci.low(target_looking_signer),
+              m_acc = mean(prop_looking),
+              ci.h_acc = ci.high(prop_looking),
+              ci.l_acc = ci.low(prop_looking),
               m_rt = mean(mean_correct_rt),
               ci.h_rt = ci.high(mean_correct_rt),
               ci.l_rt = ci.low(mean_correct_rt))
@@ -132,14 +137,14 @@ points <- seq(0,4000, by = 200)
 ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, color = value_cat), 
        data = gv_all) + 
     ylim(0,1) +
-    geom_rect(aes(xmin = 600, xmax = 2500, ymin = -Inf, ymax = Inf), alpha = 0.1, fill = "grey90", color = NA) +
+    geom_rect(aes(xmin = 600, xmax = 2500, ymin = -Inf, ymax = Inf), alpha = 0.1, 
+              fill = "grey90", color = NA) +
     geom_line(data = filter(gv_all, to.n(Time.ms) %in% points), size=0.7) +
     geom_linerange(data = filter(gv_all, Time.ms %in% points),
                    aes(ymin=mean_prop_looking - ci_low, 
                        ymax=mean_prop_looking + ci_high), alpha = 0.5) +
     geom_point(data = filter(gv_all, to.n(Time.ms) %in% points), size=4) +
     xlim(0,4000) +
-    geom_hline(yintercept = 0.33, linetype = "dashed") +
     facet_grid(. ~ age_group) +
     scale_color_brewer(palette = "Set1", type = "qual") +
     xlab("Time in ms from onset of noun") +
@@ -159,7 +164,7 @@ ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, color = value_cat),
          panel.margin = unit(1, "lines"))
 ```
 
-## Tanenhaus plot: CODA/Deaf
+### Tanenhaus plot: CODA/Deaf
 
 ```{r coda-deaf-plot}
 breaks <- seq(0,4000, by=500)
@@ -169,7 +174,8 @@ points <- seq(0,4000, by = 200)
 ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, linetype = hearing_status_participant, 
            color = value_cat, shape = hearing_status_participant), 
        data = gv_coda) + 
-    geom_rect(aes(xmin = 600, xmax = 2500, ymin = -Inf, ymax = Inf), alpha = 0.1, fill = "grey90", color = NA) +
+    geom_rect(aes(xmin = 600, xmax = 2500, ymin = -Inf, ymax = Inf), alpha = 0.1, 
+              fill = "grey90", color = NA) +
     geom_line(data = filter(gv_coda, Time.ms %in% points), size=2) +
     geom_linerange(data = filter(gv_coda, Time.ms %in% points),
                    aes(ymin=mean_prop_looking - ci_low, 
@@ -179,7 +185,6 @@ ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, linetype = hearing_status_p
     scale_color_brewer(palette = "Set1", type = "qual") +
     xlim(0, 4000) +
     ylim(0,1) +
-    geom_hline(yintercept = 0.33, linetype = "dashed") +
     xlab("Time in ms from onset of noun") +
     ylab("Proportion looking") +
     theme_bw() +
@@ -198,15 +203,29 @@ ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, linetype = hearing_status_p
 ### Scatter plots of individual differences
 
 ```{r plot correlations}
-acc_age_plot <- qplot(x = Months, y = target_looking_no_signer, data = ss_kids,
-      ylab=c("Window Accuracy"), 
+df_corrs <- ss_kids %>% 
+    filter(value_cat == "Target") %>% 
+    select(Sub.Num, prop_looking, age_cdi_months, signs_produced, mean_correct_rt)
+
+df_corrs_rt <- ss_rt %>% 
+    filter(value_cat == "Target") %>% 
+    select(Sub.Num, prop_looking, age_cdi_months, signs_produced, mean_correct_rt)
+
+acc_age_r <- round(cor.test(df_corrs$prop_looking, df_corrs$age_cdi_months)$estimate, 2)
+rt_age_r <- round(cor.test(df_corrs_rt$mean_correct_rt, df_corrs_rt$age_cdi_months)$estimate, 2)
+acc_voc_r <- round(cor.test(df_corrs$prop_looking, df_corrs$signs_produced)$estimate, 2)
+rt_voc_r <- round(cor.test(df_corrs_rt$mean_correct_rt, df_corrs_rt$signs_produced)$estimate, 2)
+
+acc_age_plot <- qplot(x = Months, y = prop_looking, 
+                      data = filter(ss_kids, value_cat == "Target"),
+      ylab=c("Accuracy"), 
       xlab=c("Child's Age (months)")) +
-    ylim(0.44, 0.85) +
+    ylim(0, 0.85) +
     xlim(15, 55) +
     geom_smooth(method = "lm", se=F, color="black", size = 1.5) +
     geom_point(color = "black", size = 5.5) +
     geom_point(color = "grey50", size = 4) +
-    # annotate("text", x = 30, y = 0.8, label = paste("r =", acc_voc_r), size=8) +
+    annotate("text", x = 45, y = 0.7, label = paste("r =", acc_age_r), size=8) +
     theme_bw() + 
     theme(axis.title.x = element_text(colour="grey30",size=22,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
@@ -216,10 +235,11 @@ acc_age_plot <- qplot(x = Months, y = target_looking_no_signer, data = ss_kids,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
           axis.text.y = element_text(colour="grey20",size=18,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          panel.grid.major=element_blank())
+          panel.grid.major=element_blank(),
+          plot.margin = unit(c(1,1,1,1), "cm"))
 
-rt_age_plot <- qplot(x = Months, y = median_ct_rt, 
-                     data = filter(ss_medians, age_group_collapsed == "Kids"),
+rt_age_plot <- qplot(x = Months, y = mean_correct_rt, 
+                     data = filter(ss_kids, value_cat == "Target"),
       ylab=c("Reaction Time (ms)"), 
       xlab=c("Child's Age (months)")) +
     ylim(800, 1950)  +
@@ -227,7 +247,7 @@ rt_age_plot <- qplot(x = Months, y = median_ct_rt,
     geom_smooth(method = "lm", se=F, color="black", size = 1.5) +
     geom_point(color = "black", size = 5.5) +
     geom_point(color = "grey50", size = 4) +
-    # annotate("text", x = 30, y = 0.8, label = paste("r =", acc_voc_r), size=8) +
+    annotate("text", x = 45, y = 1750, label = paste("r =", rt_age_r), size=8) +
     theme_bw() + 
     theme(axis.title.x = element_text(colour="grey30",size=22,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
@@ -237,17 +257,19 @@ rt_age_plot <- qplot(x = Months, y = median_ct_rt,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
           axis.text.y = element_text(colour="grey20",size=18,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          panel.grid.major=element_blank())
+          panel.grid.major=element_blank(),
+          plot.margin = unit(c(1,1,1,1), "cm"))
 
-acc_voc_plot <- qplot(x = signs_produced, y = target_looking_no_signer, data = ss_kids,
-      ylab=c("Window Accuracy"), 
-      xlab=c("Signs Produced")) +
-    ylim(0.44, 0.85) +
+acc_voc_plot <- qplot(x = signs_produced, y = prop_looking, 
+                      data = filter(ss_kids, value_cat == "Target"),
+                      ylab=c("Accuracy"), 
+                      xlab=c("Signs Produced")) +
+    ylim(0.1, 0.7) +
     xlim(15, 85) +
     geom_smooth(method = "lm", se=F, color="black", size = 1.5) +
     geom_point(color = "black", size = 5.5) +
     geom_point(color = "grey50", size = 4) +
-    #annotate("text", x = 30, y = 0.8, label = paste("r =", acc_voc_r), size=8) +
+    annotate("text", x = 25, y = 0.6, label = paste("r =", acc_voc_r), size=8) +
     theme_bw() + 
     theme(axis.title.x = element_text(colour="grey30",size=22,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
@@ -257,17 +279,19 @@ acc_voc_plot <- qplot(x = signs_produced, y = target_looking_no_signer, data = s
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
           axis.text.y = element_text(colour="grey20",size=18,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          panel.grid.major=element_blank())
+          panel.grid.major=element_blank(),
+          plot.margin = unit(c(1,1,1,1), "cm"))
 
-rt_voc_plot <- qplot(x = signs_produced, y = median_ct_rt, data = ss_rt,
-      ylab=c("Reaction Time (ms)"), 
-      xlab=c("Signs Produced")) +
+rt_voc_plot <- ggplot(aes(x = signs_produced, y = mean_correct_rt), 
+                      data = filter(ss_rt, value_cat == "Target")) + 
+    ylab("Reaction Time (ms)") +
+    xlab("Signs Produced") +
     ylim(800, 1950) +
     xlim(15, 85) +
     geom_smooth(method = "lm", se=F, color="black", size = 1.5) +
     geom_point(color = "black", size = 5.5) +
     geom_point(color = "grey50", size = 4) +
-    #annotate("text", x = 65, y = 1750, label = paste("r =", rt_voc_r), size=8) +
+    annotate("text", x = 65, y = 1750, label = paste("r =", rt_voc_r), size=8) +
     theme_bw() + 
     theme(axis.title.x = element_text(colour="grey30",size=22,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
@@ -277,12 +301,11 @@ rt_voc_plot <- qplot(x = signs_produced, y = median_ct_rt, data = ss_rt,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
           axis.text.y = element_text(colour="grey20",size=18,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          panel.grid.major=element_blank())
+          panel.grid.major=element_blank(),
+          plot.margin = unit(c(1,1,1,1), "cm"))
 
 gridExtra::grid.arrange(acc_age_plot, rt_age_plot, ncol = 2)
-
 gridExtra::grid.arrange(acc_voc_plot, rt_voc_plot, ncol = 2)
-
 ```
 
 ## Models and Stats
@@ -304,18 +327,24 @@ summary(fit_rt2)$r.squared - summary(fit_rt3)$r.squared
 ### T.tests all analyses
 
 ```{r t-tests age}
+# rt older/younger
 t.test(mean_correct_rt ~ age_group, alternative = "two.sided", var.equal=T, 
        data = filter(ss_rt, value_cat == "Target"))
 
+# target looking older/younger
 t.test(prop_looking ~ age_group, alternative = "two.sided", var.equal=T, 
        data = filter(ss_kids, value_cat == "Target"))
 
+# distractor looking older/younger
 t.test(prop_looking ~ age_group, alternative = "two.sided", var.equal=T, 
        data = filter(ss_kids, value_cat == "Distractor"))
 
+# signer looking older/younger
 t.test(prop_looking ~ age_group, alternative = "two.sided", var.equal=T, 
        data = filter(ss_kids, value_cat == "Signer"))
+```
 
+```{r}
 t.test(mean_correct_rt ~ age_group_collapsed, alternative = "two.sided", var.equal = T, 
        data = filter(ss, value_cat == "Target"))
 
@@ -330,4 +359,12 @@ t.test(C_T_prop ~ hearing_status_participant, alternative = "two.sided", var.equ
 
 t.test(mean_correct_rt ~ hearing_status_participant, alternative = "two.sided", var.equal=T, 
        data = ss_rt)
-`
+```
+
+### Model target and distractor looking as a function of age 
+
+```{r}
+td_looking <- filter(ss, value_cat %in% c("Target", "Distractor"))
+fit.1 <- lm(prop_looking ~ age_group * value_cat, data = td_looking)
+
+```
