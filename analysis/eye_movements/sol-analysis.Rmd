@@ -365,6 +365,12 @@ t.test(mean_correct_rt ~ hearing_status_participant, alternative = "two.sided", 
 
 ```{r}
 td_looking <- filter(ss, value_cat %in% c("Target", "Distractor"))
+
 fit.1 <- lm(prop_looking ~ age_group * value_cat, data = td_looking)
 
+fit.2 <- lm(mean_prop_looking_TD ~ age_group * value_cat, 
+            data = filter(td_looking, age_group == "Kids"))
+
+fit.3 <- lm(mean_prop_looking_TD ~ age_group * value_cat, 
+            data = td_looking)
 ```
