@@ -15,10 +15,9 @@ output: html_document
 
 ```{r global_options, include=FALSE}
 rm(list=ls())
-knitr::opts_chunk$set(fig.width = 9, echo=T, warning=F, cache=F, message=F, sanitize = T)
-```
+knitr::opts_chunk$set(fig.width = 9, echo=T, warning=F, 
+                      cache=F, message=F, sanitize = T)
 
-```{r, echo=F}
 library(langcog)
 library(knitr)
 library(R2jags)
@@ -34,24 +33,25 @@ theme_set(theme_bw())
 ## Data structure
 
 ```{r, echo=F}
-df_correct <- read.csv("../../paper/sol_ss_kids.csv")
+df_correct <- read.csv("../../analysis/eye_movements/sol_ss_all.csv")
 
 df_correct %<>%  
+    filter(age_group_collapsed == "Kids", value_cat == "Target") %>% 
     mutate(C_D_count = ifelse(is.na(C_D_count), 0, C_D_count),
-        total_trials_shifting = C_T_count + C_D_count) %>% 
-    dplyr::select(Sub.Num, age_cdi_months, signs_produced, C_T_count, total_trials_shifting, 
-                  mean_correct_rt, C_T_prop)
-
-kable(head(df_correct))
+        total_trials_shifting = C_T_count + C_D_count,
+        Sub.Num = as.character(Sub.Num)) %>% 
+    dplyr::select(Sub.Num, age_peek_months, signs_produced, C_T_count,
+                  total_trials_shifting, 
+                  mean_correct_rt, C_T_prop, prop_looking)
 ```
 
-## Visualize 
+## Visualize correlations
 
 ```{r, echo = F}
-ggplot(aes(x=age_cdi_months, y=mean_correct_rt), data = df_correct) +
+ggplot(aes(x=age_peek_months, y=mean_correct_rt), data = df_correct) +
     geom_point() +
     geom_smooth(method = "lm") + 
-    ylim(800, 1750) +
+    ylim(800, 2000) +
     ggrepel::geom_text_repel(aes(label = C_T_prop), force = 10)
 ```
 
@@ -75,13 +75,12 @@ grid::grid.raster(png::readPNG("latent-mixture-bda.png"))
 
 
 ```{r,fig.width=12, fig.height=6, cache=F}
-# Note: I adjusted the model to allow for different number of trials for each participants.
-# change n to n[i] in the for loop.
+# Note: I adjusted the model to allow for different number of trials for each participants by changing n to n[i] in the for loop.
 cat('# Exam Scores
 model{
   # Each Person Belongs To One Of Two Latent Groups
   for (i in 1:p){
-    z[i] ~ dbern(0.5)
+    z[i] ~ dbern(0.75)
   }
   # First Group Guesses
   psi <- 0.5
@@ -106,7 +105,7 @@ p <- nrow(df_correct)                         # number of participants
 k <- df_correct$C_T_count                     # number correct for each participant
 n <- df_correct$total_trials_shifting         # number of trials for each participant
 
-daa <- list("p", "k", "n")                             # data passed on to JAGS
+data <- list("p", "k", "n")                             # data passed on to JAGS
 myinits <-  list(list(phi = 0.75, z = round(runif(p)))) # Initial group assignment
 ```
 
@@ -126,8 +125,6 @@ samples <- jags(data, inits=myinits, parameters,
 # extract values from model
 df <- data.frame(phi = samples$BUGSoutput$sims.list$phi,
                  z = samples$BUGSoutput$sims.list$z)
-
-kable(head(df))
 ```
 
 Visualize parameter values
@@ -148,7 +145,8 @@ a <- qplot(data=melt(df$phi),x=value,geom='histogram',binwidth=0.008)+
     xlab('phi')+
     xlim(0,1)
 
-b <- ggplot(data=df_melt,aes(x=group_membership_factor, fill=group_membership_factor)) +
+b <- ggplot(data=df_melt,aes(x=group_membership_factor, 
+                             fill=group_membership_factor)) +
     geom_bar(stat="count") +
     facet_wrap(~Sub.Num,scales='fixed')+
     guides(fill=F) +
@@ -161,28 +159,19 @@ grid.arrange(a,b,nrow=1, top='Group success rate and individual group membership
              widths = c(2, 4))
 ```
 
-## Flag guessers
-
-Need some criterion for flagging participant as guessing. 
+## Merge output of latent mixture model with summary stats
 
 ```{r, echo = F}
 m1_guessers <- df_melt %>% 
     group_by(Sub.Num) %>% 
     summarise(knowledge_count = sum(group_membership)) %>% 
-    filter(knowledge_count <= 250) %>% # determines the proportion of posterior == "guessing"
     mutate(
         Sub.Num = as.character(Sub.Num),
         guessing_count = 1000 - knowledge_count,
         posterior_mass = round((guessing_count / 1000), 2)
     ) 
 
-m1_guessers <- df_correct %>% 
-    mutate(Sub.Num = as.character(Sub.Num)) %>% 
-    dplyr::select(C_T_prop, Sub.Num, total_trials_shifting) %>% 
-    left_join(x = m1_guessers, by = "Sub.Num")
-
-knitr::kable(dplyr::select(m1_guessers, Sub.Num, posterior_mass, C_T_prop,
-                           total_trials_shifting))
+df_correct <- left_join(df_correct, m1_guessers, by = "Sub.Num")
 ```
 
 ## Compare to binomial test against chance 
@@ -199,4 +188,55 @@ binom_guessers <- df_correct %>%
     arrange(binom_p) 
 
 knitr::kable(binom_guessers)
+```
+
+## Bayesian linear regression
+
+```{r}
+myData <- df_correct %>% 
+    filter(is.na(signs_produced) == F) %>% 
+    dplyr::select(Sub.Num, age_peek_months, mean_correct_rt, signs_produced, 
+                  prop_looking, guessing_count, posterior_mass)
+    
+
+xName = "age_peek_months" ; yName = "prop_looking" ; wName="posterior_mass"
+fileNameRoot = "sol-linear-regression-"
+graphFileType = "eps" 
+```
+
+### Load model
+
+```{r}
+source(file = "sol-bda-linear-regression.R")
+```
+
+### Generate the MCMC chain:
+```{r}
+mcmcCoda = genMCMC( data=myData , xName=xName , yName=yName , wName = NULL, 
+                    numSavedSteps=20000 , saveName=fileNameRoot )
+```
+
+### Display diagnostics of chain, for specified parameters:
+
+```{r}
+parameterNames = varnames(mcmcCoda) # get all parameter names
+for ( parName in parameterNames ) {
+  diagMCMC( codaObject=mcmcCoda , parName=parName , 
+            saveName=fileNameRoot , saveType=graphFileType )
+}
+```
+
+### Get summary statistics of chain
+
+```{r}
+summaryInfo = smryMCMC( mcmcCoda , 
+                        compValBeta1=0.0 , ropeBeta1=c(-0.5,0.5) ,
+                        saveName=fileNameRoot )
+show(summaryInfo)
+# Display posterior information:
+plotMCMC( mcmcCoda , data=myData , xName=xName , yName=yName , 
+          compValBeta1=0.0 , ropeBeta1=c(-0.5,0.5) ,
+          pairsPlot=TRUE , showCurve=FALSE ,
+          saveName=fileNameRoot , saveType=graphFileType )
+
 ```
