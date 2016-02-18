@@ -4,19 +4,17 @@
     Ntotal <- length(y)
     xm <- mean(x)
     ym <- mean(y)
-    wm <- mean(w)
     xsd <- sd(x)
     ysd <- sd(y)
     for ( i in 1:length(y) ) {
     zx[i] <- ( x[i] - xm ) / xsd
     zy[i] <- ( y[i] - ym ) / ysd
-    zw[i] <- w[i] / wm 
     }
     }
     # Specify the model for standardized data:
     model {
     for ( i in 1:Ntotal ) {
-    zy[i] ~ dt( zbeta0 + zbeta1 * zx[i] , 1/(zw[i]*zsigma)^2 , nu )
+    zy[i] ~ dt( zbeta0 + zbeta1 * zx[i] , 1/(zsigma)^2 , nu )
     }
     # Priors vague on standardized scale:
     zbeta0 ~ dnorm( 0 , 1/(10)^2 )  
@@ -29,4 +27,3 @@
     beta0 <- zbeta0 * ysd  + ym - zbeta1 * xm * ysd / xsd 
     sigma <- zsigma * ysd
     }
-    

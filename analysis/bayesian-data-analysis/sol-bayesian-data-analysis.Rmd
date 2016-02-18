@@ -41,17 +41,16 @@ df_correct %<>%
         total_trials_shifting = C_T_count + C_D_count,
         Sub.Num = as.character(Sub.Num)) %>% 
     dplyr::select(Sub.Num, age_peek_months, signs_produced, C_T_count,
-                  total_trials_shifting, 
-                  mean_correct_rt, C_T_prop, prop_looking)
+                  total_trials_shifting, mean_correct_rt, median_ct_rt,
+                  C_T_prop, prop_looking)
 ```
 
 ## Visualize correlations
 
 ```{r, echo = F}
-ggplot(aes(x=age_peek_months, y=mean_correct_rt), data = df_correct) +
+ggplot(aes(x=signs_produced, y=median_ct_rt), data = df_correct) +
     geom_point() +
     geom_smooth(method = "lm") + 
-    ylim(800, 2000) +
     ggrepel::geom_text_repel(aes(label = C_T_prop), force = 10)
 ```
 
@@ -74,10 +73,9 @@ grid::grid.raster(png::readPNG("latent-mixture-bda.png"))
 * For the knowledge group, we use a prior where all rate possibilities greater than 0.5 are equally likely, so that φ ∼ Uniform(􏰀0.5, 1􏰁.)
 
 
-```{r,fig.width=12, fig.height=6, cache=F}
-# Note: I adjusted the model to allow for different number of trials for each participants by changing n to n[i] in the for loop.
-cat('# Exam Scores
-model{
+```{r, cache=F}
+cat(
+ 'model{
   # Each Person Belongs To One Of Two Latent Groups
   for (i in 1:p){
     z[i] ~ dbern(0.75)
@@ -85,7 +83,7 @@ model{
   # First Group Guesses
   psi <- 0.5
   # Second Group Has Some Unknown Greater Rate Of Success
-  phi ~ dbeta(1,1)I(0.5,1)
+  phi ~ dunif(0.5,1)
   # Data Follow Binomial With Rate Given By Each Persons Group Assignment
   for (i in 1:p){
     theta[i] <- equals(z[i],0)*psi+equals(z[i],1)*phi
@@ -96,17 +94,16 @@ model{
 
 ## Initial values 
 
-1. Number of participants
-2. Number correct for each participant
-3. Number of trials for each participant
-
 ```{r}
 p <- nrow(df_correct)                         # number of participants
 k <- df_correct$C_T_count                     # number correct for each participant
 n <- df_correct$total_trials_shifting         # number of trials for each participant
+age <- df_correct$age_peek_months             # age in months
+prop_looking <- df_correct$prop_looking       # correct looking
+rt <- df_correct$mean_correct_rt
 
-data <- list("p", "k", "n")                             # data passed on to JAGS
-myinits <-  list(list(phi = 0.75, z = round(runif(p)))) # Initial group assignment
+data <- list("p", "k", "n", "age", "prop_looking")             # data passed on to JAGS
+myinits <-  list(list(phi = 0.75, z = round(runif(p))))        # Initial group assignment
 ```
 
 ## Parameters to be monitored
@@ -115,19 +112,22 @@ myinits <-  list(list(phi = 0.75, z = round(runif(p)))) # Initial group assignme
 2. z (group membership: knowledge or guessing)
 
 ```{r}
-parameters <- c("phi","z") 
+parameters <- c("phi","z", "junk_intercept", "actual_intercept", "slope", "variance") 
 
 # get samples
 samples <- jags(data, inits=myinits, parameters,
                 model.file=f, n.chains=1, n.iter=1000, 
                 n.burnin=1, n.thin=1, DIC=T)
+```
 
-# extract values from model
+## Extract values from model
+
+```{r}
 df <- data.frame(phi = samples$BUGSoutput$sims.list$phi,
                  z = samples$BUGSoutput$sims.list$z)
 ```
 
-Visualize parameter values
+## Visualize parameter values
 
 ```{r, echo = F, fig.width=10}
 # grab subject numbers
@@ -199,7 +199,7 @@ myData <- df_correct %>%
                   prop_looking, guessing_count, posterior_mass)
     
 
-xName = "age_peek_months" ; yName = "prop_looking" ; wName="posterior_mass"
+xName = "age_peek_months" ; yName = "prop_looking" ; wName="guessing_count"
 fileNameRoot = "sol-linear-regression-"
 graphFileType = "eps" 
 ```
@@ -229,6 +229,12 @@ for ( parName in parameterNames ) {
 ### Get summary statistics of chain
 
 ```{r}
+df <- data.frame(phi = samples$BUGSoutput$sims.list$phi,
+                 z = samples$BUGSoutput$sims.list$z)
+
+```
+
+```{r}
 summaryInfo = smryMCMC( mcmcCoda , 
                         compValBeta1=0.0 , ropeBeta1=c(-0.5,0.5) ,
                         saveName=fileNameRoot )
@@ -238,5 +244,9 @@ plotMCMC( mcmcCoda , data=myData , xName=xName , yName=yName ,
           compValBeta1=0.0 , ropeBeta1=c(-0.5,0.5) ,
           pairsPlot=TRUE , showCurve=FALSE ,
           saveName=fileNameRoot , saveType=graphFileType )
+
+# better plot 
+
+
 
 ```
