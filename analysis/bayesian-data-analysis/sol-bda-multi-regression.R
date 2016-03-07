@@ -1,7 +1,6 @@
 # Clear workspace
 rm(list=ls())
 # Packages
-library(reshape)
 library(R2jags)
 library(rjags)
 library(dplyr)
@@ -40,6 +39,7 @@ HDIofMCMC = function( sampleVec , credMass=0.95 ) {
 }
 
 ##### Load data
+
 data <- read.csv("../../analysis/eye_movements/sol_ss_all.csv")
 
 data %<>%  
@@ -58,6 +58,7 @@ data %<>%
 data_voc <- data %>% filter(is.na(signs_produced) == F)
 
 ##### Structure the data
+
 rt <-data$mean_correct_rt
 rt_median <- data$median_rt
 n_correct <- data$C_T_count
@@ -66,7 +67,7 @@ acc <- data$prop_looking
 age <- data$age_peek_months
 vocab <- data$signs_produced
 
-# For Vocab models we need to remove one participant for whom we didn't collect CDI data
+# For Vocab models we need to remove one participant for whom we didn't get CDI
 rt_voc <-data_voc$mean_correct_rt
 rt_median_voc <- data_voc$median_rt
 n_correct_voc <- data_voc$C_T_count
@@ -75,12 +76,19 @@ acc_voc <- data_voc$prop_looking
 age_voc <- data_voc$age_peek_months
 vocab_voc <- data_voc$signs_produced
 
+# Create matrix for multiple regression: each column is a predictor and each row is data point 
+
+x_matrix <- cbind(age_voc, vocab_voc)
+
 # Specify the data in a list, for later shipment to JAGS:
+
 dataList = list(
-    x = age,
-    y = acc,
+    x = x_matrix,
+    y = rt_voc,
     n_correct = n_correct,
-    n_trials = n_trials
+    n_trials = n_trials,
+    Nx = dim(x_matrix)[2] ,
+    Ntotal = dim(x_matrix)[1]
 )
 
 # Specify initial values
@@ -91,59 +99,69 @@ myinits <-  list(list(phi = 0.75, z = round(runif(length(n_correct)))))
 
 modelString = "
     # Standardize the data:
-    data {
-        Ntotal <- length(y)
-        xm <- mean(x)
+      data {
         ym <- mean(y)
-        xsd <- sd(x)
         ysd <- sd(y)
-        for ( i in 1:length(y) ) {
-            zx[i] <- ( x[i] - xm ) / xsd
-            zy[i] <- ( y[i] - ym ) / ysd
+        for ( i in 1:Ntotal ) {
+          zy[i] <- ( y[i] - ym ) / ysd
         }
-    }
+        for ( j in 1:Nx ) {
+          xm[j]  <- mean(x[,j])
+          xsd[j] <-   sd(x[,j])
+          for ( i in 1:Ntotal ) {
+            zx[i,j] <- ( x[i,j] - xm[j] ) / xsd[j]
+          }
+        }
+      }
     # Specify the model for standardized data:
     model {
-        # Latent Mixture Model
-        for (i in 1:Ntotal) {
-            z[i] ~ dbern(0.5)
+    # Latent Mixture Model
+    for (i in 1:Ntotal) {
+    z[i] ~ dbern(0.5)
+    }
+    # First Group Guesses
+    psi <- 0.5
+    # Second Group Has Some Unknown Greater Rate Of Success
+    phi ~ dunif(0.5,1)
+    # Data Follow Binomial With Rate Given By Each Persons Group Assignment
+    for (i in 1:Ntotal){
+    theta[i] <- equals(z[i],0)*psi+equals(z[i],1)*phi
+    n_correct[i] ~ dbin(theta[i],n_trials[i])
+    }
+    # Bayesian Linear Regression
+    for ( i in 1:Ntotal ) {
+        zbeta0[i] <- equals(z[i],0)*nuisance_beta0+equals(z[i],1)*true_beta0
+        zsigma[i] <- equals(z[i],0)*nuisance_sigma+equals(z[i],1)*true_sigma
+        # need to draw values for both predictors
+        for ( j in 1:Nx ) {
+            zbeta[i,] <- equals(z[i],0)*nuisance_beta[i,]+equals(z[i],1)*true_beta[,]
         }
-        # First Group Guesses
-        psi <- 0.5
-        # Second Group Has Some Unknown Greater Rate Of Success
-        phi ~ dunif(0.5,1)
-        # Data Follow Binomial With Rate Given By Each Persons Group Assignment
-        for (i in 1:Ntotal){
-            theta[i] <- equals(z[i],0)*psi+equals(z[i],1)*phi
-            n_correct[i] ~ dbin(theta[i],n_trials[i])
-        }
-        # Bayesian Linear Regression
-        for ( i in 1:Ntotal ) {
-            zbeta0[i] <- equals(z[i],0)*nuisance_beta0+equals(z[i],1)*true_beta0
-            zbeta1[i] <- equals(z[i],0)*nuisance_beta1+equals(z[i],1)*true_beta1
-            zsigma[i] <- equals(z[i],0)*nuisance_sigma+equals(z[i],1)*true_sigma
-            zy[i] ~ dt( zbeta0[i] + zbeta1[i] * zx[i] , 1/(zsigma[i])^2 , nu )
-           # zy[i] ~ dnorm( zbeta0[i] + zbeta1[i] * zx[i] , 1/(zsigma[i])^2 )
-        }
-        # Priors vague on standardized scale set for both linear regressions
-        true_beta0 ~ dnorm( 0 , 1/(10)^2 )
-        nuisance_beta0 ~ dnorm( 0 , 1/(10)^2 )  
-        true_beta1 ~ dnorm( 0 , 1/(10)^2 )
-        nuisance_beta1 ~ dnorm( 0 , 1/(10)^2 )
-        true_sigma ~ dunif( 1.0E-3 , 1.0E+3 )
-        nuisance_sigma ~ dunif( 1.0E-3 , 1.0E+3 )
-         nu <- nuMinusOne+1
-        nuMinusOne ~ dexp(1/29.0)
-        # Transform to original scale:
-        beta1 <- true_beta1 * ysd / xsd  
-        beta0 <- true_beta0 * ysd  + ym - true_beta1 * xm * ysd / xsd 
-        sigma <- zsigma * ysd
-    }"
+
+        # zy[i] ~ dt( zbeta0[i] + zbeta1[i] * zx[i] , 1/(zsigma[i])^2 , nu )
+        zy[i] ~ dt( zbeta0[i] + sum( zbeta[1:Nx] * zx[i,1:Nx] ) , 1/zsigma[i]^2 , nu )
+    }
+    # Priors vague on standardized scale; set for both linear regressions
+    true_beta0 ~ dnorm( 0 , 1/(10)^2 )
+    nuisance_beta0 ~ dnorm( 0 , 1/(10)^2 )  
+    for ( j in 1:Nx ) {
+        true_beta[j] ~ dnorm( 0 , 1/(10)^2 )
+        nuisance_beta[j] ~ dnorm( 0 , 1/(10)^2 )
+    }
+    true_sigma ~ dunif( 1.0E-3 , 1.0E+3 )
+    nuisance_sigma ~ dunif( 1.0E-3 , 1.0E+3 )
+    nu <- nuMinusOne+1
+    nuMinusOne ~ dexp(1/29.0)
+    # Transform to original scale:
+    beta[1:Nx] <- ( zbeta[1:Nx] / xsd[1:Nx] )*ysd
+    beta0 <- zbeta0*ysd  + ym - sum( zbeta[1:Nx] * xm[1:Nx] / xsd[1:Nx] )*ysd
+    sigma <- zsigma * ysd
+}"
 
 writeLines( modelString , con="TEMPmodel.txt" )
 
 ###### RUN THE CHAINS
-parameters = c( "beta0" ,  "beta1" , "sigma", 
+
+parameters = c( "beta0" ,  "beta" ,  "sigma", 
                 "zbeta0" , "zbeta1" , "zsigma", "nu" ,
                 "phi" , "z")
 adaptSteps = 500  # Number of steps to "tune" the samplers
@@ -154,6 +172,7 @@ numSavedSteps = 20000
 nIter = ceiling( ( numSavedSteps * thinSteps ) / nChains )
 
 ####### Create, initialize, and adapt the model:
+
 jagsModel = jags.model( "TEMPmodel.txt" , data=dataList , inits=myinits , 
                         n.chains=nChains , n.adapt=adaptSteps )
 
@@ -165,8 +184,9 @@ samples <- jags(data = dataList, parameters.to.save = parameters,
                 model.file="TEMPmodel.txt", n.chains=1, n.iter=5000, 
                 n.thin=1, DIC=T)
 
-df <- data.frame(beta0 = samples$BUGSoutput$sims.list$beta0,
-                 beta1 = samples$BUGSoutput$sims.list$beta1,
+
+df <- data.frame(beta0 = samples$BUGSoutput$sims.list$true_beta0,
+                 beta1 = samples$BUGSoutput$sims.list$true_beta1,
                  phi = samples$BUGSoutput$sims.list$phi,
                  z = samples$BUGSoutput$sims.list$z)
 
@@ -187,14 +207,15 @@ ggplot(aes(x = beta1), data = df) +
 ####### Visualize posterior distribution on group membership and group level success
 
 # grab subject numbers and add to data frame
-colnames(df)[which(names(df)=="z.1"):which(names(df)=="z.34")] <- as.character(data$Sub.Num)
+colnames(df)[which(names(df)=="z.1"):which(names(df)=="z.29")] <- as.character(data$Sub.Num)
 
 # melt data frame
 df_mixture <- df %>% dplyr::select(-beta0, -beta1)
 df_melt <- melt(df_mixture[,2:length(df_mixture)], variable.name = "Sub.Num", value.name = "group_membership")
 
 # change factor label
-df_melt %<>% mutate(group_membership_factor = factor(df_melt$group_membership, labels = c("G", "K"))) 
+df_melt %<>% mutate(group_membership_factor = factor(df_melt$group_membership, 
+                                                     labels = c("G", "K"))) 
 
 a <- qplot(data=melt(df$phi),x=value,geom='histogram',binwidth=0.008)+
     theme_bw()+
@@ -204,12 +225,12 @@ a <- qplot(data=melt(df$phi),x=value,geom='histogram',binwidth=0.008)+
 b <- ggplot(data=df_melt,aes(x=group_membership_factor, 
                              fill=group_membership_factor)) +
     geom_bar(stat="count") +
-    facet_grid(~Sub.Num,scales='fixed')+
+    facet_wrap(~Sub.Num,scales='fixed')+
     guides(fill=F) +
-    langcog::scale_fill_solarized() +
+    scale_fill_solarized() +
     theme_bw()+
     xlab('Group Membership') +
     ylab("Count")
 
-gridExtra::grid.arrange(a,b,nrow=1, top='Group success rate and individual group membership', 
+grid.arrange(a,b,nrow=1, top='Group success rate and individual group membership', 
              widths = c(2, 4))

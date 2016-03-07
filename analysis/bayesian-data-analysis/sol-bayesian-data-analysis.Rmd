@@ -41,14 +41,14 @@ df_correct %<>%
         total_trials_shifting = C_T_count + C_D_count,
         Sub.Num = as.character(Sub.Num)) %>% 
     dplyr::select(Sub.Num, age_peek_months, signs_produced, C_T_count,
-                  total_trials_shifting, mean_correct_rt, median_ct_rt,
-                  C_T_prop, prop_looking)
+                  total_trials_shifting, mean_correct_rt, log_median_rt = median_ct_rt.x, median_rt = median_ct_rt.y,
+                  C_T_prop, prop_looking, mean_prop_looking_TD)
 ```
 
 ## Visualize correlations
 
 ```{r, echo = F}
-ggplot(aes(x=signs_produced, y=median_ct_rt), data = df_correct) +
+ggplot(aes(x=signs_produced, y=log_median_rt), data = df_correct) +
     geom_point() +
     geom_smooth(method = "lm") + 
     ggrepel::geom_text_repel(aes(label = C_T_prop), force = 10)
@@ -249,4 +249,4 @@ plotMCMC( mcmcCoda , data=myData , xName=xName , yName=yName ,
 
 
 
-```
+

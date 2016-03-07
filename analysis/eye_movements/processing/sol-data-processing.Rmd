@@ -639,7 +639,8 @@ ss_medians <- iChart %>%
     filter(trial_types == "C_T", 
            GoodFirstGap == T, GoodRT == T, GoodLongestGap == T) %>% 
     group_by(Sub.Num, age_group, age_group_collapsed, Months) %>% 
-    dplyr::summarise(median_ct_rt = median(RT, na.rm = T))
+    dplyr::summarise(log_median_ct_rt = median(log(RT), na.rm = T),
+                     median_ct_rt = median(RT, na.rm = T))
 
 ss <- ss_medians %>% 
     ungroup() %>% 
