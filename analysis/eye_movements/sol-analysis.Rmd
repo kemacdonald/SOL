@@ -27,7 +27,7 @@ library(tidyr)
 # summary data
 ss <- read.csv("sol_ss_all.csv", stringsAsFactors = F)
 ss_kids <- filter(ss, age_group != "Adults")
-ss_rt <- filter(ss, age_group != "Adults", exclude_chance_shifter == "include")
+ss_rt <- filter(ss, age_group != "Adults")
 
 ss_kids %>% 
     filter(exclude_chance_shifter == "exclude") %>% 
@@ -205,19 +205,19 @@ ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, linetype = hearing_status_p
 ```{r plot correlations}
 df_corrs <- ss_kids %>% 
     filter(value_cat == "Target") %>% 
-    select(Sub.Num, prop_looking, age_cdi_months, signs_produced, mean_correct_rt)
+    select(Sub.Num, prop_looking, Months, signs_produced, median_ct_rt)
 
 df_corrs_rt <- ss_rt %>% 
-    filter(value_cat == "Target") %>% 
-    select(Sub.Num, prop_looking, age_cdi_months, signs_produced, mean_correct_rt)
+    filter(value_cat == "Target", age_group != "Adults") %>% 
+    select(Sub.Num, prop_looking, Months, signs_produced, median_ct_rt)
 
-acc_age_r <- round(cor.test(df_corrs$prop_looking, df_corrs$age_cdi_months)$estimate, 2)
-rt_age_r <- round(cor.test(df_corrs_rt$mean_correct_rt, df_corrs_rt$age_cdi_months)$estimate, 2)
+acc_age_r <- round(cor.test(df_corrs$prop_looking, df_corrs$Months)$estimate, 2)
+rt_age_r <- round(cor.test(df_corrs_rt$median_ct_rt, df_corrs_rt$Months)$estimate, 2)
 acc_voc_r <- round(cor.test(df_corrs$prop_looking, df_corrs$signs_produced)$estimate, 2)
-rt_voc_r <- round(cor.test(df_corrs_rt$mean_correct_rt, df_corrs_rt$signs_produced)$estimate, 2)
+rt_voc_r <- round(cor.test(df_corrs_rt$median_ct_rt, df_corrs_rt$signs_produced)$estimate, 2)
 
 acc_age_plot <- qplot(x = Months, y = prop_looking, 
-                      data = filter(ss_kids, value_cat == "Target"),
+                      data = df_corrs,
       ylab=c("Accuracy"), 
       xlab=c("Child's Age (months)")) +
     ylim(0, 0.85) +
@@ -238,8 +238,8 @@ acc_age_plot <- qplot(x = Months, y = prop_looking,
           panel.grid.major=element_blank(),
           plot.margin = unit(c(1,1,1,1), "cm"))
 
-rt_age_plot <- qplot(x = Months, y = mean_correct_rt, 
-                     data = filter(ss_kids, value_cat == "Target"),
+rt_age_plot <- qplot(x = Months, y = median_ct_rt, 
+                     data = df_corrs,
       ylab=c("Reaction Time (ms)"), 
       xlab=c("Child's Age (months)")) +
     ylim(800, 1950)  +
@@ -261,7 +261,7 @@ rt_age_plot <- qplot(x = Months, y = mean_correct_rt,
           plot.margin = unit(c(1,1,1,1), "cm"))
 
 acc_voc_plot <- qplot(x = signs_produced, y = prop_looking, 
-                      data = filter(ss_kids, value_cat == "Target"),
+                      data = df_corrs,
                       ylab=c("Accuracy"), 
                       xlab=c("Signs Produced")) +
     ylim(0.1, 0.7) +
@@ -282,8 +282,8 @@ acc_voc_plot <- qplot(x = signs_produced, y = prop_looking,
           panel.grid.major=element_blank(),
           plot.margin = unit(c(1,1,1,1), "cm"))
 
-rt_voc_plot <- ggplot(aes(x = signs_produced, y = mean_correct_rt), 
-                      data = filter(ss_rt, value_cat == "Target")) + 
+rt_voc_plot <- ggplot(aes(x = signs_produced, y = median_ct_rt), 
+                      data = df_corrs) + 
     ylab("Reaction Time (ms)") +
     xlab("Signs Produced") +
     ylim(800, 1950) +
@@ -313,9 +313,9 @@ gridExtra::grid.arrange(acc_voc_plot, rt_voc_plot, ncol = 2)
 ### Kids
 
 ```{r}
-fit_rt1 <- lm(mean_correct_rt ~ signs_produced, data = ss_rt)
-fit_rt2 <- lm(mean_correct_rt ~ signs_produced + age_peek_months, data = ss_rt)
-fit_rt3 <- lm(mean_correct_rt ~ age_peek_months, data = ss_rt)
+fit_rt1 <- lm(median_ct_rt ~ signs_produced, data = df_corrs)
+fit_rt2 <- lm(median_ct_rt ~ signs_produced + Months, data = df_corrs)
+fit_rt3 <- lm(median_ct_rt ~ Months, data = df_corrs)
 ```
 
 R-squared change when adding age to the model.
@@ -368,7 +368,4 @@ td_looking <- filter(ss, value_cat %in% c("Target", "Distractor"))
 tds_looking <- filter(ss, value_cat %in% c("Target", "Distractor", "Signer"))
 
 fit.1 <- lm(prop_looking ~ age_group * value_cat, data = tds_looking)
-
-fit.2 <- lm(mean_prop_looking_TD ~ age_group * value_cat, 
-            data = filter(td_looking, age_group == "Kids"))
 ```

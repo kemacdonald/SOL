@@ -1,0 +1,50 @@
+
+# Standardize the data:
+data {
+Ntotal <- length(y)
+xm <- mean(x)
+ym <- mean(y)
+xsd <- sd(x)
+ysd <- sd(y)
+for ( i in 1:length(y) ) {
+zx[i] <- ( x[i] - xm ) / xsd
+zy[i] <- ( y[i] - ym ) / ysd
+}
+}
+# Specify the model for standardized data:
+model {
+# Latent Mixture Model
+for (i in 1:Ntotal) {
+z[i] ~ dbern(0.5)
+}
+# First Group Guesses
+psi <- 0.5
+# Second Group Has Some Unknown Greater Rate Of Success
+phi ~ dunif(0.5,1)
+# Data Follow Binomial With Rate Given By Each Persons Group Assignment
+for (i in 1:Ntotal){
+theta[i] <- equals(z[i],0)*psi+equals(z[i],1)*phi
+n_correct[i] ~ dbin(theta[i],n_trials[i])
+}
+# Bayesian Linear Regression
+for ( i in 1:Ntotal ) {
+zbeta0[i] <- equals(z[i],0)*nuisance_beta0+equals(z[i],1)*true_beta0
+zbeta1[i] <- equals(z[i],0)*nuisance_beta1+equals(z[i],1)*true_beta1
+zsigma[i] <- equals(z[i],0)*nuisance_sigma+equals(z[i],1)*true_sigma
+# zy[i] ~ dt( zbeta0[i] + zbeta1[i] * zx[i] , 1/(zsigma[i])^2 , nu )
+zy[i] ~ dnorm( zbeta0[i] + zbeta1[i] * zx[i] , 1/(zsigma[i])^2 )
+}
+# Priors vague on standardized scale set for both linear regressions
+true_beta0 ~ dnorm( 0 , 1/(10)^2 )
+nuisance_beta0 ~ dnorm( 0 , 1/(10)^2 )  
+true_beta1 ~ dnorm( 0 , 1/(10)^2 )
+nuisance_beta1 ~ dnorm( 0 , 1/(10)^2 )
+true_sigma ~ dunif( 1.0E-3 , 1.0E+3 )
+nuisance_sigma ~ dunif( 1.0E-3 , 1.0E+3 )
+nu <- nuMinusOne+1
+nuMinusOne ~ dexp(1/29.0)
+# Transform to original scale:
+beta1 <- true_beta1 * ysd / xsd  
+beta0 <- true_beta0 * ysd  + ym - true_beta1 * xm * ysd / xsd 
+sigma <- zsigma * ysd
+}

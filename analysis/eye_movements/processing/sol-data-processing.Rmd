@@ -5,7 +5,7 @@ date: "February 5, 2016"
 output: html_document
 ---
 
-This script takes in raw eye movement data and processes it. The outputs are 
+This script takes in raw eye movement data and processes it. The outputs are:
 
 1. Data frame with Accuracy and RT measures at the participant-level.
 2. Data frame with cleaned eye movement data for plotting 
@@ -21,7 +21,6 @@ source("../../helpers/libraries_v_3.6.R")
 source("../../helpers/useful.R")
 library(magrittr)
 library(stringr)
-library(GGally)
 library(kmr)
 library(dplyr)
 library(tidyr)
@@ -246,7 +245,7 @@ Datawiz does not tell us which shifts land on a target vs. a disctractor. So we 
 
 ```{r}
 # apply fun to each row in our dataset to flag trial type
-trial_types <- apply(iChart, 1, trial_type_fun, start = "0", end = "4000") 
+trial_types <- apply(iChart, 1, trial_type_fun, start = "0", end = "5000") 
 
 # merge trial type information with iChart
 iChart <- cbind(iChart, trial_types)
@@ -254,19 +253,19 @@ iChart <- cbind(iChart, trial_types)
 iChart %>% group_by(trial_types) %>% dplyr::summarise(Trials = n())
 ```
 
-Next, we compute statistics over long window 0-4000 ms. This will allow us to see a 
+Next, we compute statistics over long window 0-5000 ms. This will allow us to see a 
 distribution of RTs, which we will use to determine our analysis window.
 
 First, for adults.
 
 ```{r get RT analysis window adults, warning=F, message=F, fig.height = 5}
 iChart_adults <- filter(iChart, age_group == "Adults")
-iChart_adults <- computeStatistics(iChart_adults, startWindow=0, endWindow=4000)
+iChart_adults <- computeStatistics(iChart_adults, startWindow=0, endWindow=5000)
 
 # get analyisis window where 90% of RTs occur for kids, include all shifts
 rts_adults <- filter(iChart_adults, trial_types %in% c("C_T"))
 
-analysis.window_adults <- quantile(rts_adults$RT, probs=c(0.05, 0.95), na.rm=T)
+analysis.window_adults <- quantile(rts_adults$RT, probs=c(0.05, 0.90), na.rm=T)
 
 ggplot(aes(RT), data = rts_adults) +
     geom_histogram() +
@@ -280,12 +279,12 @@ Now do the same for kids.
 
 ```{r get rt analysis window kids, warning=F, message=F, fig.height = 5}
 iChart_kids <- filter(iChart, age_group != "Adults")
-iChart_kids <- computeStatistics(iChart_kids, startWindow=0, endWindow=4000)
+iChart_kids <- computeStatistics(iChart_kids, startWindow=0, endWindow=5000)
 
 # get analyisis window where 90% of RTs occur for kids, include all shifts
 rts <- filter(iChart_kids, trial_types %in% c("C_T"), age_group != "Adults")
 
-analysis.window <- quantile(rts$RT, probs=c(0.05, 0.95), na.rm=T)
+analysis.window <- quantile(rts$RT, probs=c(0.05, 0.90), na.rm=T)
 
 ggplot(aes(x=RT), data=rts)  +
     geom_histogram() +
@@ -295,14 +294,13 @@ ggplot(aes(x=RT), data=rts)  +
               label = "Analysis Window \n (90% RTs)")
 ```
 
-Compute statistics over analysis window: 0-3000ms. We use 3000 ms because
-it is 500 ms longer than the end of our analysis window (2500ms). This allows
-us to include trials in which the participant to initiates and completes a 
-shift at the very end of the analysis window.
+Compute statistics over analysis window: 0 to analysis window + 500ms. We add 500ms because
+it allows us to include trials in which the participant initiates and completes a 
+shift at the very end of the window.
 
 ```{r, message=F, warning=F}
-iChart <- computeStatistics(iChart, startWindow=0, endWindow=3000)
-iChart_kids <- computeStatistics(iChart_kids, startWindow=0, endWindow=3000)
+iChart <- computeStatistics(iChart, startWindow=0, endWindow=analysis.window[2]+500)
+iChart_kids <- computeStatistics(iChart_kids, startWindow=0, endWindow=analysis.window[2]+500)
 iChart_adults <- computeStatistics(iChart_adults, startWindow=0, endWindow=analysis.window_adults[2]+500)
 ```
 
@@ -494,7 +492,7 @@ ms_iChart <- as.data.frame(xtabs(~ Sub.Num + value_cat + Time.ms,
 
 ## Only include Target and Distractor looking
 ms_iChart_count_TD <- ss_iChart_long %>% 
-    filter(value %in% c("0", "1")) %>%  ## specify acc computation
+    filter(value %in% c("0", "1", ".")) %>%  ## specify acc computation
     group_by(Sub.Num, Time.ms, age_group, value_cat) %>% 
     dplyr::summarise(count = ifelse(n() == 0, 0, n())) %>% 
     dplyr::summarise(sum_count = sum(count))
@@ -502,7 +500,7 @@ ms_iChart_count_TD <- ss_iChart_long %>%
 
 ms_iChart_TD <- as.data.frame(xtabs(~ Sub.Num + value_cat + Time.ms, 
                                  data = filter(ss_iChart_long, 
-                                               value %in% c("0", "1")))) %>% 
+                                               value %in% c("0", "1", ".")))) %>% 
     left_join(x = ms_iChart_count_TD, by = c("Sub.Num", "Time.ms")) %>% 
     mutate(proportion_looking = Freq / sum_count,
            age_group_factor = as.factor(age_group))
@@ -514,16 +512,12 @@ Now we can compute mean proportion looking to signer, target, and distractor for
 ss_tanenhaus_comp <- ms_iChart %>% 
     filter(to.n(Time.ms) >= analysis.window[1], to.n(Time.ms) <= analysis.window[2]) %>% 
     group_by(Sub.Num, value_cat, age_group) %>% 
-    dplyr::summarise(mean_prop_looking_signer = mean(proportion_looking, na.rm = T),
-              ci_low_signer = ci.low(proportion_looking),
-              ci_high_signer = ci.high(proportion_looking))
+    dplyr::summarise(mean_prop_looking_signer = mean(proportion_looking, na.rm = T))
 
 ss_tanenhaus_comp_TD <- ms_iChart_TD %>% 
     filter(to.n(Time.ms) >= analysis.window[1], to.n(Time.ms) <= analysis.window[2]) %>% 
     group_by(Sub.Num, value_cat, age_group) %>% 
-    dplyr::summarise(mean_prop_looking_TD = mean(proportion_looking, na.rm = T),
-              ci_low_TD = ci.low(proportion_looking),
-              ci_high_TD = ci.high(proportion_looking))
+    dplyr::summarise(mean_prop_looking_TD = mean(proportion_looking, na.rm = T))
 ```
 
 ## Create summary table
@@ -623,12 +617,6 @@ ss <- ss_first_shifts %>%
 # in latent mixture model
 ss <- ss %>% 
     mutate(C_D_prop = ifelse(C_T_prop == 1, 0, C_D_prop),
-           exclude_chance_shifter = ifelse(Sub.Num %in% c("30018",
-                                                          "20028",
-                                                          "30051", 
-                                                          "30086", 
-                                                          "30088"), 
-                                           "exclude", "include"),
            age_group_collapsed = ifelse(age_group == "Adults", "Adults", "Kids"))
 ```
 
@@ -648,7 +636,7 @@ ss <- ss_medians %>%
     left_join(x = ss, by = "Sub.Num")
 ```
 
-```{r, eval=F}
+```{r, eval=T}
 write.csv(ss, "../sol_ss_all.csv", row.names = F)
 ```
 
