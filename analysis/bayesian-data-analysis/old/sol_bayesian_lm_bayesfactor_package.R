@@ -34,7 +34,7 @@ data %<>%
 data_voc <- data %>% filter(is.na(signs_produced) == F)
 
 #### Fit Acc model
-bf_acc = regressionBF(mean_prop_looking_TD ~ age_peek_months + signs_produced, data = data_voc)
+bf_acc <- regressionBF(mean_prop_looking_TD ~ age_peek_months + signs_produced, data = data_voc)
 
 # what's the best model based on bayes factor?
 which.max(bf_acc)

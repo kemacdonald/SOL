@@ -79,21 +79,12 @@ age_voc <- data_voc$age_peek_months
 vocab_voc <- data_voc$signs_produced
 
 # Create matrix for multiple regression: each column is a predictor and each row is data point 
-
 x_matrix <- cbind(age_voc, vocab_voc)
 
-
-
-############### Model Target vs. Distractor looking as a function of age group ##################
-
-
-
-
 # Specify the data in a list, for later shipment to JAGS:
-
 dataList = list(
     x = x_matrix,
-    y = acc_voc,
+    y = rt_median_voc,
     Nx = dim(x_matrix)[2] ,
     Ntotal = dim(x_matrix)[1]
 )
@@ -104,23 +95,23 @@ dataList = list(
 modelString = "
   # Standardize the data:
     data {
-    ym <- mean(y)
-    ysd <- sd(y)
-    for ( i in 1:Ntotal ) {
-    zy[i] <- ( y[i] - ym ) / ysd
-    }
-    for ( j in 1:Nx ) {
-    xm[j]  <- mean(x[,j])
-    xsd[j] <-   sd(x[,j])
-    for ( i in 1:Ntotal ) {
-    zx[i,j] <- ( x[i,j] - xm[j] ) / xsd[j]
-    }
+        ym <- mean(y)
+        ysd <- sd(y)
+        for ( i in 1:Ntotal ) {
+            zy[i] <- ( y[i] - ym ) / ysd
+        }
+        for ( j in 1:Nx ) {
+            xm[j]  <- mean(x[,j])
+            xsd[j] <-   sd(x[,j])
+        for ( i in 1:Ntotal ) {
+            zx[i,j] <- ( x[i,j] - xm[j] ) / xsd[j]
+        }
     }
     }
     # Specify the model for standardized data:
     model {
     for ( i in 1:Ntotal ) {
-    zy[i] ~ dt( zbeta0 + sum( zbeta[1:Nx] * zx[i,1:Nx] ) , 1/zsigma^2 , nu )
+    zy[i] ~ dt( zbeta0 + sum( zbeta[1:Nx] * zx[i,1:Nx] ) , 1/(zsigma)^2 , nu )
     }
     # Priors vague on standardized scale:
     zbeta0 ~ dnorm( 0 , 1/2^2 )  
@@ -140,7 +131,7 @@ writeLines( modelString , con="TEMPmodel.txt" )
 ###### RUN THE CHAINS
 
 parameters = c( "beta0" ,  "beta" ,  "sigma", 
-                "zbeta0" , "zbeta1" , "zsigma", "nu")
+                "zbeta0" , "zsigma", "nu")
 adaptSteps = 500  # Number of steps to "tune" the samplers
 burnInSteps = 1000
 nChains = 1 
@@ -158,7 +149,7 @@ update( jagsModel , n.iter=burnInSteps )
 
 # Get samples
 samples <- jags(data = dataList, parameters.to.save = parameters,
-                model.file="TEMPmodel.txt", n.chains=1, n.iter=5000, 
+                model.file="TEMPmodel.txt", n.chains=1, n.iter=10000, 
                 n.thin=1, DIC=T)
 
 df <- data.frame(beta0 = samples$BUGSoutput$sims.list$beta0,
@@ -172,8 +163,7 @@ post_mode <- round(find_mode(df$ageBeta), 3)
 HDI <- HDIofMCMC( df$ageBeta , credMass = 0.95 )
 
 ggplot(aes(x = ageBeta), data = df) + 
-    geom_histogram() +
-    annotate("text", x = 0, y = 90, label = paste("Mode =", post_mode), size=5) +
+    geom_density() +
     geom_vline(xintercept = HDI[1], color = 'red') +
     geom_vline(xintercept = HDI[2], color = 'red')
 
@@ -182,8 +172,7 @@ post_mode <- round(find_mode(df$vocabBeta), 3)
 HDI <- HDIofMCMC( df$vocabBeta , credMass = 0.95 )
 
 ggplot(aes(x = vocabBeta), data = df) + 
-    geom_histogram() +
-    annotate("text", x = 0, y = 90, label = paste("Mode =", post_mode), size=5) +
+    geom_density() +
     geom_vline(xintercept = HDI[1], color = 'red') +
     geom_vline(xintercept = HDI[2], color = 'red')
 
@@ -296,8 +285,7 @@ post_mode <- round(find_mode(df$ageBeta), 3)
 HDI <- HDIofMCMC( df$ageBeta , credMass = 0.95 )
 
 ggplot(aes(x = ageBeta), data = df) + 
-    geom_histogram() +
-    annotate("text", x = 0, y = 90, label = paste("Mode =", post_mode), size=5) +
+    geom_density() +
     geom_vline(xintercept = HDI[1], color = 'red') +
     geom_vline(xintercept = HDI[2], color = 'red')
 
@@ -306,8 +294,7 @@ post_mode <- round(find_mode(df$vocabBeta), 3)
 HDI <- HDIofMCMC( df$vocabBeta , credMass = 0.95 )
 
 ggplot(aes(x = vocabBeta), data = df) + 
-    geom_histogram() +
-    annotate("text", x = 0, y = 90, label = paste("Mode =", post_mode), size=5) +
+    geom_density() +
     geom_vline(xintercept = HDI[1], color = 'red') +
     geom_vline(xintercept = HDI[2], color = 'red')
 

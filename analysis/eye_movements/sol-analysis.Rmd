@@ -29,11 +29,6 @@ ss <- read.csv("sol_ss_all.csv", stringsAsFactors = F)
 ss_kids <- filter(ss, age_group != "Adults")
 ss_rt <- filter(ss, age_group != "Adults")
 
-ss_kids %>% 
-    filter(exclude_chance_shifter == "exclude") %>% 
-    select(Sub.Num, age_cdi_months) %>% 
-    unique()
-
 # tanenhaus graph values
 gv_all <- read.csv("sol_gvals_all.csv", stringsAsFactors = F)
 gv_coda <- read.csv("sol_gvals_coda.csv", stringsAsFactors = F)
@@ -53,7 +48,6 @@ ms_all <- ss %>%
               ci_high_signer = ci.high(prop_looking))
 
 ms_all <- ss %>% 
-    filter(exclude_chance_shifter == "include") %>%
     group_by(age_group) %>% 
     dplyr::summarise(m_rt = mean(mean_correct_rt),
               ci.h_rt = ci.high(mean_correct_rt),
