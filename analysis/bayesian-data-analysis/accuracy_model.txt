@@ -17,8 +17,8 @@
             zy[i] ~ dnorm( zbeta0 + zbeta1 * zx[i] , 1/(zsigma)^2 )
         }
         # Priors vague on standardized scale:
-        zbeta0 ~ dnorm( 0 , 1/(10)^2 )  
-        zbeta1 ~ dnorm(0, 1.0E-2) I(0, )
+        zbeta0 ~ dnorm( 0 , 1/(10)^2)  
+        zbeta1 ~ dnorm(0, 1/10^2)I(0,)
         zsigma ~ dunif( 1.0E-3 , 1.0E+3 )
         # Transform to original scale:
         beta1 <- zbeta1 * ysd / xsd  

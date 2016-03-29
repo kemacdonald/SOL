@@ -3,8 +3,12 @@
 # Clear workspace
 rm(list=ls())
 
+# set wd
+setwd("~/Documents/Projects/SOL/SOL-GIT/analysis/bayesian-data-analysis/")
+
 # Packages
 library(reshape)
+library(polspline)
 library(BayesFactor)
 library(rethinking)
 library(R2jags)
@@ -56,7 +60,7 @@ d_all <- d %>%
            total_trials_shifting = C_T_count + C_D_count,
            Sub.Num = as.character(Sub.Num)) %>% 
     dplyr::select(Sub.Num, age_peek_months, age_group, signs_produced, C_T_count, total_trials_shifting, 
-                  mean_correct_rt, median_rt = median_ct_rt,C_T_prop, prop_looking, mean_prop_looking_TD,
+                  mean_correct_rt, median_rt = median_ct_rt,C_T_prop, mean_prop_looking_TD, mean_prop_looking_TD,
                   value_cat, age_group_collapsed)
 
 d %<>%  
@@ -65,7 +69,7 @@ d %<>%
            total_trials_shifting = C_T_count + C_D_count,
            Sub.Num = as.character(Sub.Num)) %>% 
     dplyr::select(Sub.Num, age_peek_months, signs_produced, C_T_count, total_trials_shifting, 
-                  mean_correct_rt, median_rt = median_ct_rt,C_T_prop, prop_looking, mean_prop_looking_TD,
+                  mean_correct_rt, median_rt = median_ct_rt,C_T_prop, mean_prop_looking_TD, mean_prop_looking_TD,
                   age_group_collapsed)
 
 d_voc <- d %>% filter(is.na(signs_produced) == F)
@@ -77,7 +81,7 @@ adaptSteps = 500  # Number of steps to "tune" the samplers
 burnInSteps = 1000
 nChains = 1 
 thinSteps = 1
-numSavedSteps = 20000
+numSavedSteps = 50000
 nIter = ceiling( ( numSavedSteps * thinSteps ) / nChains )
 
 ######## Accuracy-Age model
@@ -86,48 +90,21 @@ dataList_age = list(
     y = d$mean_prop_looking_TD
 )
 
-modelString = "
-        # Standardize the data:
-        data {
-        Ntotal <- length(y)
-        xm <- mean(x)
-        ym <- mean(y)
-        xsd <- sd(x)
-        ysd <- sd(y)
-        for ( i in 1:length(y) ) {
-        zx[i] <- ( x[i] - xm ) / xsd
-        zy[i] <- ( y[i] - ym ) / ysd
-        }
-        }
-        # Specify the model for standardized data:
-        model {
-        for ( i in 1:Ntotal ) {
-            zy[i] ~ dnorm( zbeta0 + zbeta1 * zx[i] , 1/(zsigma)^2 )
-        }
-        # Priors vague on standardized scale:
-        zbeta0 ~ dnorm( 0 , 1/(10)^2 )  
-        zbeta1 ~ dnorm(0, 1.0E-2) I(0, )
-        zsigma ~ dunif( 1.0E-3 , 1.0E+3 )
-        # Transform to original scale:
-        beta1 <- zbeta1 * ysd / xsd  
-        beta0 <- zbeta0 * ysd  + ym - zbeta1 * xm * ysd / xsd 
-        sigma <- zsigma * ysd
-        }
-        " 
-writeLines( modelString , con="accuracy_model.txt" )
-
-####### Create, initialize, and adapt the model:
-jagsModel <- jags.model( "accuracy_model.txt" , data=dataList_age , inits=NULL , 
-                         n.chains=nChains , n.adapt=adaptSteps )
-# Burn-in:
-update( jagsModel , n.iter=burnInSteps )
-
 # Get samples
 samples <- jags(data = dataList_age, parameters.to.save = parameters,
-                model.file="accuracy_model.txt", n.chains=1, n.iter=10000, 
+                model.file="accuracy_model.txt", n.chains=nChains, 
+                n.iter=nIter, n.burnin = burnInSteps,
                 n.thin=1, DIC=T)
 
 df <- data.frame(beta0 = samples$BUGSoutput$sims.list$beta0, beta1 = samples$BUGSoutput$sims.list$beta1)
+
+# Compute p(D) for posterior and prior: Savage-Dickey Method to get Bayes Factor
+# Fits a density using spliens to approx. log-density
+# uses 1997 knot and deletion algorithm
+fit.posterior <- logspline(df$beta1, lbound = 0)
+posterior <- dlogspline(0, fit.posterior) # pdf @ beta=0
+prior <- 2*dnorm(0) # height of order--restricted prior
+bf_acc_age <- posterior/prior # bayes factor
 
 ##### Get relevant parameter values
 post_mode_b1 <- round(find_mode(df$beta1), 3)     # MAP of slope
@@ -146,11 +123,12 @@ age.seq <- seq(from = 10, to = 60, by = 1)
 mu <- sapply(age.seq, mu.link)
 mu.mean <- apply(mu, 2, mean)
 mu.HPDI <- apply(mu, 2, HPDI, prob = 0.95)
-mu.HPDI_tidy <- data.frame(age_peek_months = age.seq, hpdi_lower = mu.HPDI[1,], hpdi_upper = mu.HPDI[2,])
-
+mu.HPDI_tidy <- data.frame(age_peek_months = age.seq, 
+                           hpdi_lower = mu.HPDI[1,], hpdi_upper = mu.HPDI[2,],
+                           mu.mean = mu.mean)
 ## now plot
 ggplot(data = d) +
-    geom_abline(intercept = post_mode_b0, slope = post_mode_b1, size = 2) +
+    geom_line(aes(x = age_peek_months, y = mu.mean), data = mu.HPDI_tidy, size = 2) +
     geom_point(aes(age_peek_months, mean_prop_looking_TD), color = "black", size = 5.5) +
     geom_point(aes(age_peek_months, mean_prop_looking_TD), color = "grey50", size = 4) +
     geom_ribbon(aes(x = age_peek_months, ymin = hpdi_lower, ymax = hpdi_upper), data = mu.HPDI_tidy,
@@ -178,19 +156,23 @@ dataList_voc = list(
     y = d_voc$mean_prop_looking_TD
 )
 
-####### Create, initialize, and adapt the model:
-jagsModel <- jags.model( "accuracy_model.txt" , data=dataList_voc , inits=NULL , 
-                         n.chains=nChains , n.adapt=adaptSteps )
-# Burn-in:
-update( jagsModel , n.iter=burnInSteps )
 
 # Get samples
 samples <- jags(data = dataList_voc, parameters.to.save = parameters,
-                model.file="accuracy_model.txt", n.chains=1, n.iter=10000, 
-                n.thin=1, DIC=T)
+                model.file="accuracy_model.txt", n.chains=nChains, n.iter=nIter, 
+                n.thin=1, DIC=T, n.burnin=burnInSteps)
 
 df_acc_voc <- data.frame(beta0 = samples$BUGSoutput$sims.list$beta0,
                  beta1 = samples$BUGSoutput$sims.list$beta1)
+
+####### Compute p(D) for posterior and prior: Savage-Dickey Method to get Bayes Factor
+
+# Fits a density using spliens to approx. log-density
+# uses 1997 knot and deletion algorithm
+fit.posterior <- logspline(df_acc_voc$beta1, lbound = 0)
+posterior <- dlogspline(0, fit.posterior) # pdf @ beta=0
+prior <- 2*dnorm(0) # height of order--restricted prior
+bf_voc_acc <- posterior/prior # bayes factor
 
 ##### Visualize parameter values
 
@@ -244,87 +226,32 @@ dataList = list(
     n_trials = d_voc$total_trials_shifting
 )
 
-# Specify initial values
+# Specify initial values for phi and indicator var z
 myinits <-  list(list(phi = 0.75, z = round(runif(length(d_voc$total_trials_shifting)))))
 
-# Specify mcmc inputs (same for both RT models)
+# Specify parameters to monitor (same for both RT models)
 parameters = c( "beta0" ,  "beta1" , "sigma", 
                 "zbeta0" , "zbeta1" , "zsigma",
                 "phi" , "z")
-adaptSteps = 500  # Number of steps to "tune" the samplers
-burnInSteps = 1000
-nChains = 1 
-thinSteps = 1
-numSavedSteps = 20000
-nIter = ceiling( ( numSavedSteps * thinSteps ) / nChains )
-
-modelString = "
-    # Standardize the data:
-    data {
-        Ntotal <- length(y)
-        xm <- mean(x)
-        ym <- mean(y)
-        xsd <- sd(x)
-        ysd <- sd(y)
-        for ( i in 1:length(y) ) {
-            zx[i] <- ( x[i] - xm ) / xsd
-            zy[i] <- ( y[i] - ym ) / ysd
-        }
-    }
-    # Specify the model for standardized data:
-    model {
-        # Latent Mixture Model
-        for (i in 1:Ntotal) {
-            z[i] ~ dbern(0.5)
-        }
-        # First Group Guesses
-        psi <- 0.5
-        # Second Group Has Some Unknown Greater Rate Of Success
-        phi ~ dunif(0.5,1)
-        # Data Follow Binomial With Rate Given By Each Persons Group Assignment
-        for (i in 1:Ntotal){
-            theta[i] <- equals(z[i],0)*psi+equals(z[i],1)*phi
-            n_correct[i] ~ dbin(theta[i],n_trials[i])
-        }
-        # Bayesian Linear Regression
-        for ( i in 1:Ntotal ) {
-            zbeta0[i] <- equals(z[i],0)*nuisance_beta0+equals(z[i],1)*true_beta0
-            zbeta1[i] <- equals(z[i],0)*nuisance_beta1+equals(z[i],1)*true_beta1
-            zsigma[i] <- equals(z[i],0)*nuisance_sigma+equals(z[i],1)*true_sigma
-            zy[i] ~ dnorm( zbeta0[i] + zbeta1[i] * zx[i] , 1/(zsigma[i])^2 )
-        }
-        # Priors vague on standardized scale set for both linear regressions
-        true_beta0 ~ dnorm( 0 , 1/(10)^2 )
-        nuisance_beta0 ~ dnorm(0, 1.0E-2) I(,0) 
-        true_beta1 ~ dnorm(0, 1.0E-2) I(,0) 
-        nuisance_beta1 ~ dnorm( 0 , 1/(10)^2 )
-        true_sigma ~ dunif( 1.0E-3 , 1.0E+3 )
-        nuisance_sigma ~ dunif( 1.0E-3 , 1.0E+3 )
-        nu <- nuMinusOne+1
-        nuMinusOne ~ dexp(1/29.0)
-        # Transform to original scale:
-        beta1 <- true_beta1 * ysd / xsd  
-        beta0 <- true_beta0 * ysd  + ym - true_beta1 * xm * ysd / xsd 
-        sigma <- zsigma * ysd
-    }"
-
-writeLines( modelString , con="rt_model.txt" )
-
-####### Create, initialize, and adapt the model:
-jagsModel = jags.model( "rt_model.txt" , data=dataList , inits=myinits , 
-                        n.chains=nChains , n.adapt=adaptSteps )
-# Burn-in:
-update( jagsModel , n.iter=burnInSteps )
 
 # Get samples
 samples <- jags(data = dataList, parameters.to.save = parameters,
-                model.file="rt_model.txt", n.chains=1, n.iter=10000, 
+                model.file="rt_model.txt", n.chains=nChains, n.iter=nIter, n.burnin = burnInSteps,
                 n.thin=1, DIC=T)
 
 df_rt_voc <- data.frame(beta0 = samples$BUGSoutput$sims.list$beta0,
                  beta1 = samples$BUGSoutput$sims.list$beta1,
                  phi = samples$BUGSoutput$sims.list$phi,
                  z = samples$BUGSoutput$sims.list$z)
+
+####### Compute p(D) for posterior and prior: Savage-Dickey Method to get Bayes Factor
+
+# Fits a density using spliens to approx. log-density
+# uses 1997 knot and deletion algorithm
+fit.posterior <- logspline(df_rt_voc$beta1, ubound = 0)
+posterior <- dlogspline(0, fit.posterior) # pdf @ beta=0
+prior <- 2*dnorm(0) # height of order--restricted prior
+bf_rt_voc <- posterior/prior # bayes factor
 
 ##### Visualize parameter values
 
@@ -345,18 +272,19 @@ mu.link <- function(x) {df_rt_voc$beta0 + df_rt_voc$beta1*x}
 mu <- sapply(vocab.seq, mu.link)
 mu.mean <- apply(mu, 2, mean)
 mu.HPDI <- apply(mu, 2, HPDI, prob = 0.95)
-mu.HPDI_tidy <- data.frame(signs_produced = vocab.seq, hpdi_lower = mu.HPDI[1,], hpdi_upper = mu.HPDI[2,])
+mu.HPDI_tidy <- data.frame(signs_produced = vocab.seq, hpdi_lower = mu.HPDI[1,], hpdi_upper = mu.HPDI[2,],
+                           mu.rt = mu.mean)
 
 # plot
 ggplot(data = d_voc) +
-    geom_abline(intercept = post_mode_b0_rt_voc, slope = post_mode_b1_rt_voc, size = 2) +
+    geom_line(aes(x = signs_produced, y = mu.mean), data = mu.HPDI_tidy, size = 2) +
     geom_point(aes(signs_produced, median_rt), color = "black", size = 5.5) +
     geom_point(aes(signs_produced, median_rt), color = "grey50", size = 4) +
     geom_ribbon(aes(x = signs_produced, ymin = hpdi_lower, ymax = hpdi_upper), data = mu.HPDI_tidy,
                 alpha = 0.2) +
     ylab("Reaction Time (ms)") +
     xlab("Signs Produced") +
-    coord_cartesian(xlim=c(18, 82), ylim=c(700, 1800)) +
+    coord_cartesian(xlim=c(18, 82), ylim=c(700, 2000)) +
     ggtitle(bquote(list(alpha==.(as.character(round(post_mode_b0_rt_voc, 2))), 
                         beta==.(as.character(round(post_mode_b1_rt_voc, 2))),
                         HDI=.(paste("95% HDI [", round(HDI_rt_voc_b1[1],2) , "," , round(HDI_rt_voc_b1[2], 2), "]"))))) +
@@ -384,21 +312,23 @@ dataList = list(
 myinits <-  list(list(phi = 0.75, z = round(runif(length(d$total_trials_shifting)))))
 
 ####### Create, initialize, and adapt the model:
-jagsModel = jags.model( "rt_model.txt" , data=dataList , inits=myinits , 
-                        n.chains=nChains , n.adapt=adaptSteps )
-
-# Burn-in:
-update( jagsModel , n.iter=burnInSteps )
-
-# Get samples
 samples <- jags(data = dataList, parameters.to.save = parameters,
-                model.file="rt_model.txt", n.chains=1, n.iter=10000, 
-                n.thin=1, DIC=T)
+                model.file="rt_model.txt", n.chains=1, n.iter=nIter, 
+                n.burnin = burnInSteps, n.thin=1, DIC=T)
 
 df_rt_age <- data.frame(beta0 = samples$BUGSoutput$sims.list$beta0,
                         beta1 = samples$BUGSoutput$sims.list$beta1,
                         phi = samples$BUGSoutput$sims.list$phi,
                         z = samples$BUGSoutput$sims.list$z)
+
+####### Compute p(D) for posterior and prior: Savage-Dickey Method to get Bayes Factor
+
+# Fits a density using spliens to approx. log-density
+# uses 1997 knot and deletion algorithm
+fit.posterior <- logspline(df_rt_age$beta1, ubound = 0)
+posterior <- dlogspline(0, fit.posterior) # pdf @ beta=0
+prior <- 2*dnorm(0) # height of order--restricted prior
+bf_rt_age <- posterior/prior # bayes factor
 
 ##### Visualize parameter values
 
@@ -419,11 +349,12 @@ age.seq <- seq(from = 10, to = 60, by = 1)
 mu <- sapply(age.seq, mu.link)
 mu.mean <- apply(mu, 2, mean)
 mu.HPDI <- apply(mu, 2, HPDI, prob = 0.95)
-mu.HPDI_tidy <- data.frame(age_peek_months = age.seq, hpdi_lower = mu.HPDI[1,], hpdi_upper = mu.HPDI[2,])
+mu.HPDI_tidy <- data.frame(age_peek_months = age.seq, hpdi_lower = mu.HPDI[1,], hpdi_upper = mu.HPDI[2,],
+                           mu.rt = mu.mean)
 
 # now plot
 ggplot(data = d) +
-    geom_abline(intercept = post_rt_age_mode_b0, slope = post_rt_age_mode_b1, size = 2) +
+    geom_line(aes(x = age_peek_months, y = mu.rt), data = mu.HPDI_tidy, size = 2) +
     geom_point(aes(age_peek_months, median_rt), color = "black", size = 5.5) +
     geom_point(aes(age_peek_months, median_rt), color = "grey50", size = 4) +
     geom_ribbon(aes(x = age_peek_months, ymin = hpdi_lower, ymax = hpdi_upper), data = mu.HPDI_tidy,
@@ -433,7 +364,7 @@ ggplot(data = d) +
     coord_cartesian(xlim=c(15, 55), ylim=c(700, 1800)) +
     ggtitle(bquote(list(alpha==.(as.character(round(post_rt_age_mode_b0, 2))), 
                         beta==.(as.character(round(post_rt_age_mode_b1, 2))),
-                        HDI=.(paste("95% HDI [", round(HDI_rt_age_b1[1],2) , "," , round(HDI_rt_age_b1[2], 2), "]"))))) +
+                        HDI=.(paste("95% HDI [", round(HDI_rt_age_b1[1],3) , "," , round(HDI_rt_age_b1[2], 3), "]"))))) +
     theme(axis.title.x = element_text(colour="grey30",size=22,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
           axis.title.y = element_text(colour="grey30",size=22,
@@ -473,6 +404,15 @@ df_acc_rt <- data.frame(beta0 = samples$BUGSoutput$sims.list$beta0,
                         phi = samples$BUGSoutput$sims.list$phi,
                         z = samples$BUGSoutput$sims.list$z)
 
+####### Compute p(D) for posterior and prior: Savage-Dickey Method to get Bayes Factor
+
+# Fits a density using spliens to approx. log-density
+# uses 1997 knot and deletion algorithm
+fit.posterior <- logspline(df_acc_rt$beta1, ubound = 0)
+posterior <- dlogspline(0, fit.posterior) # pdf @ beta=0
+prior <- 2*dnorm(0) # height of order--restricted prior
+bf_acc_rt <- posterior/prior # bayes factor
+
 ##### Visualize parameter values
 
 ## get HDI and MAP
@@ -492,10 +432,11 @@ acc.seq <- seq(from = 0.2, to = 0.9, by = 0.1)
 mu <- sapply(acc.seq, mu.link)
 mu.mean <- apply(mu, 2, mean)
 mu.HPDI <- apply(mu, 2, HPDI, prob = 0.95)
-mu.HPDI_tidy <- data.frame(mean_prop_looking_TD = acc.seq, hpdi_lower = mu.HPDI[1,], hpdi_upper = mu.HPDI[2,])
+mu.HPDI_tidy <- data.frame(mean_prop_looking_TD = acc.seq, hpdi_lower = mu.HPDI[1,], hpdi_upper = mu.HPDI[2,],
+                           mu.rt = mu.mean)
 
 ggplot(data = d) +
-    geom_abline(intercept = post_acc_rt_mode_b0, slope = post_acc_rt_mode_b1, size = 2) +
+    geom_line(aes(mean_prop_looking_TD, mu.rt), data = mu.HPDI_tidy, size = 2) +
     geom_point(aes(mean_prop_looking_TD, median_rt), color = "black", size = 5.5) +
     geom_point(aes(mean_prop_looking_TD, median_rt), color = "grey50", size = 4) +
     geom_ribbon(aes(x = mean_prop_looking_TD, ymin = hpdi_lower, ymax = hpdi_upper), data = mu.HPDI_tidy,
@@ -519,7 +460,7 @@ ggplot(data = d) +
 ####### Visualize posterior distribution on group membership and group level success
 
 # grab subject numbers and add to data frame
-colnames(df_rt_age)[which(names(df_rt_age)=="z.1"):which(names(df_rt_age)=="z.29")] <- as.character(data$Sub.Num)
+colnames(df_rt_age)[which(names(df_rt_age)=="z.1"):which(names(df_rt_age)=="z.29")] <- as.character(d$Sub.Num)
 
 # melt data frame
 df_mixture <- df_rt_age %>% dplyr::select(-beta0, -beta1)
