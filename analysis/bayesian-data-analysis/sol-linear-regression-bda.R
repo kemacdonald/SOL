@@ -54,29 +54,22 @@ HDIofMCMC = function( sampleVec , credMass=0.95 ) {
 ##### Load and clean up the data
 d <- read.csv("../../analysis/eye_movements/sol_ss_all.csv")
 
-d_all <- d %>% 
-    filter(value_cat == "Target" | value_cat == "Distractor") %>% 
-    mutate(C_D_count = ifelse(is.na(C_D_count), 0, C_D_count),
-           total_trials_shifting = C_T_count + C_D_count,
-           Sub.Num = as.character(Sub.Num)) %>% 
-    dplyr::select(Sub.Num, age_peek_months, age_group, signs_produced, C_T_count, total_trials_shifting, 
-                  mean_correct_rt, median_rt = median_ct_rt,C_T_prop, mean_prop_looking_TD, mean_prop_looking_TD,
-                  value_cat, age_group_collapsed)
-
 d %<>%  
     filter(age_group_collapsed == "Kids", value_cat == "Target") %>% 
     mutate(C_D_count = ifelse(is.na(C_D_count), 0, C_D_count),
            total_trials_shifting = C_T_count + C_D_count,
            Sub.Num = as.character(Sub.Num)) %>% 
-    dplyr::select(Sub.Num, age_peek_months, signs_produced, C_T_count, total_trials_shifting, 
-                  mean_correct_rt, median_rt = median_ct_rt,C_T_prop, mean_prop_looking_TD, mean_prop_looking_TD,
-                  age_group_collapsed)
+    select(Sub.Num, age_peek_months, signs_produced, C_T_count, total_trials_shifting, 
+                  median_rt = median_ct_rt, mean_prop_looking_TD, age_group_collapsed)
 
-d_voc <- d %>% filter(is.na(signs_produced) == F)
+####### Standardize the data
+d %<>% 
+    mutate(age.s = (age_peek_months - mean(age_peek_months)) / sd(age_peek_months),
+           acc.s = (mean_prop_looking_TD - mean(mean_prop_looking_TD)) / sd(mean_prop_looking_TD),
+           rt.s = (median_rt - mean(median_rt)) / sd(median_rt))
 
 ####### Set MCMC parameters (same across all models)
-parameters = c( "beta0" ,  "beta1" , "sigma", 
-                "zbeta0" , "zbeta1" , "zsigma" )
+parameters = c( "zbeta0" , "zbeta1" , "zsigma" )
 adaptSteps = 500  # Number of steps to "tune" the samplers
 burnInSteps = 1000
 nChains = 1 
@@ -87,26 +80,83 @@ nIter = ceiling( ( numSavedSteps * thinSteps ) / nChains )
 ######## Accuracy-Age model
 dataList_age = list(
     x = d$age_peek_months,
-    y = d$mean_prop_looking_TD
+    y = d$mean_prop_looking_TD,
+    Ntotal = length(d$age.s)
 )
 
-# Get samples
+dataList_age_prior = list(
+    #y = d$mean_prop_looking_TD,
+    x = d$age_peek_months,
+    Ntotal = length(d$age.s)
+)
+
+
+# Get samples conditioning on data
 samples <- jags(data = dataList_age, parameters.to.save = parameters,
                 model.file="accuracy_model.txt", n.chains=nChains, 
                 n.iter=nIter, n.burnin = burnInSteps,
                 n.thin=1, DIC=T)
 
-df <- data.frame(beta0 = samples$BUGSoutput$sims.list$beta0, beta1 = samples$BUGSoutput$sims.list$beta1)
+df <- data.frame(zbeta0 = samples$BUGSoutput$sims.list$zbeta0, 
+                 zbeta1 = samples$BUGSoutput$sims.list$zbeta1)
+
+# transform standardized prior to measurement scale
+df %<>% mutate(
+    beta1 = zbeta1 * sd(d$mean_prop_looking_TD) / sd(d$age_peek_months),
+    beta0 = zbeta0 * sd(d$mean_prop_looking_TD) + mean(d$mean_prop_looking_TD) - zbeta1 * mean(d$age_peek_months) * sd(d$mean_prop_looking_TD) / sd(d$age_peek_months)
+    )
+                 
+# Get samples from prior
+samples_prior <- jags(data = dataList_age_prior, parameters.to.save = parameters,
+                model.file="accuracy_model.txt", n.chains=nChains, 
+                n.iter=nIter, n.burnin = burnInSteps,
+                n.thin=1, DIC=F)
+
+df_prior <- data.frame(zbeta0 = samples_prior$BUGSoutput$sims.list$zbeta0, 
+                       zbeta1 = samples_prior$BUGSoutput$sims.list$zbeta1)
+
+# transform standardized prior to measurement scale
+df_prior %<>% 
+    mutate( beta1 = zbeta1 * sd(d$mean_prop_looking_TD) / sd(d$age_peek_months),
+            beta0 = zbeta0 * sd(d$mean_prop_looking_TD) + mean(d$mean_prop_looking_TD) - (zbeta1 * mean(d$age_peek_months) * sd(d$mean_prop_looking_TD)) / sd(d$age_peek_months)
+            )
+
+### Plot prior predictive on measurement scale to make sure we get reasonable values
+ggplot() + geom_density(aes(df_prior$beta0)) 
+ggplot() + geom_density(aes(df_prior$zbeta1))
+
+## Plot posterior 
+ggplot() + geom_density(aes(df$beta0)) 
+ggplot() + geom_density(aes(df$zbeta1)) 
+
+## Plot prior predictions with the data
+qplot(df_prior$beta1) + geom_vline(xintercept = quantile(df_prior$beta1, probs = 0.5))
+
+quantile(df_prior$beta1, probs = 0.1)
+
+df_prior_samples <- sample_n(select(df_prior, beta0, beta1), size = 100)
+
+ggplot(data = d) +
+    geom_point(aes(age_peek_months, mean_prop_looking_TD), color = "black", size = 5.5) +
+    geom_point(aes(age_peek_months, mean_prop_looking_TD), color = "grey50", size = 4) +
+    geom_abline(aes(intercept = 0.32, slope = beta1), data = df_prior_samples, alpha = 0.3) +
+    xlim(0,55) +
+    ylim(0, 1)
 
 # Compute p(D) for posterior and prior: Savage-Dickey Method to get Bayes Factor
-# Fits a density using spliens to approx. log-density
+# Fits a density using splines to approx. log-density
 # uses 1997 knot and deletion algorithm
-fit.posterior <- logspline(df$beta1, lbound = 0)
+fit.posterior <- logspline(df$zbeta1, lbound = 0)
 posterior <- dlogspline(0, fit.posterior) # pdf @ beta=0
-prior <- 2*dnorm(0) # height of order--restricted prior
-bf_acc_age <- posterior/prior # bayes factor
 
-##### Get relevant parameter values
+# get prior density using logspline
+fit.prior <- logspline(df_prior$zbeta1, lbound = 0)
+prior <- dlogspline(0, fit.prior) # pdf @ beta=0
+prior_analytic <- 2*dnorm(0, 1/5) # pdf @ beta=0
+bf_acc_age <- posterior/prior # bayes factor
+1/bf_acc_age
+
+##### Get relevant parameter values from posterior distribution
 post_mode_b1 <- round(find_mode(df$beta1), 3)     # MAP of slope
 HDI_b1 <- HDIofMCMC( df$beta1 , credMass = 0.95 ) # HDI of slope
 post_mode_b0 <- round(find_mode(df$beta0), 3)     # Map of intercept
@@ -126,7 +176,7 @@ mu.HPDI <- apply(mu, 2, HPDI, prob = 0.95)
 mu.HPDI_tidy <- data.frame(age_peek_months = age.seq, 
                            hpdi_lower = mu.HPDI[1,], hpdi_upper = mu.HPDI[2,],
                            mu.mean = mu.mean)
-## now plot
+
 ggplot(data = d) +
     geom_line(aes(x = age_peek_months, y = mu.mean), data = mu.HPDI_tidy, size = 2) +
     geom_point(aes(age_peek_months, mean_prop_looking_TD), color = "black", size = 5.5) +
@@ -136,9 +186,9 @@ ggplot(data = d) +
     ylab("Accuracy") +
     xlab("Child's Age (months)") +
     coord_cartesian(xlim=c(15, 55), ylim=c(0.25, 0.95)) +
-    ggtitle(bquote(list(alpha==.(as.character(round(post_mode_b0, 2))), 
-                        beta==.(as.character(post_mode_b1)),
-                        HDI=.(paste("95% HDI [", round(HDI_b1[1],3) , "," , round(HDI_b1[2], 3), "]"))))) +
+    ggtitle(bquote(list(alpha==.(as.character(round(find_mode(df$beta0), 2))), 
+                        beta==.(as.character(round(find_mode(df$beta1), 2))),
+                        HDI==.(paste("95% HDI [", round(HDI_b1[1],3) , "," , round(HDI_b1[2], 3), "]"))))) +
     theme(axis.title.x = element_text(colour="grey30",size=22,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
           axis.title.y = element_text(colour="grey30",size=22,
@@ -156,6 +206,10 @@ dataList_voc = list(
     y = d_voc$mean_prop_looking_TD
 )
 
+dataList_voc_prior = list(
+    #y = d_voc$mean_prop_looking_TD,
+    x = d_voc$signs_produced
+)
 
 # Get samples
 samples <- jags(data = dataList_voc, parameters.to.save = parameters,
@@ -164,6 +218,30 @@ samples <- jags(data = dataList_voc, parameters.to.save = parameters,
 
 df_acc_voc <- data.frame(beta0 = samples$BUGSoutput$sims.list$beta0,
                  beta1 = samples$BUGSoutput$sims.list$beta1)
+
+# Get samples from prior
+samples_prior <- jags(data = dataList_voc_prior, parameters.to.save = parameters,
+                      model.file="acc_age_prior_predictive.txt", n.chains=nChains, 
+                      n.iter=nIter, n.burnin = burnInSteps,
+                      n.thin=1, DIC=F)
+
+df_acc_voc_prior <- data.frame(beta0 = samples_prior$BUGSoutput$sims.list$zbeta0, 
+                       beta1 = samples_prior$BUGSoutput$sims.list$zbeta1)
+
+### Plot prior predictive
+ggplot() + geom_density(aes(df_prior$beta1)) 
+
+# Compute p(D) for posterior and prior: Savage-Dickey Method to get Bayes Factor
+# Fits a density using splines to approx. log-density
+# uses 1997 knot and deletion algorithm
+fit.posterior <- logspline(df$beta1, lbound = 0)
+posterior <- dlogspline(0, fit.posterior) # pdf @ beta=0
+
+# get prior density using logspline
+fit.prior <- logspline(df_prior$beta1, lbound = 0)
+prior <- dlogspline(0, fit.prior) # pdf @ beta=0
+bf_acc_age <- posterior/prior # bayes factor
+1/bf_acc_age
 
 ####### Compute p(D) for posterior and prior: Savage-Dickey Method to get Bayes Factor
 

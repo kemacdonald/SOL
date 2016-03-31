@@ -64,6 +64,9 @@ dataList_age = list(
 
 modelString = "
 # Specify the model for standardized data:
+data{
+Ntotal <-  length(x)
+}
 model {
 for ( i in 1:Ntotal ) {
 zy[i] ~ dnorm( zbeta0 + zbeta1 * x[i] , 1/(zsigma)^2 )
