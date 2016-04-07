@@ -68,6 +68,10 @@ d %<>%
            acc.s = (mean_prop_looking_TD - mean(mean_prop_looking_TD)) / sd(mean_prop_looking_TD),
            rt.s = (median_rt - mean(median_rt)) / sd(median_rt))
 
+d_voc <- d %>% 
+    filter(is.na(signs_produced) == F) %>% 
+    mutate(voc.s = (signs_produced - mean(signs_produced)) / sd(signs_produced))
+
 ####### Set MCMC parameters (same across all models)
 parameters = c( "zbeta0" , "zbeta1" , "zsigma" )
 adaptSteps = 500  # Number of steps to "tune" the samplers
@@ -79,17 +83,16 @@ nIter = ceiling( ( numSavedSteps * thinSteps ) / nChains )
 
 ######## Accuracy-Age model
 dataList_age = list(
-    x = d$age_peek_months,
-    y = d$mean_prop_looking_TD,
+    x = d$age.s,
+    y = d$acc.s,
     Ntotal = length(d$age.s)
 )
 
 dataList_age_prior = list(
     #y = d$mean_prop_looking_TD,
-    x = d$age_peek_months,
+    x = d$age.s,
     Ntotal = length(d$age.s)
 )
-
 
 # Get samples conditioning on data
 samples <- jags(data = dataList_age, parameters.to.save = parameters,
@@ -123,16 +126,7 @@ df_prior %<>%
 
 ### Plot prior predictive on measurement scale to make sure we get reasonable values
 ggplot() + geom_density(aes(df_prior$beta0)) 
-ggplot() + geom_density(aes(df_prior$zbeta1))
-
-## Plot posterior 
-ggplot() + geom_density(aes(df$beta0)) 
-ggplot() + geom_density(aes(df$zbeta1)) 
-
-## Plot prior predictions with the data
-qplot(df_prior$beta1) + geom_vline(xintercept = quantile(df_prior$beta1, probs = 0.5))
-
-quantile(df_prior$beta1, probs = 0.1)
+ggplot() + geom_density(aes(df_prior$beta1))
 
 df_prior_samples <- sample_n(select(df_prior, beta0, beta1), size = 100)
 
@@ -152,7 +146,7 @@ posterior <- dlogspline(0, fit.posterior) # pdf @ beta=0
 # get prior density using logspline
 fit.prior <- logspline(df_prior$zbeta1, lbound = 0)
 prior <- dlogspline(0, fit.prior) # pdf @ beta=0
-prior_analytic <- 2*dnorm(0, 1/5) # pdf @ beta=0
+prior_analytic <- 2*dnorm(0, 1) # pdf @ beta=0
 bf_acc_age <- posterior/prior # bayes factor
 1/bf_acc_age
 
@@ -187,7 +181,7 @@ ggplot(data = d) +
     xlab("Child's Age (months)") +
     coord_cartesian(xlim=c(15, 55), ylim=c(0.25, 0.95)) +
     ggtitle(bquote(list(alpha==.(as.character(round(find_mode(df$beta0), 2))), 
-                        beta==.(as.character(round(find_mode(df$beta1), 2))),
+                        beta==.(as.character(round(find_mode(df$beta1), 3))),
                         HDI==.(paste("95% HDI [", round(HDI_b1[1],3) , "," , round(HDI_b1[2], 3), "]"))))) +
     theme(axis.title.x = element_text(colour="grey30",size=22,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
@@ -202,13 +196,15 @@ ggplot(data = d) +
 ##################### Accuracy-Vocab Model #####################
 
 dataList_voc = list(
-    x = d_voc$signs_produced,
-    y = d_voc$mean_prop_looking_TD
+    x = d_voc$voc.s,
+    y = d_voc$acc.s,
+    Ntotal = length(d_voc$age.s)
 )
 
 dataList_voc_prior = list(
     #y = d_voc$mean_prop_looking_TD,
-    x = d_voc$signs_produced
+    x = d_voc$voc.s,
+    Ntotal = length(d_voc$age.s)
 )
 
 # Get samples
@@ -216,19 +212,33 @@ samples <- jags(data = dataList_voc, parameters.to.save = parameters,
                 model.file="accuracy_model.txt", n.chains=nChains, n.iter=nIter, 
                 n.thin=1, DIC=T, n.burnin=burnInSteps)
 
-df_acc_voc <- data.frame(beta0 = samples$BUGSoutput$sims.list$beta0,
-                 beta1 = samples$BUGSoutput$sims.list$beta1)
+df <- data.frame(zbeta0 = samples$BUGSoutput$sims.list$zbeta0, 
+                 zbeta1 = samples$BUGSoutput$sims.list$zbeta1)
+
+# transform standardized prior to measurement scale
+df %<>%
+    mutate( beta1 = zbeta1 * sd(d_voc$mean_prop_looking_TD) / sd(d_voc$signs_produced),
+            beta0 = zbeta0 * sd(d_voc$mean_prop_looking_TD) + mean(d_voc$signs_produced) - (zbeta1 * mean(d_voc$signs_produced) * sd(d_voc$mean_prop_looking_TD)) / sd(d_voc$signs_produced)
+    )
 
 # Get samples from prior
 samples_prior <- jags(data = dataList_voc_prior, parameters.to.save = parameters,
-                      model.file="acc_age_prior_predictive.txt", n.chains=nChains, 
+                      model.file="accuracy_model.txt", n.chains=nChains, 
                       n.iter=nIter, n.burnin = burnInSteps,
                       n.thin=1, DIC=F)
 
-df_acc_voc_prior <- data.frame(beta0 = samples_prior$BUGSoutput$sims.list$zbeta0, 
-                       beta1 = samples_prior$BUGSoutput$sims.list$zbeta1)
+df_prior <- data.frame(zbeta0 = samples_prior$BUGSoutput$sims.list$zbeta0, 
+                       zbeta1 = samples_prior$BUGSoutput$sims.list$zbeta1)
 
-### Plot prior predictive
+# transform standardized prior to measurement scale
+df_prior %<>% 
+    mutate( beta1 = zbeta1 * sd(d_voc$mean_prop_looking_TD) / sd(d_voc$signs_produced),
+            beta0 = zbeta0 * sd(d_voc$mean_prop_looking_TD) + mean(d_voc$signs_produced) - (zbeta1 * mean(d_voc$signs_produced) * sd(d_voc$mean_prop_looking_TD)) / sd(d_voc$signs_produced)
+    )
+
+
+### Plot prior predictive on measruement scale to make sure we get reasonable slope and intercept values
+ggplot() + geom_density(aes(df_prior$beta0)) 
 ggplot() + geom_density(aes(df_prior$beta1)) 
 
 # Compute p(D) for posterior and prior: Savage-Dickey Method to get Bayes Factor
@@ -240,8 +250,8 @@ posterior <- dlogspline(0, fit.posterior) # pdf @ beta=0
 # get prior density using logspline
 fit.prior <- logspline(df_prior$beta1, lbound = 0)
 prior <- dlogspline(0, fit.prior) # pdf @ beta=0
-bf_acc_age <- posterior/prior # bayes factor
-1/bf_acc_age
+bf_acc_voc <- posterior/prior # bayes factor
+1/bf_acc_voc
 
 ####### Compute p(D) for posterior and prior: Savage-Dickey Method to get Bayes Factor
 

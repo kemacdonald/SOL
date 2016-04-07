@@ -4,9 +4,9 @@ model {
         y[i] ~ dnorm( zbeta0 + zbeta1 * x[i] , 1/(zsigma)^2 )
     }
     # Prior for intercept 
-    zbeta0 ~ dnorm( 0 , .1) 
+    zbeta0 ~ dnorm(0,1) 
     # Prior for slope 
-    zbeta1 ~ dnorm(0, 200)I(0,)
+    zbeta1 ~ dnorm(0,1)I(0,)
     zsigma ~ dunif( 1.0E-3 , 1.0E+3 )
 }
         
