@@ -262,11 +262,11 @@ ggplot(data = d) +
     ylab("Accuracy") +
     xlab("Child's Age (months)") +
     coord_cartesian(xlim=c(15, 55), ylim=c(0.25, 0.95)) +
-    ggtitle(bquote(list(alpha==.(as.character(round(post_mode_b0_acc_age, 2))), 
-                        beta==.(as.character(round(post_mode_b1_acc_age, 3))),
+    ggtitle(bquote(list(beta==.(as.character(round(post_mode_b1_acc_age, 3))),
                         HDI=.(paste("95% HDI [", round(HDI_b1_acc_age[1],3) , "," , 
                                      round(HDI_b1_acc_age[2], 3), "]"))))) +
-    theme(axis.title.x = element_text(colour="grey30",size=22,
+    theme(plot.title = element_text(size = 20),
+        axis.title.x = element_text(colour="grey30",size=22,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
           axis.title.y = element_text(colour="grey30",size=22,
                                       hjust=0.5,vjust=0.5,face="plain"),
@@ -375,11 +375,11 @@ ggplot(data = d_voc) +
     ylab("Accuracy") +
     xlab("Signs Produced") +
     coord_cartesian(xlim=c(18, 82), ylim=c(0.25, 0.95)) +
-    ggtitle(bquote(list(alpha==.(as.character(round(post_mode_b0_accvoc, 2))), 
-                        beta==.(as.character(round(post_mode_b1_accvoc, 3))),
+    ggtitle(bquote(list(beta==.(as.character(round(post_mode_b1_accvoc, 3))),
                         HDI=.(paste("95% HDI [", round(HDI_b1_accvoc[1],3) , "," , 
                                     round(HDI_b1_accvoc[2], 3), "]"))))) +
-    theme(axis.title.x = element_text(colour="grey30",size=22,
+    theme(plot.title = element_text(size = 20),
+        axis.title.x = element_text(colour="grey30",size=22,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
           axis.title.y = element_text(colour="grey30",size=22,
                                       hjust=0.5,vjust=0.5,face="plain"),
@@ -523,12 +523,12 @@ ggplot(data = d) +
                 alpha = 0.2) +
     ylab("Reaction Time (ms)") +
     xlab("Child's Age (months)") +
-    coord_cartesian(xlim=c(15, 55), ylim=c(700, 1800)) +
-    ggtitle(bquote(list(alpha==.(as.character(round(post_rt_age_mode_b0, 2))), 
-                        beta==.(as.character(round(post_rt_age_mode_b1, 2))),
+    coord_cartesian(xlim=c(15, 55), ylim=c(700, 2000)) +
+    ggtitle(bquote(list(beta==.(as.character(round(post_rt_age_mode_b1, 2))),
                         HDI=.(paste("95% HDI [", round(HDI_rt_age_b1[1],3) , "," , 
                                     round(HDI_rt_age_b1[2], 3), "]"))))) +
-    theme(axis.title.x = element_text(colour="grey30",size=22,
+    theme(plot.title = element_text(size = 18),
+        axis.title.x = element_text(colour="grey30",size=22,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
           axis.title.y = element_text(colour="grey30",size=22,
                                       hjust=0.5,vjust=0.5,face="plain"),
@@ -537,7 +537,6 @@ ggplot(data = d) +
           axis.text.y = element_text(colour="grey20",size=18,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
           panel.grid.major=element_blank())
-
 ```
 
 ### Vocab and RT 
@@ -615,7 +614,6 @@ ggplot(data=df_rt_voc_post) +
     geom_density(aes(x=zbeta1), data = df_rt_voc_prior) +
     xlim(-2, 0) +
     xlab("Standardized Beta")
-
 ```
 
 Get Bayes Factor.
@@ -661,11 +659,11 @@ ggplot(data = d_voc) +
     ylab("Reaction Time (ms)") +
     xlab("Signs Produced") +
     coord_cartesian(xlim=c(18, 82), ylim=c(700, 2000)) +
-   ggtitle(bquote(list(alpha==.(as.character(round(post_mode_b0_rt_voc, 2))), 
-                        beta==.(as.character(round(post_mode_b1_rt_voc, 2))),
+   ggtitle(bquote(list(beta==.(as.character(round(post_mode_b1_rt_voc, 2))),
                         HDI=.(paste("95% HDI [", round(HDI_rt_voc_b1[1],3) , "," , 
                                      round(HDI_rt_voc_b1[2], 3), "]")))))  +
-    theme(axis.title.x = element_text(colour="grey30",size=22,
+    theme(plot.title = element_text(size=20),
+        axis.title.x = element_text(colour="grey30",size=20,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
           axis.title.y = element_text(colour="grey30",size=22,
                                       hjust=0.5,vjust=0.5,face="plain"),
@@ -678,6 +676,7 @@ ggplot(data = d_voc) +
 ```
 
 ### Table of model summaries
+
 
 ```{r}
 models <- c("Acc ~ Age", "Acc ~ Voc", "RT ~ Age", "RT ~ Voc")
