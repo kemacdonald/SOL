@@ -165,24 +165,158 @@ diff.deaf.hearing.rt <- mu.hearing.rt - mu.deaf.rt
 quantile(diff.deaf.hearing.rt, probs = c(0.025, 0.5, 0.975))
 ```
 
-### Age groups
+### Target looking for each age group
+
+Test older vs. younger age group.
 
 ```{r age_group acc}
+acc_age_cat_targ.m <- map2stan(
+    alist(
+        mean_prop_looking_TD ~ dnorm(mu, sigma),
+        mu <- Intercept + b_Older*age_group_older + b_Adults*age_group_adults,
+        Intercept ~ dnorm(0.6, 10), 
+        b_Older ~ dnorm(0, 1),
+        b_Adults ~ dnorm(0, 1),
+        sigma ~ dunif(0, 10)
+    ),
+    data = select(filter(d_model, value_cat == "Target"), mean_prop_looking_TD, 
+                         age_group_adults, age_group_older)
+)
 
+post_ages.acc <- extract.samples(acc_age_cat_targ.m)
+
+mu.younger <- post_ages.acc$Intercept
+mu.older <- post_ages.acc$b_Older + post_ages.acc$Intercept
+mu.adults <- post_ages.acc$b_Adults + post_ages.acc$Intercept
+post_df.acc <- data.frame(mu.younger, mu.older, mu.adults)
+precis(post_df.acc)
+
+# contrast older vs. younger (target looking)
+diff.old.young <- mu.younger - mu.older
+quantile(diff.old.young, probs = c(0.025, 0.5, 0.975))
 ```
+
+### RT for each age group
 
 ```{r age_group rt}
-```
+rt_age_cat.m <- map2stan(
+    alist(
+        median_rt ~ dnorm(mu, sigma),
+        mu <- Intercept + b_Older*age_group_older + b_Adults*age_group_adults,
+        Intercept ~ dnorm(1300, 100), 
+        b_Older ~ dnorm(0, 500),
+        b_Adults ~ dnorm(0, 500),
+        sigma ~ dunif(0, 500)
+    ),
+    data = select(filter(d_model, value_cat == "Target"), median_rt, age_group_older, age_group_adults)
+)
 
-### Age groups (w/adults)
+post_ages.rt <- extract.samples(rt_age_cat.m)
 
-```{r age_groups_adults acc}
-```
+mu.younger.rt <- as.numeric(post_ages.rt$Intercept)
+mu.older.rt <- as.numeric(post_ages.rt$b_Older + post_ages.rt$Intercept)
+mu.adults.rt <- as.numeric(post_ages.rt$b_Adults + post_ages.rt$Intercept)
+post_df.rt <- data.frame(mu.younger.rt, mu.older.rt, mu.adults.rt) 
+precis(post_df.rt)
 
-```{r age_group_adults rt}
+diff.old.young.rt <- mu.younger.rt - mu.older.rt
+quantile(diff.old.young.rt, probs = c(0.025, 0.5, 0.975))
 ```
 
 ### Target vs. Distractor looking for each age group
+
+```{r}
+acc_age_cat_dist.m <- map2stan(
+    alist(
+        mean_prop_looking_TD ~ dnorm(mu, sigma),
+        mu <- Intercept + b_Older*age_group_older + b_Adults*age_group_adults,
+        Intercept ~ dnorm(0.6, 10), 
+        b_Older ~ dnorm(0, 1),
+        b_Adults ~ dnorm(0, 1),
+        sigma ~ dunif(0, 10)
+    ),
+    data = select(filter(d_model, value_cat == "Distractor"), mean_prop_looking_TD, 
+                         age_group_adults, age_group_older)
+)
+
+# get samples
+post_ages.dist <- extract.samples(acc_age_cat_dist.m)
+
+# Distractor: compute averages for each group (intercept is youngest kids)
+mu.younger.dist <- post_ages.dist$Intercept
+mu.older.dist <- post_ages.dist$b_Older + post_ages.dist$Intercept
+mu.adults.dist <- post_ages.dist$b_Adults + post_ages.dist$Intercept
+post_df.dist <- data.frame(mu.younger.dist, mu.older.dist, mu.adults.dist)
+precis(post_df.dist)
+
+# Merge Target and Distractor looking posterior samples
+post_df.dist$looking_type <- "Distractor"
+post_df.dist %<>% rename(mu.younger = mu.younger.dist,
+                         mu.older = mu.older.dist,
+                         mu.adults = mu.adults.dist)
+post_df.acc$looking_type <- "Target"
+post_df.acc_all <- rbind(post_df.acc, post_df.dist)
+
+# target vs. distractor looking at each time point
+diff.targ.dist.young <- mu.younger - mu.younger.dist
+quantile(diff.targ.dist.young, probs = c(0.025, 0.5, 0.975))
+
+diff.targ.dist.older <- mu.older - mu.older.dist
+quantile(diff.targ.dist.older, probs = c(0.025, 0.5, 0.975))
+
+diff.targ.dist.adults <- mu.adults - mu.adults.dist
+quantile(diff.targ.dist.adults, probs = c(0.025, 0.5, 0.975))
+```
+
+### Accuracy and RT for kids compared to adults
+
+```{r age_groups_adults acc}
+acc_age_cat_targ.m.collapsed <- map2stan(
+    alist(
+        mean_prop_looking_TD ~ dnorm(mu, sigma),
+        mu <- Intercept + b_Adults*age_group_adults_collapsed,
+        Intercept ~ dnorm(0.6, 10), 
+        b_Adults ~ dnorm(0, 1),
+        sigma ~ dunif(0, 10)
+    ),
+    data = select(filter(d_model, value_cat == "Target"), mean_prop_looking_TD, 
+                         age_group_adults_collapsed)
+)
+
+post_ages.acc_collapsed <- extract.samples(acc_age_cat_targ.m.collapsed)
+
+mu.kids.collapsed <- post_ages.acc_collapsed$Intercept
+mu.adults.collapsed <- post_ages.acc_collapsed$b_Adults + post_ages.acc_collapsed$Intercept
+post_df.acc.collapsed <- data.frame(mu.kids.collapsed, mu.adults.collapsed)
+precis(post_df.acc.collapsed)
+
+diff.old.young.acc.collapsed <- mu.kids.collapsed - mu.adults.collapsed
+quantile(diff.old.young.acc.collapsed, probs = c(0.025, 0.5, 0.975))
+```
+
+```{r age_group_adults rt}
+rt_age_cat_collapsed.m <- map2stan(
+    alist(
+        median_rt ~ dnorm(mu, sigma),
+        mu <- Intercept + b_Adults*age_group_adults_collapsed,
+        Intercept ~ dnorm(1300, 100), 
+        b_Adults ~ dnorm(0, 500),
+        sigma ~ dunif(0, 500)
+    ),
+    data = select(filter(d_model, value_cat == "Target"), median_rt, age_group_adults_collapsed)
+)
+
+post_ages.rt_collapsed <- extract.samples(rt_age_cat_collapsed.m)
+
+mu.kids.rt.collapsed <- as.numeric(post_ages.rt_collapsed$Intercept)
+mu.adults.rt.collapsed <- as.numeric(post_ages.rt_collapsed$b_Adults + post_ages.rt_collapsed$Intercept)
+post_df.rt.collapsed <- data.frame(mu.kids.rt.collapsed, mu.adults.rt.collapsed) 
+precis(post_df.rt.collapsed)
+
+diff.old.young.rt.collapsed <- mu.kids.rt.collapsed - mu.adults.rt.collapsed
+quantile(diff.old.young.rt.collapsed, probs = c(0.025, 0.5, 0.975))
+```
+
 ### Bayes Factor Analysis for CODA vs. Deaf comparison
 
 From Lee and Wagenmakers Ch.8 on two-sample comparisons
@@ -321,6 +455,84 @@ ggplot(data=df)+
     xlim(-3,3)+
     #ylim(0,10)+
     xlab('Delta')
+```
+
+### Summary barplots for categorical analyses
+
+```{r barplot}
+# Accuracy: MAP and HDI for each age group
+post_df.acc_all %<>% gather(key = age_group, value = post_sample, mu.younger:mu.adults) 
+
+ms_all <- post_df.acc_all %>%
+    group_by(age_group, looking_type) %>% 
+    summarise(mean_post = mean(post_sample),
+              HDI_lower = HDIofMCMC(post_sample, credMass = 0.95)[1],
+              HDI_upper = HDIofMCMC(post_sample, credMass = 0.95)[2]) %>% 
+    mutate(HDI_lower = ifelse(HDI_lower <= 0, 0, HDI_lower),
+           looking_type = ifelse(looking_type == "Distractor", "Distracter", "Target")) 
+
+######### Now plot bar graph of MAP and HDI for target/distractor looking ############
+
+# RT: MAP and HDI for each age group
+post_df.rt %<>% gather(key = age_group, value = post_sample)
+
+ms_all_rt <- post_df.rt %>%
+    group_by(age_group) %>% 
+    summarise(mean_post = mean(post_sample),
+              HDI_lower = HDIofMCMC(post_sample, credMass = 0.95)[1],
+              HDI_upper = HDIofMCMC(post_sample, credMass = 0.95)[2]) 
+
+# Bar Plot
+all_acc <- ggplot(aes(x = age_group, y = mean_post, fill = looking_type), data = ms_all) +
+    geom_bar(stat = "identity", position="dodge") +
+    geom_linerange(aes(ymin = HDI_lower,
+                       ymax = HDI_upper),
+                   position = position_dodge(width = 0.9)) +
+    xlab("Age Group") +
+    ylab("Proportion Looking") +
+    coord_cartesian(ylim=c(0, 1)) +
+    scale_fill_brewer(type = "qual", palette = "Set1") +
+    guides(fill=guide_legend(title=NULL)) +
+    scale_x_discrete(labels=c("Younger", "Older", "Adults")) +
+    theme_bw() +
+    theme(plot.title = element_text(face = "bold", size = 20),
+          axis.title.x = element_text(colour="grey40",size=18,
+                                      angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.title.y = element_text(colour="grey40",size=18,
+                                      angle=90,hjust=0.5,vjust=0.5,face="plain"),
+          axis.text.x = element_text(colour="grey20",size=18,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.text.y = element_text(colour="grey20",size=18,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
+          plot.margin = unit(c(0.5,2,1,1), "cm"),
+          legend.position = c(0.3, 0.85),
+          legend.text = element_text(size = 16)) +
+    ggtitle("Accuracy") 
+
+all_rt <- ggplot(aes(x= age_group, y = mean_post, fill = age_group), data = ms_all_rt) +
+    geom_bar(stat = "identity") +
+    geom_linerange(aes(ymax = HDI_upper, ymin = HDI_lower)) +
+    scale_fill_brewer(type = "qual", palette = "Set1") +
+    guides(fill=F) +
+    xlab("Age Group") +
+    ylab("Mean RT (ms)") +
+    scale_x_discrete(labels=c("Younger", "Older", "Adults")) +
+    ylim(0, 1600) +
+    theme_bw() +
+    theme(plot.title = element_text(face = "bold", size = 20),
+          axis.title.x = element_text(colour="grey40",size=18,
+                                      angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.title.y = element_text(colour="grey40",size=18,
+                                      angle=90,hjust=0.5,vjust=0.5,face="plain"),
+          axis.text.x = element_text(colour="grey20",size=18,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.text.y = element_text(colour="grey20",size=18,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
+          plot.margin = unit(c(0.5,2,1,1), "cm")) +
+    ggtitle("Reaction Time") 
+
+gridExtra::grid.arrange(all_acc, all_rt, ncol = 2)
+
 ```
 
 ## Univariate regressions predicting processing measures 
