@@ -9,5 +9,8 @@ model {
     zbeta1 ~ dnorm(0,1)I(0,)
     # Prior on zsigma is vague on standardized scale
     zsigma ~ dunif( 1.0E-3 , 1.0E+3 )
+    # Prior predictive
+    zbeta1_prior ~ dnorm(0,1)I(0,)
+    zbeta0_prior ~ dnorm(0,1/10) 
 }
         
