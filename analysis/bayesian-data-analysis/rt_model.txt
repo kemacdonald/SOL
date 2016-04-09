@@ -2,7 +2,7 @@
 model {
         # Latent Mixture Model
         for (i in 1:Ntotal) {
-            z[i] ~ dbern(0.5)
+            z[i] ~ dbern(0.75)
         }
         # First Group Guesses
         psi <- 0.5
@@ -20,8 +20,8 @@ model {
             zsigma[i] <- equals(z[i],0)*nuisance_sigma+equals(z[i],1)*true_sigma
             y[i] ~ dnorm( zbeta0[i] + zbeta1[i] * x[i] , 1/(zsigma[i])^2 )
         }
-        # Priors vague on standardized scale
-        true_beta0 ~ dnorm(0,1) 
+        # Priors 
+        true_beta0 ~ dnorm(0,1/10) 
         nuisance_beta0 ~ dnorm(0,1) 
         true_beta1 ~ dnorm(0,1)I(,0)
         nuisance_beta1 ~ dnorm(0,1)I(,0)
