@@ -24,86 +24,12 @@ library(tidyr)
 ## Read in data
 
 ```{r}
-# summary data
-ss <- read.csv("sol_ss_all.csv", stringsAsFactors = F)
-ss_kids <- filter(ss, age_group != "Adults")
-ss_rt <- filter(ss, age_group != "Adults")
-
 # tanenhaus graph values
 gv_all <- read.csv("sol_gvals_all.csv", stringsAsFactors = F)
 gv_coda <- read.csv("sol_gvals_coda.csv", stringsAsFactors = F)
 ```
 
 ## Plots
-
-### Summary bar plots
-
-Get the mean proportion looking to each location for each age group.
-
-```{r}
-ms_all <- ss %>% 
-    group_by(age_group, value_cat) %>% 
-    dplyr::summarise(mean_group_prop_looking_signer = mean(prop_looking),
-              ci_low_signer = ci.low(prop_looking),
-              ci_high_signer = ci.high(prop_looking))
-
-ms_all <- ss %>% 
-    group_by(age_group) %>% 
-    dplyr::summarise(m_rt = mean(mean_correct_rt),
-              ci.h_rt = ci.high(mean_correct_rt),
-              ci.l_rt = ci.low(mean_correct_rt)) %>% 
-    left_join(x = ms_all, by = "age_group")
-
-all_acc <- ggplot(aes(x = age_group, y = mean_group_prop_looking_signer, fill = value_cat), 
-                  data = filter(ms_all, value_cat %in% c("Target", "Distractor"))) +
-    geom_bar(stat = "identity", position="dodge") +
-    geom_linerange(aes(ymin = mean_group_prop_looking_signer - ci_low_signer,
-                       ymax = mean_group_prop_looking_signer + ci_high_signer),
-                   position = position_dodge(width = 0.9)) +
-    xlab("Age Group") +
-    ylab("Proportion Looking") +
-    scale_fill_brewer(type = "qual", palette = "Set1") +
-    guides(fill=guide_legend(title=NULL)) +
-    scale_x_discrete(labels=c("Younger", "Older", "Adults")) +
-    theme(plot.title = element_text(face = "bold", size = 20),
-          axis.title.x = element_text(colour="grey40",size=18,
-                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.title.y = element_text(colour="grey40",size=18,
-                                      angle=90,hjust=0.5,vjust=0.5,face="plain"),
-          axis.text.x = element_text(colour="grey20",size=18,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.text.y = element_text(colour="grey20",size=18,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          plot.margin = unit(c(0.5,2,1,1), "cm"),
-          legend.position = c(0.2, 0.8),
-          legend.text = element_text(size = 16)) +
-    ggtitle("Accuracy") 
-
-all_rt <- ggplot(aes(x= age_group, y = m_rt, fill = age_group), 
-                 data = filter(ms_all, value_cat == "Target")) +
-    geom_bar(stat = "identity") +
-    geom_linerange(aes(ymax = m_rt + ci.h_rt, ymin = m_rt - ci.l_rt)) +
-    scale_fill_brewer(type = "qual", palette = "Set1") +
-    guides(fill=F) +
-    xlab("Age Group") +
-    ylab("Mean RT (ms)") +
-    ggtitle("Reaction Time") +
-    scale_x_discrete(labels=c("Younger", "Older", "Adults")) +
-    theme(plot.title = element_text(face = "bold", size = 20),
-          axis.title.x = element_text(colour="grey40",size=18,
-                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.title.y = element_text(colour="grey40",size=18,
-                                      angle=90,hjust=0.5,vjust=0.5,face="plain"),
-          axis.text.x = element_text(colour="grey20",size=18,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.text.y = element_text(colour="grey20",size=18,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          plot.margin = unit(c(0.5,2,1,1), "cm"))
-
-gridExtra::grid.arrange(all_acc, all_rt, ncol = 2)
-```
-
-Get the mean proportion looking to each location for CODA/Deaf
 
 ```{r}
 ms_coda_deaf <- ss_kids %>% 
@@ -174,7 +100,8 @@ ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, linetype = hearing_status_p
     geom_linerange(data = filter(gv_coda, Time.ms %in% points),
                    aes(ymin=mean_prop_looking - ci_low, 
                        ymax=mean_prop_looking + ci_high), size=0.5, alpha = 0.7) +
-    geom_point(data = filter(gv_coda, to.n(Time.ms) %in% points), size=6, fill = "white") +
+    geom_point(data = filter(gv_coda, to.n(Time.ms) %in% points), size=5, fill = "white", 
+               stroke = 2.5) +
     scale_shape_manual(values = c(19, 21)) +
     scale_color_brewer(palette = "Set1", type = "qual") +
     xlim(0, 4000) +

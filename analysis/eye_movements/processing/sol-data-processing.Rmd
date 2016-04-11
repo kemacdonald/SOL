@@ -260,12 +260,12 @@ First, for adults.
 
 ```{r get RT analysis window adults, warning=F, message=F, fig.height = 5}
 iChart_adults <- filter(iChart, age_group == "Adults")
-iChart_adults <- computeStatistics(iChart_adults, startWindow=0, endWindow=5000)
+iChart_adults <- computeStatistics(iChart_adults, startWindow=0, endWindow=4000)
 
 # get analyisis window where 90% of RTs occur for kids, include all shifts
 rts_adults <- filter(iChart_adults, trial_types %in% c("C_T"))
 
-analysis.window_adults <- quantile(rts_adults$RT, probs=c(0.05, 0.90), na.rm=T)
+analysis.window_adults <- quantile(rts_adults$RT, probs=c(0.05, 0.95), na.rm=T)
 
 ggplot(aes(RT), data = rts_adults) +
     geom_histogram() +
@@ -279,12 +279,12 @@ Now do the same for kids.
 
 ```{r get rt analysis window kids, warning=F, message=F, fig.height = 5}
 iChart_kids <- filter(iChart, age_group != "Adults")
-iChart_kids <- computeStatistics(iChart_kids, startWindow=0, endWindow=5000)
+iChart_kids <- computeStatistics(iChart_kids, startWindow=0, endWindow=4000)
 
 # get analyisis window where 90% of RTs occur for kids, include all shifts
 rts <- filter(iChart_kids, trial_types %in% c("C_T"), age_group != "Adults")
 
-analysis.window <- quantile(rts$RT, probs=c(0.05, 0.90), na.rm=T)
+analysis.window <- quantile(rts$RT, probs=c(0.05, 0.95), na.rm=T)
 
 ggplot(aes(x=RT), data=rts)  +
     geom_histogram() +
@@ -624,11 +624,9 @@ ss <- ss %>%
 
 ```{r}
 ss_medians <- iChart %>% 
-    filter(trial_types == "C_T", 
-           GoodFirstGap == T, GoodRT == T, GoodLongestGap == T) %>% 
+    filter(trial_types == "C_T", GoodRT == T) %>% 
     group_by(Sub.Num, age_group, age_group_collapsed, Months) %>% 
-    dplyr::summarise(log_median_ct_rt = median(log(RT), na.rm = T),
-                     median_ct_rt = median(RT, na.rm = T))
+    dplyr::summarise(median_ct_rt = median(RT, na.rm = T))
 
 ss <- ss_medians %>% 
     ungroup() %>% 
@@ -637,7 +635,7 @@ ss <- ss_medians %>%
 ```
 
 ```{r, eval=T}
-write.csv(ss, "../sol_ss_all.csv", row.names = F)
+write.csv(ss, "../sol_ss_all_600_2500.csv", row.names = F)
 ```
 
 # Profile Plot Processing

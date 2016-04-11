@@ -6,6 +6,8 @@ output: html_document
 bibliography: bda.bib
 ---
 
+## Load packages and data
+
 ```{r, echo = F}
 rm(list=ls()) # clear workspace
 knitr::opts_chunk$set(
@@ -65,7 +67,7 @@ In this document, you will find the details of our Bayesian analysis for the pap
 
 ```{r load data}
 # Load data
-d <- read.csv("../../analysis/eye_movements/sol_ss_all.csv")
+d <- read.csv("../eye_movements/sol_ss_all_600_2500.csv")
 
 # Standardize the data
 d %<>% 
@@ -94,8 +96,11 @@ d_voc <- d %>%
 
 ## Defining priors
 
-RT estimate: is 50ms change per month in spoken language
-Acc estimate is .0167 change per month in spoken language
+We set the standard deviation on the Gaussian prior for the slope parameter using estimated
+gains in accuracy and RT between 18-24 months in Fernald et al., (2008).
+
+* RT estimate: is 50ms change with each month of development
+* Acc estimate is .0167 change with each month of development
 
 ## Age as categorical variable
 
@@ -595,21 +600,29 @@ Now we can plot the prior distribution of the slope parameter (beta1) on the mea
 
 ```{r}
 a <- ggplot() + geom_density(aes(df_acc_age$beta1_prior)) +
-    xlab("Beta0") +
+    xlab("Beta1") +
     ylab("Density") +
     ggtitle("Prior Predictive on Slope")
 
 b <- ggplot() + geom_density(aes(df_acc_age$beta0)) +
-    xlab("Beta1") +
+    xlab("Beta0") +
     ylab("Density") +
     ggtitle("Prior Predictive on Intercept")
 
 gridExtra::grid.arrange(b, a, ncol = 2)
 ```
 
-We can see that the prior model puts most of the density on a value of 0, or a null relationship between
-age and accuracy. It is truncated at zero to eoncode our directional hypothesis: that the slope parameter
-should be positive. And the prior does not consider extreme slope values beyond .04, or a 4% gain in accuracy with each month. 
+Plot prior with posterior.
+
+```{r}
+ggplot(data=df_acc_age) +
+    geom_density(aes(x=zbeta1), linetype='dashed') +
+    geom_density(aes(x=zbeta1_prior), data = df_acc_age) +
+    xlim(0,2) +
+    xlab("Standardized Beta")
+```
+
+We can see that the prior model puts most of the density on a value of 0, or a null relationship between age and accuracy. It is truncated at zero to eoncode our directional hypothesis: that the slope parameter should be positive. And the prior does not consider extreme slope values beyond .04, or a 4% gain in accuracy with each month. 
 
 Now that we are confident that our prior distribution produces reasonable hypotheses, we can quantify the association between children's age and accuracy on the VLP task. 
 
@@ -631,16 +644,7 @@ fit.prior <- logspline(df_acc_age$zbeta1_prior, lbound = 0)
 prior <- dlogspline(0, fit.prior) # pdf @ beta=0
 ```
 
-```{r}
-ggplot(data=df_acc_age) +
-    geom_density(aes(x=zbeta1), linetype='dashed') +
-    geom_density(aes(x=zbeta1_prior), data = df_acc_age) +
-    xlim(0,2) +
-    xlab("Standardized Beta")
-```
-
-We get the Bayes Factor using the Savage-Dickey moethod, which takes the ratio of the density of the posterior and prior when the slope
-parameter is zero. 
+We get the Bayes Factor using the Savage-Dickey moethod, which takes the ratio of the density of the posterior and prior when the slope parameter is zero. 
 
 ```{r}
 # bayes factor
@@ -675,13 +679,13 @@ ggplot(data = d) +
     geom_point(aes(age_peek_months, mean_prop_looking_TD), color = "grey50", size = 4) +
     geom_ribbon(aes(x = age_peek_months, ymin = hpdi_lower, ymax = hpdi_upper), data = mu.HPDI_tidy,
                 alpha = 0.2) +
-    ylab("Accuracy") +
+    ylab("Mean Accuracy") +
     xlab("Child's Age (months)") +
     coord_cartesian(xlim=c(15, 55), ylim=c(0.25, 0.95)) +
     ggtitle(bquote(list(beta==.(as.character(round(post_mode_b1_acc_age, 3))),
                         HDI=.(paste("95% HDI [", round(HDI_b1_acc_age[1],3) , "," , 
                                      round(HDI_b1_acc_age[2], 3), "]"))))) +
-    theme(plot.title = element_text(size = 20),
+    theme(plot.title = element_text(size = 18),
         axis.title.x = element_text(colour="grey30",size=22,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
           axis.title.y = element_text(colour="grey30",size=22,
@@ -723,8 +727,17 @@ df_acc_voc %<>%
     )
 ```
 
-We get the Bayes Factor by taking the ratio of the density of the posterior and prior when the slope
-parameter is zero. 
+Plot prior with posterior on slope parameter.
+
+```{r}
+ggplot(data=df_acc_voc) +
+    geom_density(aes(x=zbeta1), linetype='dashed') +
+    geom_density(aes(x=zbeta1_prior), data = df_acc_voc) +
+    xlim(0,2) +
+    xlab("Standardized Beta")
+```
+
+We get the Bayes Factor by taking the ratio of the density of the posterior and prior when the slope parameter is zero. 
 
 ```{r}
 fit.posterior <- logspline(df_acc_voc$beta1, lbound = 0)
@@ -733,12 +746,6 @@ posterior <- dlogspline(0, fit.posterior) # pdf @ beta=0
 # get prior density using logspline
 fit.prior <- logspline(df_acc_voc$beta1_prior, lbound = 0)
 prior <- dlogspline(0, fit.prior) # pdf @ beta=0
-
-ggplot(data=df_acc_voc) +
-    geom_density(aes(x=zbeta1), linetype='dashed') +
-    geom_density(aes(x=zbeta1_prior), data = df_acc_voc) +
-    xlim(0,2) +
-    xlab("Standardized Beta")
 
 bf_acc_voc <- posterior/prior # bayes factor
 1/bf_acc_voc
@@ -767,13 +774,13 @@ ggplot(data = d_voc) +
     geom_point(aes(signs_produced, mean_prop_looking_TD), color = "grey50", size = 4) +
     geom_ribbon(aes(x = signs_produced, ymin = hpdi_lower, ymax = hpdi_upper), data = mu.HPDI_tidy,
                 alpha = 0.2) +
-    ylab("Accuracy") +
+    ylab("Mean Accuracy") +
     xlab("Signs Produced") +
     coord_cartesian(xlim=c(18, 82), ylim=c(0.25, 0.95)) +
     ggtitle(bquote(list(beta==.(as.character(round(post_mode_b1_accvoc, 3))),
                         HDI=.(paste("95% HDI [", round(HDI_b1_accvoc[1],3) , "," , 
                                     round(HDI_b1_accvoc[2], 3), "]"))))) +
-    theme(plot.title = element_text(size = 20),
+    theme(plot.title = element_text(size = 18),
         axis.title.x = element_text(colour="grey30",size=22,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
           axis.title.y = element_text(colour="grey30",size=22,
@@ -887,7 +894,7 @@ ggplot(data = d) +
     geom_point(aes(age_peek_months, median_rt), color = "grey50", size = 4) +
     geom_ribbon(aes(x = age_peek_months, ymin = hpdi_lower, ymax = hpdi_upper), data = mu.HPDI_tidy,
                 alpha = 0.2) +
-    ylab("Reaction Time (ms)") +
+    ylab("Mean Reaction Time (ms)") +
     xlab("Child's Age (months)") +
     coord_cartesian(xlim=c(15, 55), ylim=c(700, 2000)) +
     ggtitle(bquote(list(beta==.(as.character(round(post_rt_age_mode_b1, 2))),
@@ -990,13 +997,13 @@ ggplot(data = d_voc) +
     geom_point(aes(signs_produced, median_rt), color = "grey50", size = 4) +
     geom_ribbon(aes(x = signs_produced, ymin = hpdi_lower, ymax = hpdi_upper), data = mu.HPDI_tidy,
                 alpha = 0.2) +
-    ylab("Reaction Time (ms)") +
+    ylab("Mean Reaction Time (ms)") +
     xlab("Signs Produced") +
     coord_cartesian(xlim=c(18, 82), ylim=c(700, 2000)) +
    ggtitle(bquote(list(beta==.(as.character(round(post_mode_b1_rt_voc, 2))),
                         HDI=.(paste("95% HDI [", round(HDI_rt_voc_b1[1],3) , "," , 
                                      round(HDI_rt_voc_b1[2], 3), "]")))))  +
-    theme(plot.title = element_text(size=20),
+    theme(plot.title = element_text(size=18),
         axis.title.x = element_text(colour="grey30",size=20,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
           axis.title.y = element_text(colour="grey30",size=22,
