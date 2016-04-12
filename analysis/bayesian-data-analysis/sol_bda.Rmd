@@ -10,10 +10,10 @@ bibliography: bda.bib
 
 ```{r, echo = F}
 rm(list=ls()) # clear workspace
-knitr::opts_chunk$set(
-    fig.height=4, 
-    fig.width=7)
+knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T, warning=F, message=F, results = "hide")
+```
 
+```{r, echo = F}
 set.seed(seed = 10) # so simulations are the same each time
 
 library(langcog)
@@ -67,7 +67,7 @@ In this document, you will find the details of our Bayesian analysis for the pap
 
 ```{r load data}
 # Load data
-d <- read.csv("../eye_movements/sol_ss_all_600_2500.csv")
+d <- read.csv("../../processed_data/sol_ss_all_600_2500.csv")
 
 # Standardize the data
 d %<>% 
@@ -104,7 +104,9 @@ gains in accuracy and RT between 18-24 months in Fernald et al., (2008).
 
 ## Age as categorical variable
 
-All models fit using STAN. First we need to create dummy variables for the relevant group comparisons.
+All categorical models were fit using STAN [@rstan], and are based on code adapted from @mcelreath2016statistical.  
+
+First we need to create dummy variables for the relevant group comparisons.
 
 ```{r dummy vars}
 d_model <- d_all %>% 
@@ -132,7 +134,9 @@ acc_hearing_stat_cat_targ.m <- map2stan(
     ),
     data = select(filter(d_model, value_cat == "Target", age_group_collapsed == "Kids"),
                   mean_prop_looking_TD, hearing_group))
+```
 
+```{r}
 # get samples
 post_hearing_stat.acc <- extract.samples(acc_hearing_stat_cat_targ.m)
 mu.hearing <- post_hearing_stat.acc$Intercept
@@ -226,7 +230,7 @@ mu.adults.rt <- as.numeric(post_ages.rt$b_Adults + post_ages.rt$Intercept)
 post_df.rt <- data.frame(mu.younger.rt, mu.older.rt, mu.adults.rt) 
 precis(post_df.rt)
 
-diff.old.young.rt <- mu.younger.rt - mu.older.rt
+diff.old.young.rt <- mu.older.rt - mu.younger.rt  
 quantile(diff.old.young.rt, probs = c(0.025, 0.5, 0.975))
 ```
 
@@ -326,7 +330,7 @@ quantile(diff.old.young.rt.collapsed, probs = c(0.025, 0.5, 0.975))
 
 ### Bayes Factor Analysis for CODA vs. Deaf comparison
 
-From Lee and Wagenmakers Ch.8 on two-sample comparisons
+From @lee2014bayesian Ch.8 on two-sample comparisons. 
 
 "In our Bayesian approach of making inferences about the means, we rescale the
 data so that one group has mean 0 and standard deviation 1. This rescaling procedure
@@ -368,7 +372,7 @@ parameters <- c("delta")
 # The following command calls JAGS with specific options.
 # For a detailed description see the R2jags documentation.
 samples <- jags(data, inits=myinits, parameters,
-                model.file = "categorical_model.txt",
+                model.file = "models/categorical_model.txt",
                 n.chains=3, n.iter=10000, n.burnin=5000, n.thin=1, DIC=T)
 
 df <- data.frame(delta.posterior=samples$BUGSoutput$sims.list$delta)
@@ -385,17 +389,16 @@ posterior<-dlogspline(0, fit.posterior) # pdf @ delta=0
 prior<-dcauchy(0) # height of order--restricted prior
 BF01<-posterior/prior # bayes factor
 BF01
+```
 
+```{r}
 df$delta.prior<-rcauchy(length(df$delta.posterior),0,1)
 
 ggplot(data=df)+
     geom_density(aes(x=delta.posterior),linetype='dashed')+
     geom_density(aes(x=delta.prior))+
-    geom_point(x=0,y=prior,color='red')+
-    geom_point(x=0,y=posterior,color='blue')+
     theme_bw()+
     xlim(-3,3)+
-    #ylim(0,10)+
     xlab('Delta')
 ```
 
@@ -433,7 +436,7 @@ parameters <- c("delta")
 # The following command calls JAGS with specific options.
 # For a detailed description see the R2jags documentation.
 samples <- jags(data, inits=myinits, parameters,
-                model.file = "categorical_model.txt",
+                model.file = "models/categorical_model.txt",
                 n.chains=3, n.iter=10000, n.burnin=5000, n.thin=1, DIC=T)
 
 df <- data.frame(delta.posterior=samples$BUGSoutput$sims.list$delta)
@@ -450,23 +453,22 @@ posterior<-dlogspline(0, fit.posterior) # pdf @ delta=0
 prior<-dcauchy(0) # height of order--restricted prior
 BF01<-posterior/prior # bayes factor
 BF01
+```
 
+```{r}
 df$delta.prior<-rcauchy(length(df$delta.posterior),0,1)
 
 ggplot(data=df)+
     geom_density(aes(x=delta.posterior),linetype='dashed')+
     geom_density(aes(x=delta.prior))+
-    geom_point(x=0,y=prior,color='red')+
-    geom_point(x=0,y=posterior,color='blue')+
     theme_bw()+
     xlim(-3,3)+
-    #ylim(0,10)+
     xlab('Delta')
 ```
 
 ### Summary barplots for categorical analyses
 
-```{r barplot}
+```{r barplot, fig.width = 10}
 # Accuracy: MAP and HDI for each age group
 post_df.acc_all %<>% gather(key = age_group, value = post_sample, mu.younger:mu.adults) 
 
@@ -496,7 +498,7 @@ all_acc <- ggplot(aes(x = age_group, y = mean_post, fill = looking_type), data =
                        ymax = HDI_upper),
                    position = position_dodge(width = 0.9)) +
     xlab("Age Group") +
-    ylab("Proportion Looking") +
+    ylab("Mean Accuracy") +
     coord_cartesian(ylim=c(0, 1)) +
     scale_fill_brewer(type = "qual", palette = "Set1") +
     guides(fill=guide_legend(title=NULL)) +
@@ -544,7 +546,7 @@ gridExtra::grid.arrange(all_acc, all_rt, ncol = 2)
 
 ## Univariate regressions predicting processing measures 
 
-All models fit using JAGS and based on models from Ch. 17 in @kruschke2014doing. 
+All models fit using JAGS [@plummer2003jags] and based on models from Ch. 17 in @kruschke2014doing. 
 
 First, we need to set the parameters for the MCMC simulations. This will be the same 
 across all models. The key parameter of interest is the standardized slope: zbeta1.
@@ -552,7 +554,6 @@ This encodes the strength of the linear relationship between the predictor varia
 and the outcome.
 
 ```{r set parameters}
-parameters = c( "zbeta0" , "zbeta1" , "zsigma" , "zbeta1_prior" , "zbeta0_prior" )
 adaptSteps = 500  # Number of steps to "tune" the samplers
 burnInSteps = 1000
 nChains = 1 
@@ -577,8 +578,10 @@ dataList_age = list(
     Ntotal = length(d$age.s)
 )
 
+parameters = c( "zbeta0" , "zbeta1" , "zsigma" , "zbeta1_prior" , "zbeta0_prior" )
+
 samples <- jags(data = dataList_age, parameters.to.save = parameters,
-                      model.file="accuracy_model.txt", n.chains=nChains, 
+                      model.file = "models/accuracy_model.txt", n.chains=nChains, 
                       n.iter=nIter, n.burnin = burnInSteps,
                       n.thin=1, DIC=F)
 
@@ -612,7 +615,7 @@ b <- ggplot() + geom_density(aes(df_acc_age$beta0)) +
 gridExtra::grid.arrange(b, a, ncol = 2)
 ```
 
-Plot prior with posterior.
+Plot prior with posterior on slope parameter.
 
 ```{r}
 ggplot(data=df_acc_age) +
@@ -644,7 +647,7 @@ fit.prior <- logspline(df_acc_age$zbeta1_prior, lbound = 0)
 prior <- dlogspline(0, fit.prior) # pdf @ beta=0
 ```
 
-We get the Bayes Factor using the Savage-Dickey moethod, which takes the ratio of the density of the posterior and prior when the slope parameter is zero. 
+We get the Bayes Factor using the Savage-Dickey moethod as described in @wagenmakers2010bayesian, which takes the ratio of the density of the posterior and prior when the slope parameter is zero. 
 
 ```{r}
 # bayes factor
@@ -708,8 +711,10 @@ dataList_acc_voc = list(
     Ntotal = length(d_voc$age.s)
 )
 
+parameters = c( "zbeta0" , "zbeta1" , "zsigma" , "zbeta1_prior" , "zbeta0_prior" )
+
 samples <- jags(data = dataList_acc_voc, parameters.to.save = parameters,
-                      model.file="accuracy_model.txt", n.chains=nChains, 
+                      model.file = "models/accuracy_model.txt", n.chains=nChains, 
                       n.iter=nIter, n.burnin = burnInSteps,
                       n.thin=1, DIC=T)
 
@@ -811,7 +816,7 @@ parameters = c( "true_beta0" , "true_beta1", "true_beta0_prior", "true_beta1_pri
 myinits <-  list(list(phi = 0.75, z = round(runif(length(d$total_trials_shifting)))))
 
 samples <- jags(data = dataList_age_rt, parameters.to.save = parameters,
-                model.file="rt_model.txt", n.chains=nChains, 
+                model.file = "models/rt_model.txt", n.chains=nChains, 
                 n.iter=nIter, n.burnin = burnInSteps, inits = myinits,
                 n.thin=1, DIC=T)
 
@@ -842,7 +847,7 @@ ggplot() + geom_density(aes(df_rt_age$beta1_prior)) +
 ```
 
 By inspecting the prior distribution we can see that the model makes reasonable predictions for the slope parameter. The distribution is centered around zero, conservatively predicting no association between age 
-and RT. The value from prior data of 33 ms is considered plausible, and extends to extreme values of triple that value.
+and RT. The value from prior data of 50 ms is considered plausible, and extends to extreme values of triple that value.
 
 Plot prior with posterior.
 
@@ -870,8 +875,6 @@ prior <- dlogspline(0, fit.prior) # pdf @ beta=0
 bf_rt_age <- posterior / prior
 1/bf_rt_age
 ```
-
-The data is 1.6 times as likely under the linear model. This is the weakest evidence among all four linear associations. 
 
 ```{r}
 HDI_rt_age_b1 <- HDIofMCMC(df_rt_age$beta1 , credMass = 0.95 )
@@ -928,7 +931,7 @@ dataList_voc_rt= list(
 myinits <-  list(list(phi = 0.75, z = round(runif(length(d_voc$total_trials_shifting)))))
 
 samples <- jags(data = dataList_voc_rt, parameters.to.save = parameters,
-                model.file="rt_model.txt", n.chains=nChains, inits = myinits,
+                model.file = "models/rt_model.txt", n.chains=nChains, inits = myinits,
                 n.iter=nIter, n.burnin = burnInSteps,
                 n.thin=1, DIC=F)
 
@@ -1015,6 +1018,116 @@ ggplot(data = d_voc) +
           panel.grid.major=element_blank())
 ```
 
+### RT and Acc
+
+```{r}
+# Specify the data in a list, for later shipment to JAGS:
+dataList_acc_rt = list(
+    x = d$acc.s,
+    y = d$rt.s,
+    Ntotal = length(d$acc.s)
+)
+
+parameters = c( "zbeta0" , "zbeta1" , "zsigma" , "zbeta1_prior" , "zbeta0_prior" )
+
+samples <- jags(data = dataList_acc_rt, parameters.to.save = parameters,
+                      model.file = "models/rt_model_nomixture.txt", n.chains=nChains, 
+                      n.iter=nIter, n.burnin = burnInSteps,
+                      n.thin=1, DIC=T)
+
+df_rt_acc <- data.frame(zbeta0 = samples$BUGSoutput$sims.list$zbeta0, 
+                       zbeta1 = samples$BUGSoutput$sims.list$zbeta1,
+                       zbeta0_prior = samples$BUGSoutput$sims.list$zbeta0_prior,
+                       zbeta1_prior = samples$BUGSoutput$sims.list$zbeta1_prior)
+
+## transform to measurement scale (RT in ms)
+df_rt_acc %<>% mutate(
+    beta1 = zbeta1 * sd(d$median_rt) / sd(d$mean_prop_looking_TD),
+    beta1_prior = zbeta1_prior * sd(d$median_rt) / sd(d$mean_prop_looking_TD),
+    beta0 = zbeta0 * sd(d$median_rt) + mean(d$median_rt) - zbeta1 * mean(d$mean_prop_looking_TD) * sd(d$median_rt) / sd(d$mean_prop_looking_TD),
+    beta0_prior = zbeta0_prior * sd(d$median_rt) + mean(d$median_rt) - zbeta1_prior * mean(d$mean_prop_looking_TD) * sd(d$median_rt) / sd(d$mean_prop_looking_TD)
+)
+```
+
+First, we plot samples from the prior predictive distribution to show that we are considering 
+a plausible set of parameter values for the slope and interecept. Here we use past research on spoken language to inform our prior: that expected change in RT for each month of age is ~50ms.
+
+```{r}
+ggplot() + geom_density(aes(df_rt_acc$beta1_prior)) +
+    xlab("Beta 1") +
+    ylab("Density") +
+    ggtitle("Prior Predictive on Slope Parameter")
+```
+
+By inspecting the prior distribution we can see that the model makes reasonable predictions for the slope parameter. The distribution is centered around zero, conservatively predicting no association between age 
+and RT. The value from prior data of 50 ms is considered plausible, and extends to extreme values of triple that value.
+
+Plot prior with posterior.
+
+```{r}
+ggplot(data=df_rt_acc) +
+    geom_density(aes(x=zbeta1), linetype='dashed') +
+    geom_density(aes(x=zbeta1_prior), data = df_rt_acc) +
+    xlim(-1, 0) +
+    xlab("Standardized Beta")
+```
+
+Get Bayes Factor using Savage-Dickey method.
+
+```{r}
+# Compute p(D) for posterior and prior: Savage-Dickey Method to get Bayes Factor
+# Fits a density using splines to approx. log-density
+# uses 1997 knot and deletion algorithm
+fit.posterior <- logspline(df_rt_acc$zbeta1, ubound = 0)
+posterior <- dlogspline(0, fit.posterior) # pdf @ beta=0
+
+# get prior density using logspline
+fit.prior <- logspline(df_rt_acc$zbeta1_prior, ubound = 0)
+prior <- dlogspline(0, fit.prior) # pdf @ beta=0
+
+bf_rt_acc <- posterior / prior
+1/bf_rt_acc
+```
+
+```{r}
+HDI_rt_acc_b1 <- HDIofMCMC(df_rt_acc$beta1 , credMass = 0.95 )
+post_rt_acc_mode_b1 <- round(mean(df_rt_acc$beta1), 3)
+post_rt_acc_mode_b0 <- round(mean(df_rt_acc$beta0), 3)
+
+# simulate to get HDI around MAP regression line
+mu.link <- function(x) {df_rt_acc$beta0 + df_rt_acc$beta1*x}
+acc.seq <- seq(from = 0.2, to = 0.9, by = 0.1)
+mu <- sapply(acc.seq, mu.link)
+mu.mean <- apply(mu, 2, mean)
+mu.HPDI <- apply(mu, 2, HPDI, prob = 0.95)
+mu.HPDI_tidy <- data.frame(mean_prop_looking_TD = acc.seq, 
+                           hpdi_lower = mu.HPDI[1,], hpdi_upper = mu.HPDI[2,],
+                           mu.rt = mu.mean)
+
+ggplot(data = d) +
+    geom_line(aes(x = mean_prop_looking_TD, y = mu.rt), data = mu.HPDI_tidy, size = 2) +
+    geom_point(aes(mean_prop_looking_TD, median_rt), color = "black", size = 5.5) +
+    geom_point(aes(mean_prop_looking_TD, median_rt), color = "grey50", size = 4) +
+    geom_ribbon(aes(x = mean_prop_looking_TD, ymin = hpdi_lower, ymax = hpdi_upper), data = mu.HPDI_tidy,
+                alpha = 0.2) +
+    ylab("Mean Reaction Time (ms)") +
+    xlab("Mean Accuracy") +
+    coord_cartesian(xlim=c(0.2, 0.9), ylim=c(700, 2000)) +
+    ggtitle(bquote(list(beta==.(as.character(round(post_rt_acc_mode_b1, 2))),
+                        HDI=.(paste("95% HDI [", round(HDI_rt_acc_b1[1],3) , "," , 
+                                    round(HDI_rt_acc_b1[2], 3), "]"))))) +
+    theme(plot.title = element_text(size = 18),
+        axis.title.x = element_text(colour="grey30",size=22,
+                                      angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.title.y = element_text(colour="grey30",size=22,
+                                      hjust=0.5,vjust=0.5,face="plain"),
+          axis.text.x = element_text(colour="grey20",size=18,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.text.y = element_text(colour="grey20",size=18,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
+          panel.grid.major=element_blank())
+```
+
 ### Age and RT no latent mixture
 
 Draw samples from prior and posterior.
@@ -1030,7 +1143,7 @@ dataList_age_rt_nolat = list(
 parameters = c( "zbeta0", "zbeta1", "zbeta0_prior", "zbeta1_prior")
 
 samples <- jags(data = dataList_age_rt_nolat, parameters.to.save = parameters,
-                model.file="rt_model_nomixture.txt", n.chains=nChains, 
+                model.file = "models/rt_model_nomixture.txt", n.chains=nChains, 
                 n.iter=nIter, n.burnin = burnInSteps,
                 n.thin=1, DIC=F)
 
@@ -1130,7 +1243,7 @@ dataList_voc_rt_nolat = list(
 )
 
 samples <- jags(data = dataList_voc_rt_nolat, parameters.to.save = parameters,
-                model.file="rt_model_nomixture.txt", n.chains=nChains, 
+                model.file = "models/rt_model_nomixture.txt", n.chains=nChains, 
                 n.iter=nIter, n.burnin = burnInSteps,
                 n.thin=1, DIC=F)
 
@@ -1229,7 +1342,7 @@ hdi_upper <- c(HDI_b1_acc_age[2], HDI_b1_accvoc[2], HDI_rt_age_b1[2], HDI_rt_voc
 
 table1 <- data.frame(models, bfs, bmaps, hdi_lower, hdi_upper)
 
-knitr::kable(table1)
+knitr::kable(table1, digits = 3)
 ```
 
 ### Output of latent mixture models inferring guessing probability
@@ -1255,7 +1368,7 @@ myinits <-  list(list(phi = 0.75, z = round(runif(length(d$total_trials_shifting
 parameters <- c("z")
 
 samples_post <- jags(data = dataList_lat_mix, parameters.to.save = parameters,
-                model.file="latent_mixture.txt", n.chains=nChains, inits = myinits,
+                model.file = "models/latent_mixture.txt", n.chains=nChains, inits = myinits,
                 n.iter=nIter, n.burnin = burnInSteps,
                 n.thin=1, DIC=T)
 
@@ -1306,7 +1419,7 @@ df_melt_rt_voc %<>% mutate(group_membership_factor = factor(df_melt_rt_voc$value
 
 Once we have all the simulation data, we can check the stability of the latent mixture model across the three different analyses.
 
-```{r}
+```{r, fig.height=10}
 df_all_sims <- rbind(df_melt, df_melt_rt_voc, df_melt_rt_age)
 
 ## summarise
@@ -1327,4 +1440,6 @@ ggplot(data=ms_all_sims,aes(x=model, y = prop_guessing)) +
     ggtitle("Results of Latent Mixture Model")
 ```
 
-The estimates are relatively stable. Most participants are not likely to be guessing. Four participants have a high probability of guessing across all models and are thus less likely to contribute to the linear regression. 30050 is more likely to be guessing in the models with the linear regressions.
+The estimates are relatively stable across the different models. Most participants are not likely to be guessing. Four participants have a high probability of guessing across all models and are thus less likely to contribute to the linear regression. 30050 is more likely to be guessing in the models with the linear regressions.
+
+## References

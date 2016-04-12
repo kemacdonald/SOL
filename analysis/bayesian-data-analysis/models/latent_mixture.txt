@@ -1,0 +1,18 @@
+# Latent Mixture Model
+
+model {
+       for (i in 1:Ntotal) {
+            z[i] ~ dbern(0.75)
+        }
+        # First Group Guesses
+        psi <- 0.5
+        # Second Group Has Some Unknown Greater Rate Of Success
+        phi ~ dunif(0.5,1)
+        # Data Follow Binomial With Rate Given By Each Persons Group Assignment
+        for (i in 1:Ntotal){
+            theta[i] <- equals(z[i],0)*psi+equals(z[i],1)*phi
+            n_correct[i] ~ dbin(theta[i],n_trials[i])
+        }
+}
+
+ 

@@ -1,0 +1,34 @@
+# Specify the model for standardized data:
+model {
+        # Latent Mixture Model
+        for (i in 1:Ntotal) {
+            z[i] ~ dbern(0.75)
+        }
+        # First Group Guesses
+        psi <- 0.5
+        # Second Group Has Some Unknown Greater Rate Of Success
+        phi ~ dunif(0.5,1)
+        # Data Follow Binomial With Rate Given By Each Persons Group Assignment
+        for (i in 1:Ntotal){
+            theta[i] <- equals(z[i],0)*psi+equals(z[i],1)*phi
+            n_correct[i] ~ dbin(theta[i],n_trials[i])
+        }
+        # Bayesian Linear Regression
+        for ( i in 1:Ntotal ) {
+            zbeta0[i] <- equals(z[i],0)*nuisance_beta0+equals(z[i],1)*true_beta0
+            zbeta1[i] <- equals(z[i],0)*nuisance_beta1+equals(z[i],1)*true_beta1
+            zsigma[i] <- equals(z[i],0)*nuisance_sigma+equals(z[i],1)*true_sigma
+            y[i] ~ dnorm( zbeta0[i] + zbeta1[i] * x[i] , 1/(zsigma[i])^2 )
+        }
+        # Priors 
+        true_beta0 ~ dnorm(0,1/10) 
+        nuisance_beta0 ~ dnorm(0,1) 
+        true_beta1 ~ dnorm(0,1)I(,0)
+        nuisance_beta1 ~ dnorm(0,1)I(,0)
+        true_sigma ~ dunif( 1.0E-3 , 1.0E+3 )
+        nuisance_sigma ~ dunif( 1.0E-3 , 1.0E+3 )
+        # Prior predictive
+        true_beta0_prior ~ dnorm(0,1/10) 
+        true_beta1_prior ~ dnorm(0,1)I(,0)
+        
+}
