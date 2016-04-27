@@ -1,0 +1,123 @@
+---
+title: "SOL BDA Simulations"
+author: "Kyle MacDonald"
+date: "April 14, 2016"
+output: html_document
+---
+
+## Load packages and data
+
+```{r, echo = F}
+rm(list=ls()) # clear workspace
+knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T, warning=F, message=F, results = "hide")
+```
+
+```{r, echo = F}
+library(langcog)
+library(knitr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(polspline)
+library(rethinking)
+library(R2jags)
+library(rjags)
+library(magrittr)
+theme_set(theme_bw())
+```
+
+```{r load data}
+# Load data
+d <- read.csv("../../processed_data/sol_ss_all_600_2500.csv")
+
+# Standardize the data
+d %<>% 
+    mutate(C_D_count = ifelse(is.na(C_D_count), 0, C_D_count),
+           total_trials_shifting = C_T_count + C_D_count,
+           Sub.Num = as.character(Sub.Num)) %>% 
+    dplyr::select(Sub.Num, age_peek_months, age_group, signs_produced, C_T_count, total_trials_shifting,
+                  median_rt = median_ct_rt, C_T_prop, mean_prop_looking_TD,
+                  value_cat, age_group_collapsed, hearing_status_participant)
+
+d_all <- d %>% filter(value_cat == "Target" | value_cat == "Distractor")    
+
+d %<>% filter(age_group_collapsed == "Kids", value_cat == "Target")  %>% 
+    mutate(age.s = (age_peek_months - mean(age_peek_months, na.rm=T)) / sd(age_peek_months, na.rm=T),
+           acc.s = (mean_prop_looking_TD - mean(mean_prop_looking_TD)) / sd(mean_prop_looking_TD),
+           rt.s = (median_rt - mean(median_rt)) / sd(median_rt),
+           voc.s = (signs_produced - mean(signs_produced)) / sd(signs_produced))
+
+d_voc <- d %>% 
+    filter(is.na(signs_produced) == F) %>% 
+    mutate(age.s = (age_peek_months - mean(age_peek_months, na.rm=T)) / sd(age_peek_months, na.rm=T),
+           acc.s = (mean_prop_looking_TD - mean(mean_prop_looking_TD)) / sd(mean_prop_looking_TD),
+           rt.s = (median_rt - mean(median_rt)) / sd(median_rt),
+           voc.s = (signs_produced - mean(signs_produced)) / sd(signs_produced))
+```
+
+## CODA vs. Deaf Bayes Factor
+
+### Accuracy Simulation
+
+```{r}
+# get accuracy data
+x <- d %>% 
+    filter(value_cat == "Target", age_group_collapsed == "Kids", 
+           hearing_status_participant == "deaf") %>% 
+    select(mean_prop_looking_TD) 
+
+y <- d %>% 
+    filter(value_cat == "Target", age_group_collapsed == "Kids", 
+           hearing_status_participant == "hearing") %>% 
+    select(mean_prop_looking_TD)
+
+x <- x$mean_prop_looking_TD
+y <- y$mean_prop_looking_TD
+
+n1 <- length(x)
+n2 <- length(y)
+
+# Rescale data 
+y <- y - mean(x)
+y <- y/sd(x)
+x <- (x-mean(x))/sd(x); data <- list("x", "y", "n1", "n2") # to be passed on to JAGS
+
+myinits <- list(
+    list(delta = rnorm(1,0,3), mu = rnorm(1,0,1), sigmatmp = runif(1,0,5)),
+    list(delta = rnorm(1,0,3), mu = rnorm(1,0,1), sigmatmp = runif(1,0,5)),
+    list(delta = rnorm(1,0,3), mu = rnorm(1,0,1), sigmatmp = runif(1,0,5)))
+
+# Parameters to be monitored
+parameters <- c("delta")
+
+m1 <- jags.model(file = "models/categorical_model.txt", inits = myinits, 
+                 n.chains = 3, n.adapt = 5000)
+
+samples <- coda.samples(m1, variable.names = "delta", n.iter = 10000, thin = 1)
+df_samples <- as.matrix(samples)
+# The following command calls JAGS with specific options.
+# For a detailed description see the R2jags documentation.
+samples <- jags(data, inits=myinits, parameters,
+                model.file = "models/categorical_model.txt",
+                n.chains=3, n.iter=10000, n.burnin=5000, n.thin=1, DIC=T)
+```
+
+Explore simulations to make sure things look good.
+
+```{r}
+c.samples <- coda.samples(samples)
+traceplot(samples)
+```
+
+Store output of mcmc for later analysis
+
+```{r}
+df <- data.frame(delta.posterior=samples$BUGSoutput$sims.list$delta)
+write.csv(coda_deaf_)
+```
+
+### RT Simulation
+
+```{r}
+
+```
