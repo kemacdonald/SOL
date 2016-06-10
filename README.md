@@ -1,7 +1,11 @@
-SOL
+Real-time lexical comprehension in ASL
 ===
 
-Code and Data for Sign Online Project
+This repository contains the following materials for the paper, "Real-time lexical comprehension in children learning American Sign Language (ASL)"
 
-Project goal -> create a tool to measure American Sign Language processing efficiency in young learners
+* Raw data [a relative link]()
+
+and processed data files
+* Data processing, visualization, and analysis scripts
+* PDF of the paper and the online supplement
 

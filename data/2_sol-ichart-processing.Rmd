@@ -1,0 +1,780 @@
+---
+title: "SOL Data Processing"
+author: "Kyle MacDonald"
+date: "February 5, 2016"
+output: html_document
+---
+
+This script takes in raw eye movement data and processes it. The outputs are:
+
+1. Data frame with Accuracy and RT measures at the participant-level.
+2. Data frame with cleaned eye movement data for plotting 
+3. Data frame with exclusionary information
+
+# Data processing 
+
+```{r chunk_options}
+rm(list=ls())
+knitr::opts_chunk$set(warning=FALSE, message=FALSE, sanitize = T, 
+                      fig.height=8, fig.width=10, echo=F, cache = T)
+
+source("../analysis/helpers/libraries_v_3.6.R")
+source("../analysis/helpers/useful.R")
+library(magrittr)
+library(stringr)
+library(kmr)
+library(dplyr)
+library(tidyr)
+```
+
+## Read in data
+
+```{r}
+# Demographic data
+sol_demo <- read.csv("processed_data/summary_tables/sol_demo_all.csv", stringsAsFactors = F)
+sol_demo$Sub.Num <- as.character(sol_demo$Sub.Num)
+
+# Eye movement data
+iChart <- read.csv("../data/processed_data/vanilla/sol-ichart-merged-post-gating.csv", 
+                   check.names=F, stringsAsFactors=F) %>%  
+  mutate(Sub.Num =  as.character(Sub.Num))
+
+# Stimuli information
+sol_target_signs_df <- read.csv("processed_data/summary_tables/target_sign_lengths.csv")
+```
+
+## Filter dataset
+
+Filter out participants that should not go into analyses based on exclusionary criteria: a) age, b) didn’t know signs in the task, c) not enough ASL exposure.
+
+```{r}
+exclude <- sol_demo %>% 
+  filter(include == "no", age_code != "adult") %>% 
+  select(Sub.Num, reason_excluded) 
+
+include <- sol_demo %>%
+  filter(include == "yes") %>% 
+  select(Sub.Num, include,
+         reason_excluded, stimuli,
+         age_code, signs_produced, 
+         hearing_status_participant)
+
+iChart <- left_join(iChart, include, by = c("Sub.Num", "stimuli")) %>% 
+  filter(include == "yes")
+```
+
+## Remove unknown signs
+
+```{r}
+targets <- c("juice", "cookie", "cup", "ball", "shoe", "kitty",
+             "doll", "teddy", "book", "birdy", "car", "sock")
+
+make_clean_target <- function (target_image, targets) {
+  target_img_clean <- targets[str_detect(target_image, targets)]
+  return(target_img_clean)
+}
+
+iChart$clean_target_img <- unlist(sapply(iChart$Target.Image, 
+                                         function (x) make_clean_target(x, targets)))
+
+
+## Add unknown signs variable. Taken from sol_demo data frame.
+
+ss_unknown_signs <- sol_demo %>% 
+  filter(include == "yes") %>% 
+  select(Sub.Num, parent_report_unknown_signs)
+
+iChart <- left_join(iChart, ss_unknown_signs, by = "Sub.Num")
+
+
+# Now we can filter the iChart, removing the "unknown" signs.
+ss_trials_df <- iChart %>% 
+  group_by(Sub.Num, parent_report_unknown_signs) %>% 
+  dplyr::summarise(Trials = n()) 
+
+# flag unknown trials
+ss_unknown <- iChart %>% 
+  rowwise() %>% 
+  mutate(unknown_trial = ifelse(clean_target_img %in% parent_report_unknown_signs,
+                                "unknown_sign", "known_sign")) %>%
+  select(Sub.Num, Tr.Num, unknown_trial)
+
+# join this info with the original iChart
+iChart$unknown_trial <- ss_unknown$unknown_trial
+
+# now filter
+iChart <- filter(iChart, unknown_trial == "known_sign")
+
+# check to make sure our filtering worked correctly
+post_filter_n <- iChart %>% 
+  group_by(Sub.Num) %>% 
+  dplyr::summarise(Trials = n()) %>% 
+  select(Trials)
+
+ss_trials_df$post_filter <- post_filter_n$Trials
+
+ss_trials_df <- ss_trials_df %>% 
+  mutate(trials_removed = as.integer(Trials) - as.integer(post_filter))
+
+# Get total number of trials removed because of known signs
+sum(ss_trials_df$trials_removed)
+```
+
+## Remove prescreened out trials
+
+```{r}
+ss_prescreened <- iChart %>% 
+  group_by(Sub.Num) %>% 
+  filter(Prescreen.Notes != "") %>% 
+  dplyr::summarise(num_prescreened = n())
+
+ss_trials_df <- left_join(ss_trials_df, ss_prescreened, by = "Sub.Num")
+
+ss_trials_df <- ss_trials_df %>% 
+  mutate(good_trials = Trials - sum(trials_removed, num_prescreened, na.rm=T))
+
+iChart <- filter(iChart, Prescreen.Notes == "")
+```
+
+## Remove participants for having too few trials
+
+We define too few trials as less than or equal to 25% of the total number of
+trials in the task.
+
+```{r}
+total_trials <- 32
+trials_cut_point <- total_trials * .25
+
+trials_filter <- ss_trials_df %>% 
+  mutate(exclude_few_trials = ifelse(good_trials <= trials_cut_point, 
+                                     "exclude", "include")) %>% 
+  select(Sub.Num, good_trials, exclude_few_trials)
+
+# get the number of participants removed by filter
+trials_filter %>% group_by(exclude_few_trials) %>% dplyr::summarise(n())
+
+# merge filtering information with iChart
+iChart <- left_join(iChart, trials_filter, by = "Sub.Num")
+
+# now filter
+iChart <- filter(iChart, exclude_few_trials == "include")
+```
+
+Create final exclusions table
+
+```{r}
+exclude_df <- trials_filter %>% 
+  filter(exclude_few_trials == "exclude") %>% 
+  select(Sub.Num) %>% 
+  mutate(reason_excluded = "too few trials") %>% 
+  bind_rows(exclude)
+```
+
+
+```{r eval = F}
+write.csv(exclude_df, "processed_data/summary_tables/sol-exclusions.csv", row.names = F)
+```
+
+### Get median split by age
+
+```{r}
+kids_age_descriptives <- iChart %>%
+  filter(age_code == "child") %>%
+  select(Sub.Num, Months) %>% 
+  distinct() %>% 
+  dplyr::summarise(median(Months), 
+                   max(Months),
+                   min(Months), 
+                   sd(Months),
+                   n()) 
+
+# add median split variable to iChart
+iChart$age_group <- ifelse(iChart$Months < kids_age_descriptives$`median(Months)`, 
+                           "< 27 Months", 
+                           ifelse(iChart$Months >= kids_age_descriptives$`median(Months)` & 
+                                    iChart$Months <= kids_age_descriptives$`max(Months)`, 
+                                  ">= 27 Months",
+                                  "Adults"))
+
+iChart %<>% mutate(age_group_collapsed = ifelse(age_group == "Adults", "Adults", "Kids"))
+
+gender_df <- iChart %>%
+  filter(age_code == "child") %>%
+  distinct(Sub.Num) %>% 
+  group_by(Sex, age_group) %>% 
+  dplyr::summarise(count = unique(n())) 
+
+iChart %>% group_by(age_group) %>% 
+  dplyr::summarise(n_distinct(Sub.Num),
+                   mean(Months), 
+                   min(Months), 
+                   max(Months))
+```
+
+### Process iChart
+
+First, we need to process the data, keeping only those trials on which the child was looking at the signer at F0.
+
+* C: Center
+* D: Distractor
+* T: Target
+* A: Away
+
+includeOffCenter == FALSE -> only include trials child was looking at center at F0
+
+includeOffCenter == TRUE -> include trials child was looking at center, target, or distractor at F0
+
+```{r}
+iChart %>% group_by("0", Response) %>% dplyr::summarise(Trials = n())
+
+# change all trials to "Vanilla" 
+iChart$Condition <- "Vanilla"
+
+## define critical onset, change Cs to Ds and everything else to As
+iChart <- defineOnsetSOL(iChart, critonset=0, end_critonset=300, 
+                         includeOffCenter = FALSE, includeWindow = FALSE)
+
+iChart %>% group_by("0", Response) %>% dplyr::summarise(Trials = n())
+```
+
+### Flag C-T and C-D Trials
+
+Datawiz does not tell us which shifts land on a target vs. a disctractor. So we need to use a function that flags each trial as one of the following:
+
+* C_T: center to target
+* C_D: center to distractor
+* C-C: center to center (child leaves the signer, goes away, and comes back to signer)
+* no_shift
+* off_signer
+
+```{r}
+# apply fun to each row in our dataset to flag trial type
+trial_types <- apply(iChart, 1, trial_type_fun, start = "0", end = "5000") 
+
+# merge trial type information with iChart
+iChart <- cbind(iChart, trial_types)
+
+iChart %>% group_by(trial_types) %>% dplyr::summarise(Trials = n())
+```
+
+Next, we compute statistics over long window 0-5000 ms. This will allow us to see a 
+distribution of RTs, which we will use to determine our analysis window.
+
+First, for adults.
+
+```{r get RT analysis window adults, warning=F, message=F, fig.height = 5}
+iChart_adults <- filter(iChart, age_group == "Adults")
+iChart_adults <- computeStatistics(iChart_adults, startWindow=0, endWindow=4000)
+
+# get analyisis window where 90% of RTs occur for kids, include all shifts
+rts_adults <- filter(iChart_adults, trial_types %in% c("C_T"))
+
+analysis.window_adults <- quantile(rts_adults$RT, probs=c(0.05, 0.95), na.rm=T)
+
+ggplot(aes(RT), data = rts_adults) +
+  geom_histogram() +
+  geom_vline(xintercept = analysis.window_adults[1], col="red", lwd=1.5) +
+  geom_vline(xintercept = analysis.window_adults[2], col="red", lwd=1.5) +
+  annotate("text", x = 2500, y = 30, 
+           label = "Analysis Window \n (90% RTs)")
+```
+
+Now do the same for kids.
+
+```{r get rt analysis window kids, warning=F, message=F, fig.height = 5}
+iChart_kids <- filter(iChart, age_group != "Adults")
+iChart_kids <- computeStatistics(iChart_kids, startWindow=0, endWindow=4000)
+
+# get analyisis window where 90% of RTs occur for kids, include all shifts
+rts <- filter(iChart_kids, trial_types %in% c("C_T"), age_group != "Adults")
+
+analysis.window <- quantile(rts$RT, probs=c(0.05, 0.95), na.rm=T)
+
+ggplot(aes(x=RT), data=rts)  +
+  geom_histogram() +
+  geom_vline(xintercept=analysis.window[1], col="red", lwd=1.5) +
+  geom_vline(xintercept=analysis.window[2], col="red", lwd=1.5) +
+  annotate("text", x = 2500, y = 30, 
+           label = "Analysis Window \n (90% RTs)")
+```
+
+Compute statistics over analysis window: 0 to analysis window + 500ms. We add 500ms because
+it allows us to include trials in which the participant initiates and completes a 
+shift at the very end of the window.
+
+```{r, message=F, warning=F}
+iChart <- computeStatistics(iChart, startWindow=0, endWindow=analysis.window[2]+500)
+iChart_kids <- computeStatistics(iChart_kids, startWindow=0, endWindow=analysis.window[2]+500)
+iChart_adults <- computeStatistics(iChart_adults, startWindow=0, endWindow=analysis.window_adults[2]+500)
+```
+
+Reject trials with really long RTs and with long gaps. Gaps are defined as 
+a sequence of frames when the child is not looking at either picture or 
+at the signer.
+
+```{r RT filters}
+# filter for both kids and adults
+iChart <- filteriChart(iChart, minRT = analysis.window[1], 
+                       maxRT = analysis.window[2], 
+                       maxfirstgap=15, maxlonggap=15)  
+
+# filter for kids
+iChart_kids <- filteriChart(iChart_kids, minRT = analysis.window[1], 
+                            maxRT = analysis.window[2], 
+                            maxfirstgap=15, maxlonggap=15) 
+
+# filter for adults
+iChart_adults <- filteriChart(iChart_adults, minRT = analysis.window_adults[1], 
+                              maxRT = analysis.window_adults[2], 
+                              maxfirstgap=15, maxlonggap=15) 
+```
+
+### Compute mean accuracy and RT for each participant 
+
+```{r, warning=F, message=F}
+acc_ss <- poolData(meanAccuracy(iChart_kids, startWindowAcc=analysis.window[1], 
+                                endWindowAcc=analysis.window[2]), 
+                   RejectFirstGap=TRUE,RejectLongestGap=TRUE, 
+                   RejectRT=FALSE, color=TRUE, dependent="Accuracy", 
+                   group="", facet="", dodge="", 
+                   xlab="", ylab= "Proportion\n  Looking\n  to target", 
+                   paired=TRUE, miny = 0.2, maxy = 0.80, 
+                   size=13, legend.direction="horizontal", 
+                   legend.position="bottom", 
+                   breaks=c(0.25, 0.50, 0.75))
+
+rt_ss <- poolData(iChart_kids, 
+                  RejectFirstGap=TRUE, RejectLongestGap=TRUE,
+                  RejectRT=TRUE, color=FALSE, dependent="RT", group="trial_types", 
+                  facet="", dodge="Response",
+                  xlab="", ylab="mean RT (ms)", 
+                  paired=TRUE, 
+                  miny = 400, maxy=1300, 
+                  size=13, 
+                  legend.direction = "horizontal", 
+                  legend.position="bottom", 
+                  breaks=c(400, 800, 1200))
+
+acc_ss_adults <- poolData(meanAccuracy(iChart_adults, startWindowAcc=300, 
+                                       endWindowAcc=analysis.window_adults[2]), 
+                          RejectFirstGap=TRUE,RejectLongestGap=TRUE, 
+                          RejectRT=FALSE, color=TRUE, dependent="Accuracy", 
+                          group="", facet="", dodge="", 
+                          xlab="", ylab= "Proportion\n  Looking\n  to target", 
+                          paired=TRUE, miny = 0.2, maxy = 0.80, 
+                          size=13, legend.direction="horizontal", 
+                          legend.position="bottom", 
+                          breaks=c(0.25, 0.50, 0.75))
+
+rt_ss_adults <- poolData(iChart_adults, 
+                         RejectFirstGap=TRUE, RejectLongestGap=TRUE,
+                         RejectRT=TRUE, color=FALSE, dependent="RT", group="trial_types", 
+                         facet="", dodge="Response",
+                         xlab="", ylab="mean RT (ms)", 
+                         paired=TRUE, 
+                         miny = 400, maxy=1300, 
+                         size=13, 
+                         legend.direction = "horizontal", 
+                         legend.position="bottom", 
+                         breaks=c(400, 800, 1200))
+```
+
+### Compute Acc and RT for each participant by age group 
+
+```{r, warning=F, message=F}
+acc_hearing_status <- poolData(meanAccuracy(iChart_kids, startWindowAcc=analysis.window[1],
+                                            endWindowAcc=analysis.window[2]), 
+                               RejectFirstGap=TRUE,RejectLongestGap=TRUE, 
+                               RejectRT=FALSE, color=TRUE, dependent="Accuracy", 
+                               group="hearing_status_participant", facet="", dodge="", 
+                               xlab="", ylab= "Proportion\n  Looking\n  to target", 
+                               paired=TRUE, miny = 0.2, maxy = 0.80, 
+                               size=13, legend.direction="horizontal", 
+                               legend.position="bottom", 
+                               breaks=c(0.25, 0.50, 0.75))
+
+rt_hearing_status <- poolData(iChart_kids, 
+                              RejectFirstGap=TRUE, RejectLongestGap=TRUE,
+                              RejectRT=TRUE, color=FALSE, dependent="RT", group="hearing_status_participant", 
+                              facet="", dodge="Response",
+                              xlab="", ylab="mean RT (ms)", 
+                              paired=TRUE, 
+                              miny = 400, maxy=1300, 
+                              size=13, 
+                              legend.direction = "horizontal", 
+                              legend.position="bottom", 
+                              breaks=c(400, 800, 1200))
+
+acc <- poolData(meanAccuracy(iChart_kids, startWindowAcc = analysis.window[1], 
+                             endWindowAcc = analysis.window[2]), 
+                RejectFirstGap=TRUE,RejectLongestGap=TRUE, 
+                RejectRT=FALSE, color=TRUE, dependent="Accuracy", 
+                group="age_group", facet="", dodge="", 
+                xlab="", ylab= "Proportion\n  Looking\n  to target", 
+                paired=TRUE, miny = 0.2, maxy = 0.80, 
+                size=13, legend.direction="horizontal", 
+                legend.position="bottom", 
+                breaks=c(0.25, 0.50, 0.75))
+
+rt <- poolData(iChart_kids, 
+               RejectFirstGap=TRUE, RejectLongestGap=TRUE,
+               RejectRT=TRUE, color=FALSE, dependent="RT", group="age_group", 
+               facet="", dodge="Response",
+               xlab="", ylab="mean RT (ms)", 
+               paired=TRUE, 
+               miny = 400, maxy=1300, 
+               size=13, 
+               legend.direction = "horizontal", 
+               legend.position="bottom", 
+               breaks=c(400, 800, 1200))
+
+
+acc_adults <- poolData(meanAccuracy(iChart_adults, startWindowAcc=300,
+                                    endWindowAcc=analysis.window_adults[2]), 
+                       RejectFirstGap=TRUE,RejectLongestGap=TRUE, 
+                       RejectRT=FALSE, color=TRUE, dependent="Accuracy", 
+                       group="age_group", facet="", dodge="", 
+                       xlab="", ylab= "Proportion\n  Looking\n  to target", 
+                       paired=TRUE, miny = 0.2, maxy = 0.80, 
+                       size=13, legend.direction="horizontal", 
+                       legend.position="bottom", 
+                       breaks=c(0.25, 0.50, 0.75))
+
+
+rt_adults <- poolData(iChart_adults, 
+                      RejectFirstGap=TRUE, RejectLongestGap=TRUE,
+                      RejectRT=TRUE, color=FALSE, dependent="RT", group="age_group", 
+                      facet="", dodge="Response",
+                      xlab="", ylab="mean RT (ms)", 
+                      paired=TRUE, 
+                      miny = 400, maxy=1300, 
+                      size=13, 
+                      legend.direction = "horizontal", 
+                      legend.position="bottom", 
+                      breaks=c(400, 800, 1200))
+```
+
+### Tanenhaus computation
+
+Here we analyze window accuracy based on proportion looking to either target, distractor, or signer. Since there are three fixations points, chance looking behavior is 0.33.
+
+First, we grab just the eye movement data and age group information.
+
+```{r}
+ss_iChart <- iChart %>% 
+  filter(GoodFirstGap == T, GoodLongestGap == T) %>% 
+  select(Sub.Num, Tr.Num, age_group, Response, `0`:`4000`) 
+```
+
+Convert the data to long format.
+
+```{r}
+ss_iChart_long <- ss_iChart %>% 
+  gather(key = Time.ms, value = value, `0`:`4000`) %>% 
+  filter(value %in% c("0", "1", "0.5", ".", "-")) %>%
+  mutate(value = ifelse(value == "-", ".", value),
+         value_cat = factor(value, labels = c("Away", "Distractor", "Signer", "Target")),
+         Time.ms_numeric = to.n(Time.ms)) 
+```    
+
+Get proportion looking to Target, Distractor, Away, and Signer at each time slice.
+
+```{r}
+## Include all types of looking
+ms_iChart_count <- ss_iChart_long %>% 
+  filter(value %in% c("0", "1", ".", "0.5")) %>%  ## specify acc computation
+  group_by(Sub.Num, Time.ms, age_group, value_cat) %>% 
+  dplyr::summarise(count = ifelse(n() == 0, 0, n())) %>% 
+  dplyr::summarise(sum_count = sum(count))
+
+ms_iChart <- as.data.frame(xtabs(~ Sub.Num + value_cat + Time.ms, 
+                                 data = filter(ss_iChart_long, 
+                                               value %in% c("0", "1", ".", "0.5")))) %>% 
+  left_join(x = ms_iChart_count, by = c("Sub.Num", "Time.ms")) %>% 
+  mutate(proportion_looking = Freq / sum_count,
+         age_group_factor = as.factor(age_group))
+
+## Only include Target and Distractor looking
+ms_iChart_count_TD <- ss_iChart_long %>% 
+  filter(value %in% c("0", "1", ".")) %>%  ## specify acc computation
+  group_by(Sub.Num, Time.ms, age_group, value_cat) %>% 
+  dplyr::summarise(count = ifelse(n() == 0, 0, n())) %>% 
+  dplyr::summarise(sum_count = sum(count))
+
+
+ms_iChart_TD <- as.data.frame(xtabs(~ Sub.Num + value_cat + Time.ms, 
+                                    data = filter(ss_iChart_long, 
+                                                  value %in% c("0", "1", ".")))) %>% 
+  left_join(x = ms_iChart_count_TD, by = c("Sub.Num", "Time.ms")) %>% 
+  mutate(proportion_looking = Freq / sum_count,
+         age_group_factor = as.factor(age_group))
+```
+
+Now we can compute mean proportion looking to signer, target, and distractor for each participant and for each age group.
+
+```{r}
+ss_tanenhaus_comp <- ms_iChart %>% 
+  filter(to.n(Time.ms) >= analysis.window[1], to.n(Time.ms) <= analysis.window[2]) %>% 
+  group_by(Sub.Num, value_cat, age_group) %>% 
+  dplyr::summarise(mean_prop_looking_signer = mean(proportion_looking, na.rm = T))
+
+ss_tanenhaus_comp_TD <- ms_iChart_TD %>% 
+  filter(to.n(Time.ms) >= analysis.window[1], to.n(Time.ms) <= analysis.window[2]) %>% 
+  group_by(Sub.Num, value_cat, age_group) %>% 
+  dplyr::summarise(mean_prop_looking_TD = mean(proportion_looking, na.rm = T))
+```
+
+## Create summary table
+
+Get mean accuracy and rt for each participant.
+
+Some munging to get data frame for analysis. Variables needed for each subject: 
+
+* Mean acc 
+* Mean rt 
+* Signs produced 
+* Age 
+* Age condition
+
+```{r bind summary statistics}
+ss_acc <- bind_rows(acc_ss, acc_ss_adults)
+ss_rt <- bind_rows(rt_ss, rt_ss_adults)
+
+# merge acc/rt van1
+ss <- left_join(ss_acc, ss_rt, by="Sub.Num")
+
+# merge with demo info
+ss <- left_join(ss, filter(sol_demo, include=="yes"), by="Sub.Num")
+
+# clean up variable names in data frame
+names(ss)[names(ss)=="Vanilla"] <- "mean_accuracy"
+names(ss)[names(ss)=="Vanilla_C_D_D"] <- "mean_incorrect_rt"
+names(ss)[names(ss)=="Vanilla_C_T_D"] <- "mean_correct_rt"
+```
+
+Add in Tanenhaus proportion looking computation for each participant.
+
+```{r}
+ss <- ss_tanenhaus_comp %>% 
+  filter(value_cat %in% c("Target", "Distractor", "Signer")) %>% 
+  select(Sub.Num, value_cat, age_group, mean_prop_looking_signer, value_cat) %>% 
+  dplyr::rename(prop_looking = mean_prop_looking_signer) %>% 
+  left_join(ss, ., by = c("Sub.Num"))
+
+ss <- ss_tanenhaus_comp_TD %>% 
+  filter(value_cat %in% c("Target", "Distractor", "Signer")) %>% 
+  select(Sub.Num, value_cat, age_group, mean_prop_looking_TD, value_cat) %>% 
+  left_join(ss, ., by = c("Sub.Num", "value_cat", "age_group"))
+```
+
+## First Shift Analysis
+
+First we need to categorize each trial type based on the analysis window.
+
+```{r}
+trial_types_analysis_kids <- apply(iChart_kids, 1, trial_type_fun, start = analysis.window[1], end = analysis.window[2])
+
+# merge trial type information with iChart
+iChart_kids <- cbind(iChart_kids, trial_types_analysis_kids)
+```
+
+Then we add this information to the summary data frame.
+
+```{r}
+# kids 
+ss_first_shifts <- iChart_kids %>%
+  filter(trial_types_analysis_kids %in% c("C_T", "C_D", "no_shift")) %>% 
+  group_by(Sub.Num, trial_types, age_group, Months) %>% 
+  dplyr::summarise(count = n()) %>% 
+  spread(trial_types, count) %>% 
+  ungroup() %>%     
+  mutate(C_D = ifelse(is.na(C_D), 0, C_D),
+         no_shift = ifelse(is.na(no_shift), 0, no_shift),
+         total_trials_shifting = C_D + C_T,
+         total_trials = C_D + C_T + no_shift,
+         C_D_prop = round(C_D / total_trials_shifting, 2),
+         C_T_prop = round(C_T / total_trials_shifting, 2),
+         C_D_prop_all = round(C_D / total_trials, 2),
+         C_T_prop_all = round(C_T / total_trials, 2))
+
+# add adults
+ss_first_shifts <- iChart_adults %>%
+  filter(trial_types %in% c("C_T", "C_D", "no_shift")) %>% 
+  group_by(Sub.Num, trial_types, age_group, Months) %>% 
+  dplyr::summarise(count = n()) %>% 
+  spread(trial_types, count) %>% 
+  ungroup() %>% 
+  mutate(C_D = ifelse(is.na(C_D), 0, C_D),
+         no_shift = ifelse(is.na(no_shift), 0, C_D),
+         total_trials_shifting = C_D + C_T,
+         total_trials = C_D + C_T + no_shift,
+         C_D_prop = round(C_D / total_trials_shifting, 2),
+         C_T_prop = round(C_T / total_trials_shifting, 2),
+         C_D_prop_all = round(C_D / total_trials, 2),
+         C_T_prop_all = round(C_T / total_trials, 2)) %>% 
+  bind_rows(ss_first_shifts)
+
+# add shifts to full data frame
+ss <- ss_first_shifts %>% 
+  dplyr::rename(Sub.Num = Sub.Num, C_D_count = C_D, C_T_count = C_T) %>% 
+  left_join(ss, by = c("Sub.Num", "age_group"))
+
+# flag chance first shifters = more than 50% posterior mass on guessing strategy
+# in latent mixture model
+ss <- ss %>% 
+  mutate(C_D_prop = ifelse(C_T_prop == 1, 0, C_D_prop),
+         age_group_collapsed = ifelse(age_group == "Adults", "Adults", "Kids"))
+```
+
+## Median RT 
+
+```{r}
+ss_medians <- iChart %>% 
+  filter(trial_types == "C_T", GoodRT == T) %>% 
+  group_by(Sub.Num, age_group, age_group_collapsed, Months) %>% 
+  dplyr::summarise(median_ct_rt = median(RT, na.rm = T))
+
+ss <- ss_medians %>% 
+  ungroup() %>% 
+  select(Sub.Num, median_ct_rt) %>% 
+  left_join(x = ss, by = "Sub.Num")
+```
+
+```{r, eval=F}
+write.csv(ss, "processed_data/summary_tables/sol_ss_all_600_2500.csv", row.names = F)
+```
+
+# Profile Plot Processing
+
+## Get confidence intervals for graph values
+
+```{r, warning=F, message=F, eval=F}
+# keeping age bins
+createPlots(iChart_kids, startWindow=0, endWindow=4000, RejectLongestGap=FALSE, 
+            RejectFirstGap=FALSE, RejectRT=FALSE, color=TRUE, smooth=400, 
+            targetEnd=800, carrier="", targets=c(""), 
+            group="age_group",  plotStats="PP", miny = 0.4, maxy=0.95, size=15, 
+            legend.direction = "vertical", legend.position=c(0.85, 0.9), 
+            breaks=c(0.25, 0.50, 0.75), x.target=0.33)
+
+# keeping age bins
+createPlots(iChart_adults, startWindow=0, endWindow=4000, RejectLongestGap=FALSE, 
+            RejectFirstGap=FALSE, RejectRT=FALSE, color=TRUE, smooth=400,  
+            targetEnd=800, carrier="", targets=c(""), 
+            group="age_group",  plotStats="PP", miny = 0.4, maxy=0.95, size=15, 
+            legend.direction = "vertical", legend.position=c(0.85, 0.9), 
+            breaks=c(0.25, 0.50, 0.75), x.target=0.33)
+
+# keeping target signs and separating by stimuli
+iChart_v1 <- filter(iChart_kids, stimuli == "V1")
+iChart_v2 <- filter(iChart_kids, stimuli == "V2")
+
+createPlots(iChart_v1, startWindow=0, endWindow=4000, RejectLongestGap=FALSE, 
+            RejectFirstGap=FALSE, RejectRT=FALSE, color=TRUE, smooth=400, 
+            targetEnd=800, carrier="V1", targets=c(""), 
+            group="clean_target_img",  plotStats="PP", miny = 0.4, maxy=0.95, size=15, 
+            legend.direction = "vertical", legend.position=c(0.85, 0.9), 
+            breaks=c(0.25, 0.50, 0.75), x.target=0.33)
+
+createPlots(iChart_v2, startWindow=0, endWindow=4000, RejectLongestGap=FALSE, 
+            RejectFirstGap=FALSE, RejectRT=FALSE, color=TRUE, smooth=400, 
+            targetEnd=800, carrier="V2", targets=c(""), 
+            group="clean_target_img",  plotStats="PP", miny = 0.4, maxy=0.95, size=15, 
+            legend.direction = "vertical", legend.position=c(0.85, 0.9), 
+            breaks=c(0.25, 0.50, 0.75), x.target=0.33)
+```
+
+## Data processing Tanenhaus-style Plot
+
+First, we munge the raw iChart data.
+
+Grab just the eye movement data and group information
+
+```{r}
+ss_iChart <- iChart %>% 
+  filter(Response == "D", GoodFirstGap == T, GoodLongestGap == T) %>% 
+  select(Sub.Num, Tr.Num, age_group, Response, `0`:`4000`) 
+```
+
+Convert to long format
+
+```{r}
+ss_iChart_long <- ss_iChart %>% 
+  gather(key = Time.ms, value = value, `0`:`4000`) %>% 
+  filter(value %in% c("0", "0.5", "1")) %>% 
+  mutate(value_cat = factor(value, labels = c("Distractor", "Signer", "Target")),
+         Time.ms_numeric = to.n(Time.ms)) 
+```    
+
+Summarize for each participant - get proportion looking at each time slice
+
+```{r}
+ms_iChart_count <- ss_iChart_long %>% 
+  group_by(Sub.Num, Time.ms, age_group, value_cat) %>% 
+  dplyr::summarise(count = ifelse(n() == 0, 0, n())) %>% 
+  dplyr::summarise(sum_count = sum(count))
+
+ms_iChart <- as.data.frame(xtabs(~ Sub.Num + value_cat + Time.ms, 
+                                 data = ss_iChart_long)) %>% 
+  left_join(y = ms_iChart_count, by = c("Sub.Num", "Time.ms")) %>% 
+  mutate(proportion_looking = Freq / sum_count,
+         age_group_factor = as.factor(age_group))
+```
+
+Get means and CIs for proportion looking at each time slice across particpants
+
+```{r}
+ms_mean_iChart <- ms_iChart %>% 
+  group_by(Time.ms, age_group, value_cat) %>% 
+  dplyr::summarise(mean_prop_looking = mean(proportion_looking),
+                   ci_low = ci.low(proportion_looking),
+                   ci_high = ci.high(proportion_looking))
+```
+
+Write graph values to CSV.
+
+```{r, echo=F, eval=F, message=F, warning=F}
+write.csv(x = ms_mean_iChart, file = "processed_data/summary_tables/sol_gvals_all.csv", row.names = F)
+```
+
+## Tanenhaus plot codas vs. deaf
+
+```{r coda-deaf-plot-munging}
+# grab just the eye movement data and group information
+ss_iChart_coda <- iChart %>% 
+  filter(age_group != "Adults", Response == "D", GoodFirstGap == T, GoodLongestGap == T) %>% 
+  select(Sub.Num, hearing_status_participant, Response, `0`:`4000`) 
+
+# convert to long format
+ss_iChart_long_coda <- ss_iChart_coda %>% 
+  gather(key = Time.ms, value = value, `0`:`4000`) %>% 
+  filter(value %in% c("0", "0.5", "1")) %>% 
+  mutate(value_cat = factor(value, labels = c("Distractor", "Signer", "Target")),
+         Time.ms_numeric = to.n(Time.ms)) 
+
+# dplyr::summarise
+ms_iChart_count_coda <- ss_iChart_long_coda %>% 
+  group_by(Sub.Num, Time.ms, hearing_status_participant, value_cat) %>% 
+  dplyr::summarise(count = ifelse(n() == 0, 0, n())) %>% 
+  dplyr::summarise(sum_count = sum(count))
+
+ms_iChart_coda <- as.data.frame(xtabs(~ Sub.Num + value_cat + Time.ms,
+                                      data = ss_iChart_long_coda)) %>% 
+  left_join(y = ms_iChart_count_coda, by = c("Time.ms", "Sub.Num")) %>% 
+  mutate(proportion_looking = Freq / sum_count,
+         hearing_status_participant_factor = as.factor(hearing_status_participant))
+
+# get means and CIs for proportion looking at each time slice across particpants
+ms_mean_iChart_coda <- ms_iChart_coda %>% 
+  group_by(Time.ms, hearing_status_participant, value_cat) %>% 
+  dplyr::summarise(mean_prop_looking = mean(proportion_looking, na.rm = T),
+                   ci_low = ci.low(proportion_looking),
+                   ci_high = ci.high(proportion_looking))
+```
+
+Write graph values to CSV.
+
+```{r, echo=F, eval=F, message=F, warning=F}
+write.csv(x = ms_mean_iChart_coda, file = "processed_data/summary_tables/sol_gvals_coda.csv", 
+          row.names = F)
+```

@@ -1,0 +1,57 @@
+This is BibTeX, Version 0.99d (TeX Live 2015)
+Capacity: max_strings=35307, hash_size=35307, hash_prime=30011
+The top-level auxiliary file: sol-bda-supp.aux
+The style file: apacite.bst
+Reallocated glb_str_ptr (elt_size=4) to 20 items from 10.
+Reallocated global_strs (elt_size=20001) to 20 items from 10.
+Reallocated glb_str_end (elt_size=4) to 20 items from 10.
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated wiz_functions (elt_size=4) to 6000 items from 3000.
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated wiz_functions (elt_size=4) to 9000 items from 6000.
+Database file #1: bda.bib
+apacite.bst [2012/02/25 v6.01 APA bibliography style]
+Warning--`others' not consistent with 6th ed. of the APA Manual
+You've used 4 entries,
+            6735 wiz_defined-function locations,
+            1259 strings with 11107 characters,
+and the built_in function-call counts, 7770 in all, are:
+= -- 995
+> -- 67
+< -- 352
++ -- 365
+- -- 10
+* -- 456
+:= -- 1415
+add.period$ -- 17
+call.type$ -- 4
+change.case$ -- 69
+chr.to.int$ -- 0
+cite$ -- 8
+duplicate$ -- 190
+empty$ -- 305
+format.name$ -- 103
+if$ -- 1501
+int.to.chr$ -- 0
+int.to.str$ -- 8
+missing$ -- 0
+newline$ -- 101
+num.names$ -- 32
+pop$ -- 184
+preamble$ -- 1
+purify$ -- 16
+quote$ -- 0
+skip$ -- 494
+stack$ -- 0
+substring$ -- 413
+swap$ -- 103
+text.length$ -- 16
+text.prefix$ -- 0
+top$ -- 1
+type$ -- 384
+warning$ -- 1
+while$ -- 35
+width$ -- 0
+write$ -- 124
+(There was 1 warning)

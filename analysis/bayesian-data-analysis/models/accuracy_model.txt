@@ -4,13 +4,14 @@ model {
         y[i] ~ dnorm( zbeta0 + zbeta1 * x[i] , 1/(zsigma)^2 )
     }
     # Prior for intercept is vague on standardized scale
-    zbeta0 ~ dnorm(0,1/10) 
-    # Prior for slope is truncated at zero and contsrained to contain plausible a priori slopes
-    zbeta1 ~ dnorm(0,1)I(0,)
+    zbeta0 ~ dnorm(0,1/(10)^2) 
+    # Prior for slope is truncated at zero and constrained to contain plausible slopes
+    # Prior is provided as input from R
+    zbeta1 ~ dnorm(0,prior)I(0,)
     # Prior on zsigma is vague on standardized scale
-    zsigma ~ dunif( 1.0E-3 , 1.0E+3 )
+    zsigma ~ dunif( 1/(10)^3 , (10)^3 )
     # Prior predictive
-    zbeta1_prior ~ dnorm(0,1)I(0,)
-    zbeta0_prior ~ dnorm(0,1/10) 
+    zbeta1_prior ~ dnorm(0,prior)I(0,)
+    zbeta0_prior ~ dnorm(0,1/(10)^2) 
 }
         

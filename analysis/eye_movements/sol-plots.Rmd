@@ -1,0 +1,106 @@
+---
+title: "SOL Visualization Script"
+author: "Kyle MacDonald"
+output: html_document
+---
+
+# Plotting script 
+
+```{r chunk_options}
+rm(list=ls())
+knitr::opts_chunk$set(warning=FALSE, message=FALSE, sanitize = T, 
+                      fig.height=8, fig.width=10, echo=F, cache = T)
+source("../helpers/libraries_v_3.6.R")
+source("../helpers/useful.R")
+library(magrittr)
+library(stringr)
+library(GGally)
+library(kmr)
+library(dplyr)
+library(tidyr)
+```
+
+## Read in data
+
+```{r}
+# tanenhaus graph values
+gv_all <- read.csv("../../data/processed_data/summary_tables/sol_gvals_all.csv", 
+                   stringsAsFactors = F)
+
+gv_coda <- read.csv("../../data/processed_data/summary_tables/sol_gvals_coda.csv", 
+                    stringsAsFactors = F)
+```
+
+## Tanenhaus plot: all participants
+
+```{r tanenhaus-plot}
+breaks <- seq(0,4000, by=500)
+y_breaks <- seq(0.25,1.0, by = 0.25)
+points <- seq(0,4000, by = 200)
+
+ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, color = value_cat), 
+       data = gv_all) + 
+    ylim(0,1) +
+    geom_rect(aes(xmin = 600, xmax = 2500, ymin = -Inf, ymax = Inf), alpha = 0.1, 
+              fill = "grey90", color = NA) +
+    geom_line(data = filter(gv_all, to.n(Time.ms) %in% points), size=0.7) +
+    geom_linerange(data = filter(gv_all, Time.ms %in% points),
+                   aes(ymin=mean_prop_looking - ci_low, 
+                       ymax=mean_prop_looking + ci_high), alpha = 0.5) +
+    geom_point(data = filter(gv_all, to.n(Time.ms) %in% points), size=4) +
+    xlim(0,4000) +
+    facet_grid(. ~ age_group) +
+    scale_color_brewer(palette = "Set1", type = "qual") +
+    xlab("Time in ms from onset of noun") +
+    ylab("Proportion looking") +
+    guides(color = F) +
+    theme_bw() +
+    theme(axis.title.x = element_text(colour="grey40",size=22,
+                                      angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.title.y = element_text(colour="grey40",size=22,
+                                      angle=90,hjust=0.5,vjust=0.5,face="plain"),
+          axis.text.x = element_text(colour="grey20",size=18,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.text.y = element_text(colour="grey20",size=18,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
+         plot.margin = unit(c(0.5,2,1,1), "cm"),
+         strip.text.x = element_text(size = 18),
+         panel.margin = unit(1, "lines"))
+```
+
+## Tanenhaus plot: CODA/Deaf
+
+```{r coda-deaf-plot}
+breaks <- seq(0,4000, by=500)
+y_breaks <- seq(0.25,1.0, by = 0.25)
+points <- seq(0,4000, by = 200)
+
+ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, linetype = hearing_status_participant, 
+           color = value_cat, shape = hearing_status_participant), 
+       data = gv_coda) + 
+    geom_rect(aes(xmin = 600, xmax = 2500, ymin = -Inf, ymax = Inf), alpha = 0.1, 
+              fill = "grey90", color = NA) +
+    geom_line(data = filter(gv_coda, Time.ms %in% points), size=2) +
+    geom_linerange(data = filter(gv_coda, Time.ms %in% points),
+                   aes(ymin=mean_prop_looking - ci_low, 
+                       ymax=mean_prop_looking + ci_high), size=0.5, alpha = 0.7) +
+    geom_point(data = filter(gv_coda, to.n(Time.ms) %in% points), size=5, fill = "white", 
+               stroke = 2.5) +
+    scale_shape_manual(values = c(19, 21)) +
+    scale_color_brewer(palette = "Set1", type = "qual") +
+    xlim(0, 4000) +
+    ylim(0,1) +
+    xlab("Time in ms from onset of noun") +
+    ylab("Proportion looking") +
+    theme_bw() +
+    guides(color = F, linetype = F, fill = F, shape = F) +
+    theme(axis.title.x = element_text(colour="grey40",size=22,
+                                      angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.title.y = element_text(colour="grey40",size=22,
+                                      angle=90,hjust=0.5,vjust=0.5,face="plain"),
+          axis.text.x = element_text(colour="grey20",size=18,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.text.y = element_text(colour="grey20",size=18,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
+         plot.margin = unit(c(0.5,2,1,1), "cm"))
+```

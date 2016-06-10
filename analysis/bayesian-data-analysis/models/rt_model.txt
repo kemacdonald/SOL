@@ -21,14 +21,14 @@ model {
             y[i] ~ dnorm( zbeta0[i] + zbeta1[i] * x[i] , 1/(zsigma[i])^2 )
         }
         # Priors 
-        true_beta0 ~ dnorm(0,1/10) 
-        nuisance_beta0 ~ dnorm(0,1) 
-        true_beta1 ~ dnorm(0,1)I(,0)
-        nuisance_beta1 ~ dnorm(0,1)I(,0)
-        true_sigma ~ dunif( 1.0E-3 , 1.0E+3 )
-        nuisance_sigma ~ dunif( 1.0E-3 , 1.0E+3 )
+        true_beta0 ~ dnorm(0,1/(10)^2) 
+        nuisance_beta0 ~ dnorm(0,1/(10)^2) 
+        true_beta1 ~ dnorm(0,prior)I(,0)
+        nuisance_beta1 ~ dnorm(0,prior)I(,0)
+        true_sigma ~ dunif( 1/(10)^3 , (10)^3 )
+        nuisance_sigma ~ dunif( 1/(10)^3 , (10)^3 )
         # Prior predictive
-        true_beta0_prior ~ dnorm(0,1/10) 
-        true_beta1_prior ~ dnorm(0,1)I(,0)
+        true_beta0_prior ~ dnorm(0,1/(10)^2) 
+        true_beta1_prior ~ dnorm(0,prior)I(,0)
         
 }

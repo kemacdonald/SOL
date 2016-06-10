@@ -1,0 +1,110 @@
+\begin{thebibliography}{}
+
+\bibitem [\protect \citeauthoryear {%
+Fernald%
+, Zangl%
+, Portillo%
+\BCBL {}\ \BBA {} Marchman%
+}{%
+Fernald%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2008}}%
+}]{%
+fernald2008looking}
+\APACinsertmetastar {%
+fernald2008looking}%
+\begin{APACrefauthors}%
+Fernald, A.%
+, Zangl, R.%
+, Portillo, A\BPBI L.%
+\BCBL {}\ \BBA {} Marchman, V\BPBI A.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2008}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Looking while listening: Using eye movements to monitor
+  spoken language} {Looking while listening: Using eye movements to monitor
+  spoken language}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{Developmental psycholinguistics: On-line methods in
+  children?s language processing}{}{}{113--132}.
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Kruschke%
+}{%
+Kruschke%
+}{%
+{\protect \APACyear {2014}}%
+}]{%
+kruschke2014doing}
+\APACinsertmetastar {%
+kruschke2014doing}%
+\begin{APACrefauthors}%
+Kruschke, J.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYear{2014}.
+\newblock
+\APACrefbtitle {Doing Bayesian data analysis: A tutorial with R, JAGS, and
+  Stan} {Doing bayesian data analysis: A tutorial with r, jags, and stan}.
+\newblock
+\APACaddressPublisher{}{Academic Press}.
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Lee%
+\ \BBA {} Wagenmakers%
+}{%
+Lee%
+\ \BBA {} Wagenmakers%
+}{%
+{\protect \APACyear {2014}}%
+}]{%
+lee2014bayesian}
+\APACinsertmetastar {%
+lee2014bayesian}%
+\begin{APACrefauthors}%
+Lee, M\BPBI D.%
+\BCBT {}\ \BBA {} Wagenmakers, E\BHBI J.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYear{2014}.
+\newblock
+\APACrefbtitle {Bayesian cognitive modeling: A practical course} {Bayesian
+  cognitive modeling: A practical course}.
+\newblock
+\APACaddressPublisher{}{Cambridge University Press}.
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Plummer%
+\ \protect \BOthers {.}}{%
+Plummer%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2003}}%
+}]{%
+plummer2003jags}
+\APACinsertmetastar {%
+plummer2003jags}%
+\begin{APACrefauthors}%
+Plummer, M.%
+\BCBT {}\ \BOthersPeriod {.}
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2003}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {JAGS: A program for analysis of Bayesian graphical
+  models using Gibbs sampling} {Jags: A program for analysis of bayesian
+  graphical models using gibbs sampling}.{\BBCQ}
+\newblock
+\BIn{} \APACrefbtitle {Proceedings of the 3rd international workshop on
+  distributed statistical computing} {Proceedings of the 3rd international
+  workshop on distributed statistical computing}\ (\BVOL~124, \BPG~125).
+\PrintBackRefs{\CurrentBib}
+
+\end{thebibliography}

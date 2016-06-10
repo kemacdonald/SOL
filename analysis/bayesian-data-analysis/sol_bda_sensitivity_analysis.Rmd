@@ -1,0 +1,302 @@
+---
+title: "SOL BDA Window Selection Analysis"
+author: "Kyle MacDonald"
+date: "May 3, 2016"
+output: html_document
+---
+
+In this document you will find the details of a "Window Selection Sensitivity Analysis." 
+
+# Load packages, data, and helper functions
+
+```{r, echo = F}
+rm(list=ls()) # clear workspcace
+knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T, warning=F, message=F, results = "hide")
+
+library(langcog)
+library(knitr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(polspline)
+library(rethinking)
+library(magrittr)
+library(stringr)
+theme_set(theme_bw())
+
+find_mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+HDIofMCMC = function( sampleVec , credMass=0.95 ) {
+  # Computes highest density interval from a sample of representative values,
+  #   estimated as shortest credible interval.
+  # Arguments:
+  #   sampleVec
+  #     is a vector of representative values from a probability distribution.
+  #   credMass
+  #     is a scalar between 0 and 1, indicating the mass within the credible
+  #     interval that is to be estimated.
+  # Value:
+  #   HDIlim is a vector containing the limits of the HDI
+  sortedPts = sort( sampleVec )
+  ciIdxInc = ceiling( credMass * length( sortedPts ) )
+  nCIs = length( sortedPts ) - ciIdxInc
+  ciWidth = rep( 0 , nCIs )
+  for ( i in 1:nCIs ) {
+    ciWidth[ i ] = sortedPts[ i + ciIdxInc ] - sortedPts[ i ]
+  }
+  HDImin = sortedPts[ which.min( ciWidth ) ]
+  HDImax = sortedPts[ which.min( ciWidth ) + ciIdxInc ]
+  HDIlim = c( HDImin , HDImax )
+  return( HDIlim )
+}
+
+# Compute p(D) for posterior and prior: Savage-Dickey Method to get Bayes Factor
+# Fits a density using splines to approx. log-density
+# uses 1997 knot and deletion algorithm
+compute_bf <- function (df, posterior_column_name, prior_column_name, bound) {
+  if(bound == "upper") {
+    fit.posterior <- logspline(df[posterior_column_name], ubound = 0)
+    posterior <- dlogspline(0, fit.posterior) # pdf @ beta=0
+    # get prior density using logspline
+    fit.prior <- logspline(df[prior_column_name], ubound = 0)
+    prior <- dlogspline(0, fit.prior) # pdf @ beta=0
+    bf_rt_age <- posterior / prior
+    1/bf_rt_age
+  } else {
+    fit.posterior <- logspline(df[posterior_column_name], lbound = 0)
+    posterior <- dlogspline(0, fit.posterior) # pdf @ beta=0
+    # get prior density using logspline
+    fit.prior <- logspline(df[prior_column_name], lbound = 0)
+    prior <- dlogspline(0, fit.prior) # pdf @ beta=0
+    bf_rt_age <- posterior / prior
+    1/bf_rt_age
+  }
+}
+```
+
+```{r, load mcmc chains}
+d <- read.csv("../../data/processed_data/summary_tables/sol_ss_dage_models.csv", 
+              stringsAsFactors = F)
+d_voc <- read.csv("../../data/processed_data/summary_tables/sol_ss_dvoc_models.csv",
+                  stringsAsFactors = F)
+df_acc_age <- read.csv("simulations/sol_acc_age_mcmc.csv", stringsAsFactors = F)
+df_acc_voc <- read.csv("simulations/sol_acc_voc_mcmc.csv", stringsAsFactors = F)
+df_rt_age <- read.csv("simulations/sol_rt_age_mcmc.csv", stringsAsFactors = F)
+df_rt_voc <- read.csv("simulations/sol_rt_voc_mcmc.csv", stringsAsFactors = F)
+```
+
+# Bayes Factor across analysis windows
+
+```{r}
+# accuracy and age 
+bfs <- plyr::ddply(df_acc_age, c("window", "slope_prior"), compute_bf, prior_column_name = "zbeta1_prior", posterior_column_name = "zbeta1", bound = "lower")
+bfs %<>% rename(Acc.Age_BF = V1)
+bf_final <- bfs
+bf_final
+
+# accuracy and vocabulary 
+bfs <- plyr::ddply(df_acc_voc, c("window", "slope_prior"), compute_bf, prior_column_name = "zbeta1_prior", posterior_column_name = "zbeta1", bound = "lower")
+bfs %<>% rename(Acc.Voc_BF = V1)
+bf_final <- bind_cols(bf_final, select(bfs, Acc.Voc_BF))
+bf_final
+
+# rt and age
+bfs <- plyr::ddply(df_rt_age, c("window", "slope_prior"), compute_bf, prior_column_name = "zbeta1_prior", posterior_column_name = "zbeta1", bound = "upper")
+bfs %<>% rename(RT.Age_BF = V1)
+bf_final <- bind_cols(bf_final, select(bfs, RT.Age_BF))
+bf_final
+
+# rt and vocabulary
+bfs <- plyr::ddply(df_rt_voc, c("window", "slope_prior"), compute_bf, prior_column_name = "zbeta1_prior", posterior_column_name = "zbeta1", bound = "upper")
+bfs %<>% rename(RT.Voc_BF = V1)
+bf_final <- bind_cols(bf_final, select(bfs, RT.Voc_BF))
+bf_final
+```
+
+
+# Parameter estimates across analysis windows and priors
+
+Show that parameter estimates do not change much across different windows.
+
+```{r}
+# accuracy and age
+ms_windows_acc <- df_acc_age %>% 
+  group_by(window, slope_prior) %>% 
+  summarise(mean = mean(beta1),
+            mode = find_mode(beta1),
+            lower_95_HDI = HDIofMCMC(beta1)[1],
+            upper_95_HDI = HDIofMCMC(beta1)[2]) %>% 
+  mutate(model = "Accuracy~Age")
+
+# accuracy and vocabulary
+ms_windows_acc <- df_acc_voc %>% 
+  group_by(window, slope_prior) %>% 
+  summarise(mean = mean(beta1),
+            mode = find_mode(beta1),
+            lower_95_HDI = HDIofMCMC(beta1)[1],
+            upper_95_HDI = HDIofMCMC(beta1)[2]) %>% 
+  mutate(model = "Accuracy~Vocab") %>% 
+  bind_rows(ms_windows_acc, .)
+
+# rt and age
+ms_windows_rt <- df_rt_age %>% 
+  group_by(window, slope_prior) %>% 
+  summarise(mean = mean(beta1),
+            mode = find_mode(beta1),
+            lower_95_HDI = HDIofMCMC(beta1)[1],
+            upper_95_HDI = HDIofMCMC(beta1)[2]) %>% 
+  mutate(model = "RT~Age") 
+
+# rt and vocabulary
+ms_windows_rt <- df_rt_voc %>% 
+  group_by(window, slope_prior) %>% 
+  summarise(mean = mean(beta1),
+            mode = find_mode(beta1),
+            lower_95_HDI = HDIofMCMC(beta1)[1],
+            upper_95_HDI = HDIofMCMC(beta1)[2]) %>% 
+  mutate(model = "RT~Vocab") %>% 
+  bind_rows(ms_windows_rt, .)
+```
+
+# Window Sensitivity Plot
+
+Here we show that our parameter estimates for the association between age/vocabulary and accuracy/RT are robust to different choices of analysis windows. We fit each model to a different analysis window +/- 300 ms from the final analysis window. Recall that the final analysis window was selected based on the empirical distribution of RTs in the VLP task: that is, we selected the middle 90% of the distrbution since these responses are most likely to be meaningful responses. 
+
+This plot shows the different slope coefficients with their 95% HDI intervals for both accuracy models for each time window. 
+
+```{r}
+acc_coefplot <- ggplot(aes(x = as.factor(slope_prior), y = mean, color = window), 
+                       data = ms_windows_acc) +
+  geom_pointrange(aes(ymin = lower_95_HDI, ymax = upper_95_HDI), 
+                  position = position_jitter(width = 0.4),
+                  alpha = 0.7, size = 0.8) +
+  geom_hline(yintercept = 0, lty = "dashed") +
+  coord_flip() +
+  facet_grid(model~.) +
+  ylim(-.015, .015) +
+  xlab("SD of Prior") +
+  ylab("Accuracy Slope") +
+  ggtitle("Accuracy Models") +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_text(colour="grey30",size=22,
+                                    angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.title.y = element_text(colour="grey30",size=22,
+                                    hjust=0.5,vjust=0.5,face="plain"),
+        axis.text.x = element_text(colour="grey20",size=18,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.text.y = element_text(colour="grey20",size=18,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+        strip.text.x = element_text(size = 16),
+        panel.grid.major=element_blank(),
+        panel.margin = unit(2, "lines")) +
+  guides(color = F)
+
+rt_coefplot <- ggplot(aes(x = as.factor(slope_prior), y = mean, color = window), 
+                      data = ms_windows_rt) +
+  geom_pointrange(aes(ymin = lower_95_HDI, ymax = upper_95_HDI), 
+                  position = position_jitter(width = 0.4),
+                  alpha = 0.7, size = 0.8) +
+  geom_hline(yintercept = 0, lty = "dashed") +
+  coord_flip() +
+  facet_grid(model~.) +
+  ylim(-30, 30) +
+  xlab(NULL) +
+  ylab("RT Slope") +
+  ggtitle("RT Models") +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_text(colour="grey30",size=22,
+                                    angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.title.y = element_text(colour="grey30",size=22,
+                                    hjust=0.5,vjust=0.5,face="plain"),
+        axis.text.x = element_text(colour="grey20",size=18,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.text.y = element_text(colour="grey20",size=18,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+        strip.text.x = element_text(size = 16),
+        panel.grid.major=element_blank(),
+        panel.margin = unit(2, "lines"),
+        legend.justification=c(1,1), legend.position=c(1,1)) 
+
+gridExtra::grid.arrange(acc_coefplot, rt_coefplot, ncol =2)
+```
+
+### Plot the prior of the slope parameter for accuracy and RT slopes. 
+
+Convert prior on slope parameter from precision to standard deviation. 
+
+* precision = 1/stdev^2
+
+```{r}
+df_acc_age %<>%
+  mutate(slope_prior_stdev = round(sqrt((1/slope_prior)), 1))
+
+df_rt_age %<>%
+  mutate(slope_prior_stdev = round(sqrt((1/slope_prior)), 1))
+```
+
+
+```{r}
+a <- ggplot(aes(x=beta1_prior), data = df_acc_age) +
+  geom_density(size = 1) +
+  facet_wrap(~slope_prior_stdev, ncol = 1) +
+  geom_vline(xintercept = 0.0167, color = "blue", size = 1) +
+  xlab("Slope Value (Acc)") +
+  ylab("Density") +
+  xlim(0, .075) +
+  ggtitle("Accuracy Model") +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_text(colour="grey30",size=22,
+                                    angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.title.y = element_text(colour="grey30",size=22,
+                                    hjust=0.5,vjust=0.5,face="plain"),
+        axis.text.x = element_text(colour="grey20",size=14,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.text.y = element_text(colour="grey20",size=16,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+        strip.text.x = element_text(size = 16),
+        panel.grid.major=element_blank(),
+        panel.margin = unit(2, "lines"))
+
+b <- ggplot(aes(x=beta1_prior), data = df_rt_age) +
+  geom_density(size = 1) +
+  facet_wrap(~slope_prior_stdev, ncol = 1) +
+  geom_vline(xintercept = -40, color = "blue", size = 1) +
+  xlab("Slope Value (RT)") +
+  ylab(NULL) +
+  xlim(0, -90) +
+  ggtitle("RT Model") +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_text(colour="grey30",size=22,
+                                    angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.title.y = element_text(colour="grey30",size=22,
+                                    hjust=0.5,vjust=0.5,face="plain"),
+        axis.text.x = element_text(colour="grey20",size=14,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.text.y = element_text(colour="grey20",size=16,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+        strip.text.x = element_text(size = 16),
+        panel.grid.major=element_blank(),
+        panel.margin = unit(2, "lines"))
+
+gridExtra::grid.arrange(a, b, ncol = 2)
+```
+
+Latex table of BFs.
+
+```{r}
+bf_final %<>%
+  mutate(slope_prior_stdev = round(sqrt((1/slope_prior)), 1)) %>% 
+  rename(Window = window, SD_Slope = slope_prior_stdev, Acc_Age = Acc.Age_BF,
+         Acc_Vocab = Acc.Voc_BF, RT_Age = RT.Age_BF, RT_Vocab = RT.Voc_BF)
+```
+
+```{r}
+table_final <- xtable::xtable(select(bf_final, Window, SD_Slope, Acc_Age, Acc_Vocab, RT_Age, RT_Vocab), digits = 1, align = c("lc|rrrrr"),
+                              caption = "Bayes Factors for all four linear models fit to three different analysis windows using four different parameterizations of the prior distribution for the slope parameter.")
+
+xtable::print.xtable(table_final, include.rownames =F)
+
+```
