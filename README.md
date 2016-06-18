@@ -1,7 +1,7 @@
 Real-time lexical comprehension in ASL
 ===
 
-This repository contains the following materials for the paper, "Real-time lexical comprehension in children learning American Sign Language (ASL)"
+This repository contains the following materials for the paper, "Real-time lexical comprehension in young children learning American Sign Language (ASL)"
 
 * [Raw data files](https://github.com/kemacdonald/SOL/tree/master/data/raw_data) 
 * Data processing scripts: [merging](data/1_sol-ichart-merging.Rmd), [cleaning](data/2_sol-ichart-processing.Rmd)
