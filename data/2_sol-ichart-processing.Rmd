@@ -18,29 +18,28 @@ rm(list=ls())
 knitr::opts_chunk$set(warning=FALSE, message=FALSE, sanitize = T, 
                       fig.height=8, fig.width=10, echo=F, cache = T)
 
-source("../analysis/helpers/libraries_v_3.6.R")
-source("../analysis/helpers/useful.R")
-library(magrittr)
-library(stringr)
-library(kmr)
-library(dplyr)
-library(tidyr)
+source("analysis/helpers/libraries_v_3.6.R")
+source("analysis/helpers/useful.R")
+library(magrittr); library(stringr)
+library(kmr); library(dplyr); library(tidyr)
 ```
 
 ## Read in data
 
 ```{r}
 # Demographic data
-sol_demo <- read.csv("processed_data/summary_tables/sol_demo_all.csv", stringsAsFactors = F)
+sol_demo <- read.csv("data/processed_data/summary_tables/sol_demo_all.csv", 
+                     stringsAsFactors = F)
+
 sol_demo$Sub.Num <- as.character(sol_demo$Sub.Num)
 
 # Eye movement data
-iChart <- read.csv("../data/processed_data/vanilla/sol-ichart-merged-post-gating.csv", 
+iChart <- read.csv("data/processed_data/vanilla/sol-ichart-merged-post-gating.csv", 
                    check.names=F, stringsAsFactors=F) %>%  
   mutate(Sub.Num =  as.character(Sub.Num))
 
 # Stimuli information
-sol_target_signs_df <- read.csv("processed_data/summary_tables/target_sign_lengths.csv")
+sol_target_signs_df <- read.csv("data/processed_data/summary_tables/target_sign_lengths.csv")
 ```
 
 ## Filter dataset
@@ -298,9 +297,7 @@ ggplot(aes(x=RT), data=rts)  +
            label = "Analysis Window \n (90% RTs)")
 ```
 
-Compute statistics over analysis window: 0 to analysis window + 500ms. We add 500ms because
-it allows us to include trials in which the participant initiates and completes a 
-shift at the very end of the window.
+Compute statistics over analysis window: 0 to analysis window + 500ms. We add 500ms because it allows us to include trials in which the participant initiates and completes a shift at the very end of the window.
 
 ```{r, message=F, warning=F}
 iChart <- computeStatistics(iChart, startWindow=0, endWindow=analysis.window[2]+500)
@@ -395,7 +392,8 @@ acc_hearing_status <- poolData(meanAccuracy(iChart_kids, startWindowAcc=analysis
 
 rt_hearing_status <- poolData(iChart_kids, 
                               RejectFirstGap=TRUE, RejectLongestGap=TRUE,
-                              RejectRT=TRUE, color=FALSE, dependent="RT", group="hearing_status_participant", 
+                              RejectRT=TRUE, color=FALSE, dependent="RT",
+                              group="hearing_status_participant", 
                               facet="", dodge="Response",
                               xlab="", ylab="mean RT (ms)", 
                               paired=TRUE, 

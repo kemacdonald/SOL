@@ -4,3 +4,5 @@
 .png
 .mov
 *cache/
+.Rproj.user
+packrat/lib*/

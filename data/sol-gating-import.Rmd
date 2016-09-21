@@ -14,10 +14,7 @@ Load libraries for data manipulation
 
 ```{r load_libraries, warning=FALSE, message=FALSE}
 rm(list=ls()) 
-library(plyr)
-library(dplyr)
-library(stringr)
-setwd("../../raw_data/sol-gating/")
+library(plyr); library(dplyr); library(stringr)
 ```
 
 Read in data
@@ -26,7 +23,8 @@ Read in data
 all.data <- as.data.frame(matrix(ncol = 0, nrow = 0))
 
 #grab all file names from data dir. 
-all_results <- list.files(pattern="*.txt")
+all_results <- list.files(path = "data/raw_data/sol-gating/", 
+                          pattern="*.txt")
 
 #function to munge the data
 #takes in a list of filenames (.txt of each sub's data), 

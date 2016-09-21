@@ -16,17 +16,10 @@ Output: tidy data with posterior samples from 4 models each fit to 3 different a
 rm(list=ls()) # clear workspace
 knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T, warning=F, message=F, results = "hide")
 
-library(langcog)
-library(knitr)
-library(dplyr)
-library(ggplot2)
-library(tidyr)
-library(polspline)
-library(rethinking)
-library(R2jags)
-library(rjags)
-library(magrittr)
-theme_set(theme_bw())
+library(langcog); library(knitr); library(dplyr)
+library(ggplot2); library(tidyr); library(polspline)
+library(rethinking); library(R2jags); library(rjags); 
+library(magrittr); theme_set(theme_bw())
 
 find_mode <- function(x) {
     ux <- unique(x)

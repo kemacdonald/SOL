@@ -13,15 +13,9 @@ In this document you will find the details of a "Window Selection Sensitivity An
 rm(list=ls()) # clear workspcace
 knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T, warning=F, message=F, results = "hide")
 
-library(langcog)
-library(knitr)
-library(dplyr)
-library(ggplot2)
-library(tidyr)
-library(polspline)
-library(rethinking)
-library(magrittr)
-library(stringr)
+library(langcog); library(knitr); library(dplyr)
+library(ggplot2); library(tidyr); library(polspline)
+library(rethinking); library(magrittr); library(stringr)
 theme_set(theme_bw())
 
 find_mode <- function(x) {
@@ -77,15 +71,22 @@ compute_bf <- function (df, posterior_column_name, prior_column_name, bound) {
 }
 ```
 
-```{r, load mcmc chains}
-d <- read.csv("../../data/processed_data/summary_tables/sol_ss_dage_models.csv", 
-              stringsAsFactors = F)
-d_voc <- read.csv("../../data/processed_data/summary_tables/sol_ss_dvoc_models.csv",
-                  stringsAsFactors = F)
-df_acc_age <- read.csv("simulations/sol_acc_age_mcmc.csv", stringsAsFactors = F)
-df_acc_voc <- read.csv("simulations/sol_acc_voc_mcmc.csv", stringsAsFactors = F)
-df_rt_age <- read.csv("simulations/sol_rt_age_mcmc.csv", stringsAsFactors = F)
-df_rt_voc <- read.csv("simulations/sol_rt_voc_mcmc.csv", stringsAsFactors = F)
+```{r paths, echo = F}
+data_path <- "data/processed_data/summary_tables/"
+sims_path <- "analysis/bayesian-data-analysis/simulations/"
+```
+
+```{r, load raw data and mcmc chains}
+# raw data
+d <- read.csv(paste0(data_path, "sol_ss_dage_models.csv"), stringsAsFactors = F)
+d_voc <- read.csv(paste0(data_path, "sol_ss_dvoc_models.csv"), stringsAsFactors = F)
+
+# mcmc chains
+df_acc_age <- read.csv(paste0(sims_path, "sol_acc_age_mcmc.csv"), stringsAsFactors = F)
+df_acc_voc <- read.csv(paste0(sims_path, "sol_acc_voc_mcmc.csv"), stringsAsFactors = F)
+df_rt_age <- read.csv(paste0(sims_path, "sol_rt_age_mcmc.csv"), stringsAsFactors = F)
+df_rt_voc <- read.csv(paste0(sims_path, "sol_rt_voc_mcmc.csv"), stringsAsFactors = F)
+df_rt_acc <- read.csv(paste0(sims_path, "sol_rt_acc_mcmc.csv"), stringsAsFactors = F)
 ```
 
 # Bayes Factor across analysis windows
@@ -116,10 +117,7 @@ bf_final <- bind_cols(bf_final, select(bfs, RT.Voc_BF))
 bf_final
 ```
 
-
 # Parameter estimates across analysis windows and priors
-
-Show that parameter estimates do not change much across different windows.
 
 ```{r}
 # accuracy and age
@@ -227,7 +225,7 @@ gridExtra::grid.arrange(acc_coefplot, rt_coefplot, ncol =2)
 
 Convert prior on slope parameter from precision to standard deviation. 
 
-* precision = 1/stdev^2
+* precision = $1/stdev^2$
 
 ```{r}
 df_acc_age %<>%
@@ -263,7 +261,7 @@ a <- ggplot(aes(x=beta1_prior), data = df_acc_age) +
 b <- ggplot(aes(x=beta1_prior), data = df_rt_age) +
   geom_density(size = 1) +
   facet_wrap(~slope_prior_stdev, ncol = 1) +
-  geom_vline(xintercept = -40, color = "blue", size = 1) +
+  geom_vline(xintercept = -30, color = "blue", size = 1) +
   xlab("Slope Value (RT)") +
   ylab(NULL) +
   xlim(0, -90) +

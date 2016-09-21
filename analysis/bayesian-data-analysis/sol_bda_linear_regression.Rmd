@@ -12,90 +12,89 @@ In this document, you will find the details of our Bayesian linear regression mo
 rm(list=ls()) # clear workspcace
 knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = F, warning=F, message=F, results = "hide")
 
-library(langcog)
-library(knitr)
-library(dplyr)
-library(ggplot2)
-library(tidyr)
-library(rethinking)
-library(polspline)
-library(magrittr)
-library(stringr)
+library(langcog); library(knitr); library(dplyr)
+library(ggplot2); library(tidyr); library(rethinking)
+library(polspline); library(magrittr); library(stringr)
 theme_set(theme_bw())
 
 find_mode <- function(x) {
-    ux <- unique(x)
-    ux[which.max(tabulate(match(x, ux)))]
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
 }
 
 HDIofMCMC = function( sampleVec , credMass=0.95 ) {
-    # Computes highest density interval from a sample of representative values,
-    #   estimated as shortest credible interval.
-    # Arguments:
-    #   sampleVec
-    #     is a vector of representative values from a probability distribution.
-    #   credMass
-    #     is a scalar between 0 and 1, indicating the mass within the credible
-    #     interval that is to be estimated.
-    # Value:
-    #   HDIlim is a vector containing the limits of the HDI
-    sortedPts = sort( sampleVec )
-    ciIdxInc = ceiling( credMass * length( sortedPts ) )
-    nCIs = length( sortedPts ) - ciIdxInc
-    ciWidth = rep( 0 , nCIs )
-    for ( i in 1:nCIs ) {
-        ciWidth[ i ] = sortedPts[ i + ciIdxInc ] - sortedPts[ i ]
-    }
-    HDImin = sortedPts[ which.min( ciWidth ) ]
-    HDImax = sortedPts[ which.min( ciWidth ) + ciIdxInc ]
-    HDIlim = c( HDImin , HDImax )
-    return( HDIlim )
+  # Computes highest density interval from a sample of representative values,
+  #   estimated as shortest credible interval.
+  # Arguments:
+  #   sampleVec
+  #     is a vector of representative values from a probability distribution.
+  #   credMass
+  #     is a scalar between 0 and 1, indicating the mass within the credible
+  #     interval that is to be estimated.
+  # Value:
+  #   HDIlim is a vector containing the limits of the HDI
+  sortedPts = sort( sampleVec )
+  ciIdxInc = ceiling( credMass * length( sortedPts ) )
+  nCIs = length( sortedPts ) - ciIdxInc
+  ciWidth = rep( 0 , nCIs )
+  for ( i in 1:nCIs ) {
+    ciWidth[ i ] = sortedPts[ i + ciIdxInc ] - sortedPts[ i ]
+  }
+  HDImin = sortedPts[ which.min( ciWidth ) ]
+  HDImax = sortedPts[ which.min( ciWidth ) + ciIdxInc ]
+  HDIlim = c( HDImin , HDImax )
+  return( HDIlim )
 }
 
 # Compute p(D) for posterior and prior: Savage-Dickey Method to get Bayes Factor
 # Fits a density using splines to approx. log-density
 # uses 1997 knot and deletion algorithm
 compute_bf <- function (df, posterior_column_name, prior_column_name, bound) {
+  
+  if(bound == "upper") {
+    fit.posterior <- logspline(df[posterior_column_name], ubound = 0)
+    posterior <- dlogspline(0, fit.posterior) # pdf @ beta=0
     
-    if(bound == "upper") {
-        fit.posterior <- logspline(df[posterior_column_name], ubound = 0)
-        posterior <- dlogspline(0, fit.posterior) # pdf @ beta=0
-        
-        # get prior density using logspline
-        fit.prior <- logspline(df[prior_column_name], ubound = 0)
-        prior <- dlogspline(0, fit.prior) # pdf @ beta=0
-        
-        bf_rt_age <- posterior / prior
-        1/bf_rt_age
-        
-    } else {
-        
-        fit.posterior <- logspline(df[posterior_column_name], lbound = 0)
-        posterior <- dlogspline(0, fit.posterior) # pdf @ beta=0
-        
-        # get prior density using logspline
-        fit.prior <- logspline(df[prior_column_name], lbound = 0)
-        prior <- dlogspline(0, fit.prior) # pdf @ beta=0
-        
-        bf_rt_age <- posterior / prior
-        1/bf_rt_age
-        
-    }
+    # get prior density using logspline
+    fit.prior <- logspline(df[prior_column_name], ubound = 0)
+    prior <- dlogspline(0, fit.prior) # pdf @ beta=0
     
+    bf_rt_age <- posterior / prior
+    1/bf_rt_age
+    
+  } else {
+    
+    fit.posterior <- logspline(df[posterior_column_name], lbound = 0)
+    posterior <- dlogspline(0, fit.posterior) # pdf @ beta=0
+    
+    # get prior density using logspline
+    fit.prior <- logspline(df[prior_column_name], lbound = 0)
+    prior <- dlogspline(0, fit.prior) # pdf @ beta=0
+    
+    bf_rt_age <- posterior / prior
+    1/bf_rt_age
+    
+  }
+  
 }
 ```
 
-```{r, load mcmc chains}
-d <- read.csv("../../data/processed_data/summary_tables/sol_ss_dage_models.csv", 
-              stringsAsFactors = F)
-d_voc <- read.csv("../../data/processed_data/summary_tables/sol_ss_dvoc_models.csv", 
-                  stringsAsFactors = F)
+```{r paths, echo = F}
+data_path <- "data/processed_data/summary_tables/"
+sims_path <- "analysis/bayesian-data-analysis/simulations/"
+```
 
-df_acc_age <- read.csv("simulations/sol_acc_age_mcmc.csv",stringsAsFactors = F)
-df_acc_voc <- read.csv("simulations/sol_acc_voc_mcmc.csv", stringsAsFactors = F)
-df_rt_age <- read.csv("simulations/sol_rt_age_mcmc.csv", stringsAsFactors = F)
-df_rt_voc <- read.csv("simulations/sol_rt_voc_mcmc.csv", stringsAsFactors = F)
-df_rt_acc <- read.csv("simulations/sol_rt_acc_mcmc.csv", stringsAsFactors = F)
+```{r, load raw data and mcmc chains}
+# raw data
+d <- read.csv(paste0(data_path, "sol_ss_dage_models.csv"), stringsAsFactors = F)
+d_voc <- read.csv(paste0(data_path, "sol_ss_dvoc_models.csv"), stringsAsFactors = F)
+
+# mcmc chains
+df_acc_age <- read.csv(paste0(sims_path, "sol_acc_age_mcmc.csv"), stringsAsFactors = F)
+df_acc_voc <- read.csv(paste0(sims_path, "sol_acc_voc_mcmc.csv"), stringsAsFactors = F)
+df_rt_age <- read.csv(paste0(sims_path, "sol_rt_age_mcmc.csv"), stringsAsFactors = F)
+df_rt_voc <- read.csv(paste0(sims_path, "sol_rt_voc_mcmc.csv"), stringsAsFactors = F)
+df_rt_acc <- read.csv(paste0(sims_path, "sol_rt_acc_mcmc.csv"), stringsAsFactors = F)
 ```
 
 Subset data to get final analysis window for mcmc chains and for data for plotting. Analysis window is based on selecting the middle 90% of the empirical RT distribution.
@@ -106,7 +105,6 @@ df_acc_age_final <- filter(df_acc_age, window == window_final, slope_prior == 1)
 df_acc_voc_final <- filter(df_acc_voc, window == window_final, slope_prior == 1)
 df_rt_age_final <- filter(df_rt_age, window == window_final, slope_prior == 1)
 df_rt_voc_final <- filter(df_rt_voc, window == window_final, slope_prior == 1)
-
 d_final <- filter(d, window == window_final)
 d_voc_final <- filter(d_voc, window == window_final)
 ```
@@ -127,22 +125,22 @@ Now we can plot the prior distribution of the slope parameter (beta1) on the mea
 
 ```{r}
 prior_slopes_accuracy <- ggplot(aes(beta1_prior), 
-                          data = filter(df_acc_age_final, slope_prior == 1)) + 
+                                data = filter(df_acc_age_final, slope_prior == 1)) + 
   geom_histogram(fill = "blue", alpha = 0.7) +
-    xlab("Beta1") +
-    ylab("Density") +
-    geom_vline(xintercept = .016, 
-               lty = "solid", color = "red") +
-    ggtitle("Prior Predictive on slope for Accuracy")
+  xlab("Beta1") +
+  ylab("Density") +
+  geom_vline(xintercept = .016, 
+             lty = "solid", color = "red") +
+  ggtitle("Prior Predictive on slope for Accuracy")
 
 prior_slopes_rt <- ggplot(aes(beta1_prior), 
                           data = filter(df_rt_age_final, slope_prior == 1)) + 
   geom_histogram(fill = "blue", alpha = 0.7) +
-    xlab("Beta0") +
-    ylab("Density") + 
-    geom_vline(xintercept = -40, 
-               lty = "solid", color = "red") +
-    ggtitle("Prior Predictive on slope for RT")
+  xlab("Beta0") +
+  ylab("Density") + 
+  geom_vline(xintercept = -40, 
+             lty = "solid", color = "red") +
+  ggtitle("Prior Predictive on slope for RT")
 
 gridExtra::grid.arrange(prior_slopes_accuracy, prior_slopes_rt, ncol = 2)
 ```
@@ -164,17 +162,17 @@ Here we plot the prior and posterior distributions of the slope parameter.
 
 ```{r}
 ggplot(data=df_acc_age_final) +
-    geom_density(aes(x=zbeta1), linetype='dashed') +
-    geom_density(aes(x=zbeta1_prior), data = df_acc_age_final) +
-    xlim(0, 2) +
-    xlab("Standardized Beta")
+  geom_density(aes(x=zbeta1), linetype='dashed') +
+  geom_density(aes(x=zbeta1_prior), data = df_acc_age_final) +
+  xlim(0, 2) +
+  xlab("Standardized Beta")
 ```
 
 Thus, we treat the null model of no association between age and accuracy as a special case of the linear model where the slope parameter equals 0. We get the Bayes Factor using the Savage-Dickey moethod as described in @wagenmakers2010bayesian, which takes the ratio of the density of the posterior and prior when the slope parameter is zero. 
 
 ```{r}
 bf <- compute_bf(df_acc_age_final, prior_column_name = "zbeta1_prior", 
-                       posterior_column_name = "zbeta1", bound = "lower")
+                 posterior_column_name = "zbeta1", bound = "lower")
 bf_final <- bf
 ```
 
@@ -187,7 +185,7 @@ HDI_b1_acc_age <- HDIofMCMC(df_acc_age_final$beta1 , credMass = 0.95 )
 
 ## simulate posterior distribution of mu for each value of age to get HDI for MAP regression line
 mu.link <- function(x) {df_acc_age_final$beta0 + 
-        df_acc_age_final$beta1*x}
+    df_acc_age_final$beta1*x}
 age.seq <- seq(from = 10, to = 60, by = 1)
 mu <- sapply(age.seq, mu.link)
 mu.mean <- apply(mu, 2, mean)
@@ -197,27 +195,31 @@ mu.HPDI_tidy <- data.frame(age_peek_months = age.seq,
                            mu.mean = mu.mean)
 
 ggplot(data = d_final) +
-    geom_line(aes(x = age_peek_months, y = mu.mean), data = mu.HPDI_tidy, size = 2) +
-    geom_point(aes(age_peek_months, mean_prop_looking_TD), color = "black", size = 5.5) +
-    geom_point(aes(age_peek_months, mean_prop_looking_TD), color = "grey50", size = 4) +
-    geom_ribbon(aes(x = age_peek_months, ymin = hpdi_lower, ymax = hpdi_upper), data = mu.HPDI_tidy,
-                alpha = 0.2) +
-    ylab("Mean Accuracy") +
-    xlab("Child's Age (months)") +
-    coord_cartesian(xlim=c(15, 55), ylim=c(0.25, 0.95)) +
-    ggtitle(bquote(list(beta==.(as.character(round(post_mode_b1_acc_age, 3))),
-                        HDI=.(paste("95% HDI [", round(HDI_b1_acc_age[1],3) , "," , 
-                                    round(HDI_b1_acc_age[2], 3), "]"))))) +
-    theme(plot.title = element_text(size = 18),
-          axis.title.x = element_text(colour="grey30",size=22,
-                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.title.y = element_text(colour="grey30",size=22,
-                                      hjust=0.5,vjust=0.5,face="plain"),
-          axis.text.x = element_text(colour="grey20",size=18,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.text.y = element_text(colour="grey20",size=18,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          panel.grid.major=element_blank())
+  geom_line(aes(x = age_peek_months, y = mu.mean), 
+            data = mu.HPDI_tidy, size = 2) +
+  geom_point(aes(age_peek_months, mean_prop_looking_TD), 
+             color = "black", size = 5.5) +
+  geom_point(aes(age_peek_months, mean_prop_looking_TD), 
+             color = "grey50", size = 4) +
+  geom_ribbon(aes(x = age_peek_months, ymin = hpdi_lower, 
+                  ymax = hpdi_upper), data = mu.HPDI_tidy,
+              alpha = 0.2) +
+  ylab("Mean Accuracy") +
+  xlab("Child's Age (months)") +
+  coord_cartesian(xlim=c(15, 55), ylim=c(0.25, 0.95)) +
+  ggtitle(bquote(list(beta==.(as.character(round(post_mode_b1_acc_age, 3))),
+                      HDI=.(paste("95% HDI [", round(HDI_b1_acc_age[1],3) , "," , 
+                                  round(HDI_b1_acc_age[2], 3), "]"))))) +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_text(colour="grey30",size=22,
+                                    angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.title.y = element_text(colour="grey30",size=22,
+                                    hjust=0.5,vjust=0.5,face="plain"),
+        axis.text.x = element_text(colour="grey20",size=18,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.text.y = element_text(colour="grey20",size=18,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+        panel.grid.major=element_blank())
 ```
 
 ### Accuracy and Vocab
@@ -226,10 +228,10 @@ Plot prior with posterior on slope parameter.
 
 ```{r}
 ggplot(data=df_acc_voc_final) +
-    geom_density(aes(x=zbeta1), linetype='dashed') +
-    geom_density(aes(x=zbeta1_prior), data = df_acc_voc_final) +
-    xlim(0,2) +
-    xlab("Standardized Beta")
+  geom_density(aes(x=zbeta1), linetype='dashed') +
+  geom_density(aes(x=zbeta1_prior), data = df_acc_voc_final) +
+  xlim(0,2) +
+  xlab("Standardized Beta")
 ```
 
 We get the Bayes Factor by taking the ratio of the density of the posterior and prior when the slope parameter is zero. 
@@ -258,27 +260,30 @@ mu.HPDI <- apply(mu, 2, HPDI, prob = 0.95)
 mu.HPDI_tidy <- data.frame(signs_produced = vocab.seq, hpdi_lower = mu.HPDI[1,], hpdi_upper = mu.HPDI[2,])
 
 ggplot(data = d_voc_final) +
-    geom_line(aes(x = signs_produced, y = mu.mean), data = mu.HPDI_tidy, size = 2) +
-    geom_point(aes(signs_produced, mean_prop_looking_TD), color = "black", size = 5.5) +
-    geom_point(aes(signs_produced, mean_prop_looking_TD), color = "grey50", size = 4) +
-    geom_ribbon(aes(x = signs_produced, ymin = hpdi_lower, ymax = hpdi_upper), data = mu.HPDI_tidy,
-                alpha = 0.2) +
-    ylab("Mean Accuracy") +
-    xlab("Signs Produced") +
-    coord_cartesian(xlim=c(18, 82), ylim=c(0.25, 0.95)) +
-    ggtitle(bquote(list(beta==.(as.character(round(post_mode_b1_accvoc, 3))),
-                        HDI=.(paste("95% HDI [", round(HDI_b1_accvoc[1],3) , "," , 
-                                    round(HDI_b1_accvoc[2], 3), "]"))))) +
-    theme(plot.title = element_text(size = 18),
-          axis.title.x = element_text(colour="grey30",size=22,
-                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.title.y = element_text(colour="grey30",size=22,
-                                      hjust=0.5,vjust=0.5,face="plain"),
-          axis.text.x = element_text(colour="grey20",size=18,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.text.y = element_text(colour="grey20",size=18,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          panel.grid.major=element_blank())
+  geom_line(aes(x = signs_produced, y = mu.mean), 
+            data = mu.HPDI_tidy, size = 2) +
+  geom_point(aes(signs_produced, mean_prop_looking_TD), 
+             color = "black", size = 5.5) +
+  geom_point(aes(signs_produced, mean_prop_looking_TD), 
+             color = "grey50", size = 4) +
+  geom_ribbon(aes(x = signs_produced, ymin = hpdi_lower, ymax = hpdi_upper), 
+              data = mu.HPDI_tidy, alpha = 0.2) +
+  ylab("Mean Accuracy") +
+  xlab("Signs Produced") +
+  coord_cartesian(xlim=c(18, 82), ylim=c(0.25, 0.95)) +
+  ggtitle(bquote(list(beta==.(as.character(round(post_mode_b1_accvoc, 3))),
+                      HDI=.(paste("95% HDI [", round(HDI_b1_accvoc[1],3) , "," , 
+                                  round(HDI_b1_accvoc[2], 3), "]"))))) +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_text(colour="grey30",size=22,
+                                    angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.title.y = element_text(colour="grey30",size=22,
+                                    hjust=0.5,vjust=0.5,face="plain"),
+        axis.text.x = element_text(colour="grey20",size=18,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.text.y = element_text(colour="grey20",size=18,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+        panel.grid.major=element_blank())
 ```
 
 ### RT and Age
@@ -287,10 +292,10 @@ Plot prior with posterior.
 
 ```{r}
 ggplot(data=df_rt_age_final) +
-    geom_density(aes(x=zbeta1), linetype='dashed') +
-    geom_density(aes(x=zbeta1_prior), data = df_rt_age_final) +
-    xlim(-1, 0) +
-    xlab("Standardized Beta")
+  geom_density(aes(x=zbeta1), linetype='dashed') +
+  geom_density(aes(x=zbeta1_prior), data = df_rt_age_final) +
+  xlim(-1, 0) +
+  xlab("Standardized Beta")
 ```
 
 Get Bayes Factor using Savage-Dickey method.
@@ -319,27 +324,27 @@ mu.HPDI_tidy <- data.frame(age_peek_months = age.seq,
                            mu.rt = mu.mean)
 
 ggplot(data = d_final) +
-    geom_line(aes(x = age_peek_months, y = mu.rt), data = mu.HPDI_tidy, size = 2) +
-    geom_point(aes(age_peek_months, median_rt), color = "black", size = 5.5) +
-    geom_point(aes(age_peek_months, median_rt), color = "grey50", size = 4) +
-    geom_ribbon(aes(x = age_peek_months, ymin = hpdi_lower, ymax = hpdi_upper), data = mu.HPDI_tidy,
-                alpha = 0.2) +
-    ylab("Mean Reaction Time (ms)") +
-    xlab("Child's Age (months)") +
-    coord_cartesian(xlim=c(15, 55), ylim=c(700, 2000)) +
-    ggtitle(bquote(list(beta==.(as.character(round(post_rt_age_mode_b1, 2))),
-                        HDI=.(paste("95% HDI [", round(HDI_rt_age_b1[1],3) , "," , 
-                                    round(HDI_rt_age_b1[2], 3), "]"))))) +
-    theme(plot.title = element_text(size = 18),
-          axis.title.x = element_text(colour="grey30",size=22,
-                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.title.y = element_text(colour="grey30",size=22,
-                                      hjust=0.5,vjust=0.5,face="plain"),
-          axis.text.x = element_text(colour="grey20",size=18,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.text.y = element_text(colour="grey20",size=18,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          panel.grid.major=element_blank())
+  geom_line(aes(x = age_peek_months, y = mu.rt), data = mu.HPDI_tidy, size = 2) +
+  geom_point(aes(age_peek_months, median_rt), color = "black", size = 5.5) +
+  geom_point(aes(age_peek_months, median_rt), color = "grey50", size = 4) +
+  geom_ribbon(aes(x = age_peek_months, ymin = hpdi_lower, ymax = hpdi_upper), data = mu.HPDI_tidy,
+              alpha = 0.2) +
+  ylab("Mean Reaction Time (ms)") +
+  xlab("Child's Age (months)") +
+  coord_cartesian(xlim=c(15, 55), ylim=c(700, 2000)) +
+  ggtitle(bquote(list(beta==.(as.character(round(post_rt_age_mode_b1, 2))),
+                      HDI=.(paste("95% HDI [", round(HDI_rt_age_b1[1],3) , "," , 
+                                  round(HDI_rt_age_b1[2], 3), "]"))))) +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_text(colour="grey30",size=22,
+                                    angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.title.y = element_text(colour="grey30",size=22,
+                                    hjust=0.5,vjust=0.5,face="plain"),
+        axis.text.x = element_text(colour="grey20",size=18,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.text.y = element_text(colour="grey20",size=18,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+        panel.grid.major=element_blank())
 ```
 
 ### RT and Vocab
@@ -348,10 +353,10 @@ Plot prior with posterior.
 
 ```{r}
 ggplot(data=df_rt_voc_final) +
-    geom_density(aes(x=beta1), linetype='dashed') +
-    geom_density(aes(x=beta1_prior), data = df_rt_voc_final) +
-    xlim(-20, 0) +
-    xlab("RT Beta")
+  geom_density(aes(x=beta1), linetype='dashed') +
+  geom_density(aes(x=beta1_prior), data = df_rt_voc_final) +
+  xlim(-20, 0) +
+  xlab("RT Beta")
 ```
 
 Get Bayes Factor.
@@ -379,27 +384,28 @@ mu.HPDI_tidy <- data.frame(signs_produced = vocab.seq, hpdi_lower = mu.HPDI[1,],
 
 # plot
 ggplot(data = d_voc_final) +
-    geom_line(aes(x = signs_produced, y = mu.mean), data = mu.HPDI_tidy, size = 2) +
-    geom_point(aes(signs_produced, median_rt), color = "black", size = 5.5) +
-    geom_point(aes(signs_produced, median_rt), color = "grey50", size = 4) +
-    geom_ribbon(aes(x = signs_produced, ymin = hpdi_lower, ymax = hpdi_upper), data = mu.HPDI_tidy,
-                alpha = 0.2) +
-    ylab("Mean Reaction Time (ms)") +
-    xlab("Signs Produced") +
-    coord_cartesian(xlim=c(18, 82), ylim=c(700, 2000)) +
-    ggtitle(bquote(list(beta==.(as.character(round(post_mode_b1_rt_voc, 2))),
-                        HDI=.(paste("95% HDI [", round(HDI_rt_voc_b1[1],3) , "," , 
-                                    round(HDI_rt_voc_b1[2], 3), "]")))))  +
-    theme(plot.title = element_text(size=18),
-          axis.title.x = element_text(colour="grey30",size=20,
-                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.title.y = element_text(colour="grey30",size=22,
-                                      hjust=0.5,vjust=0.5,face="plain"),
-          axis.text.x = element_text(colour="grey20",size=18,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.text.y = element_text(colour="grey20",size=18,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          panel.grid.major=element_blank())
+  geom_line(aes(x = signs_produced, y = mu.mean), data = mu.HPDI_tidy, size = 2) +
+  geom_point(aes(signs_produced, median_rt), color = "black", size = 5.5) +
+  geom_point(aes(signs_produced, median_rt), color = "grey50", size = 4) +
+  geom_ribbon(aes(x = signs_produced, ymin = hpdi_lower, ymax = hpdi_upper), 
+              data = mu.HPDI_tidy,
+              alpha = 0.2) +
+  ylab("Mean Reaction Time (ms)") +
+  xlab("Signs Produced") +
+  coord_cartesian(xlim=c(18, 82), ylim=c(700, 2000)) +
+  ggtitle(bquote(list(beta==.(as.character(round(post_mode_b1_rt_voc, 2))),
+                      HDI=.(paste("95% HDI [", round(HDI_rt_voc_b1[1],3) , "," , 
+                                  round(HDI_rt_voc_b1[2], 3), "]")))))  +
+  theme(plot.title = element_text(size=18),
+        axis.title.x = element_text(colour="grey30",size=20,
+                                    angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.title.y = element_text(colour="grey30",size=22,
+                                    hjust=0.5,vjust=0.5,face="plain"),
+        axis.text.x = element_text(colour="grey20",size=18,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.text.y = element_text(colour="grey20",size=18,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+        panel.grid.major=element_blank())
 ```
 
 

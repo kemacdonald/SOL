@@ -11,20 +11,12 @@ In this document, you will find the details of our Bayesian categorical models f
 
 ```{r, echo = F}
 rm(list=ls()) # clear workspcace
-knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T, warning=F, message=F, results = "hide")
-```
+knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T,
+                      warning=F, message=F, results = "hide")
 
-```{r, echo = F}
-library(langcog)
-library(knitr)
-library(dplyr)
-library(ggplot2)
-library(tidyr)
-library(polspline)
-library(rethinking)
-library(magrittr)
-library(stringr)
-theme_set(theme_bw())
+library(langcog); library(knitr); library(dplyr); library(ggplot2)
+library(tidyr); library(polspline); library(rethinking); library(forcats);
+library(magrittr); library(stringr); theme_set(theme_bw())
 
 HDIofMCMC = function( sampleVec , credMass=0.95 ) {
   # Computes highest density interval from a sample of representative values,
@@ -49,16 +41,15 @@ HDIofMCMC = function( sampleVec , credMass=0.95 ) {
   HDIlim = c( HDImin , HDImax )
   return( HDIlim )
 }
-
 ```
 
 Load data
 
 ```{r}
-d <- read.csv("../../data/processed_data/summary_tables/sol_ss_all_600_2500.csv",
+d <- read.csv("data/processed_data/summary_tables/sol_ss_all_600_2500.csv",
               stringsAsFactors = F)
 
-d_voc <- read.csv("../../data/processed_data/summary_tables/sol_ss_all_600_2500.csv",
+d_voc <- read.csv("data/processed_data/summary_tables/sol_ss_all_600_2500.csv",
                   stringsAsFactors = F)
 ```
 
@@ -82,7 +73,7 @@ d_model <- d %>%
 
 ### CODA vs. Deaf
 
-Compare accuracy for deaf and hearing kids. All priors vague since here we are just concerned with parameter estimation. 
+Compare accuracy for deaf and hearing kids. All priors are vague since we are just concerned with parameter estimation. 
 
 ```{r hearing_status acc}
 acc_hearing_stat_cat_targ.m <- map2stan(
@@ -93,11 +84,10 @@ acc_hearing_stat_cat_targ.m <- map2stan(
     b_Hearing ~ dnorm(0, 1),
     sigma ~ dunif(0, 10)
   ),
-  data = select(filter(d_model, value_cat == "Target", age_group_collapsed == "Kids"),
+  data = select(filter(d_model, value_cat == "Target", 
+                       age_group_collapsed == "Kids"),
                 mean_prop_looking_TD, hearing_group))
-```
 
-```{r}
 # get samples
 post_hearing_stat.acc <- extract.samples(acc_hearing_stat_cat_targ.m)
 mu.hearing <- post_hearing_stat.acc$Intercept
@@ -289,9 +279,9 @@ diff.old.young.rt.collapsed <- mu.kids.rt.collapsed - mu.adults.rt.collapsed
 quantile(diff.old.young.rt.collapsed, probs = c(0.025, 0.5, 0.975))
 ```
 
-### Summary barplots for categorical analyses
+## Summary barplots for categorical analyses
 
-```{r barplot, fig.width = 10}
+```{r barplot munging, fig.width = 8}
 # Accuracy: MAP and HDI for each age group
 post_df.acc_all %<>% gather(key = age_group, value = post_sample, mu.younger:mu.adults) 
 
@@ -301,12 +291,9 @@ ms_all <- post_df.acc_all %>%
             HDI_lower = HDIofMCMC(post_sample, credMass = 0.95)[1],
             HDI_upper = HDIofMCMC(post_sample, credMass = 0.95)[2]) %>% 
   mutate(HDI_lower = ifelse(HDI_lower <= 0, 0, HDI_lower),
-         looking_type = ifelse(looking_type == "Distractor", "Distracter", "Target")) 
-
-ms_all$age_group_fact <- factor(ms_all$age_group, 
-                                levels = c("mu.younger", "mu.older", "mu.adults"))
-
-######### Now plot bar graph of MAP and HDI for target/distractor looking ############
+         looking_type = ifelse(looking_type == "Distractor", "Distracter", "Target"),
+         age_group_fact = factor(age_group, 
+                                levels = c("mu.younger", "mu.older", "mu.adults")))
 
 # RT: MAP and HDI for each age group
 post_df.rt %<>% gather(key = age_group, value = post_sample)
@@ -315,24 +302,29 @@ ms_all_rt <- post_df.rt %>%
   group_by(age_group) %>% 
   summarise(mean_post = mean(post_sample),
             HDI_lower = HDIofMCMC(post_sample, credMass = 0.95)[1],
-            HDI_upper = HDIofMCMC(post_sample, credMass = 0.95)[2]) 
+            HDI_upper = HDIofMCMC(post_sample, credMass = 0.95)[2]) %>% 
+  mutate(age_group_fact = factor(age_group, levels = c("mu.younger.rt", 
+                                                       "mu.older.rt", 
+                                                       "mu.adults.rt")))
 
-ms_all_rt$age_group_fact <- factor(ms_all_rt$age_group, 
-                                   levels = c("mu.younger.rt", "mu.older.rt", "mu.adults.rt"))
+ggplot(aes(x = age_group, y = post_sample),
+       data = post_df.rt) +
+  geom_violin() +
+  geom_violin(draw_quantiles = c(0.5)) 
+```
 
+```{r barplot}
 # Bar Plot Acc
-all_acc <- ggplot(aes(x = age_group_fact, y = mean_post, fill = looking_type), data = ms_all) +
-  geom_bar(stat = "identity", position="dodge") +
-  geom_linerange(aes(ymin = HDI_lower,
-                     ymax = HDI_upper),
+all_acc <- ggplot(aes(x = age_group_fact, y = mean_post, fill = looking_type), 
+                  data = ms_all) +
+  geom_bar(stat = "identity", position="dodge", color = "black") +
+  geom_linerange(aes(ymin = HDI_lower, ymax = HDI_upper),
                  position = position_dodge(width = 0.9)) +
-  xlab("Age Group") +
-  ylab("Mean Accuracy") +
+  labs(x = "Age Group", y = "Proportion Looking", title = "Accuracy") + 
   coord_cartesian(ylim=c(0, 1)) +
-  scale_fill_brewer(type = "qual", palette = "Set1") +
-  guides(fill=guide_legend(title=NULL)) +
+  scale_fill_grey(start = 0, breaks = c("Target", "Distracter")) +
+  guides(fill=guide_legend(title=NULL), color=F) +
   scale_x_discrete(labels=c("Younger", "Older", "Adults")) +
-  theme_bw() +
   theme(plot.title = element_text(face = "bold", size = 20),
         axis.title.x = element_text(colour="grey40",size=18,
                                     angle=0,hjust=0.5,vjust=0,face="plain"),
@@ -343,21 +335,19 @@ all_acc <- ggplot(aes(x = age_group_fact, y = mean_post, fill = looking_type), d
         axis.text.y = element_text(colour="grey20",size=18,
                                    angle=0,hjust=0.5,vjust=0,face="plain"),
         plot.margin = unit(c(0.5,2,1,1), "cm"),
-        legend.position = c(0.3, 0.85),
-        legend.text = element_text(size = 16)) +
-  ggtitle("Accuracy") 
+        legend.position = c(0.3, 0.88),
+        legend.text = element_text(size = 16)) 
 
 # Bar plot RT
-all_rt <- ggplot(aes(x= age_group_fact, y = mean_post, fill = age_group), data = ms_all_rt) +
-  geom_bar(stat = "identity") +
+all_rt <- ggplot(aes(x= age_group_fact, y = mean_post), 
+                 data = ms_all_rt) +
+  geom_bar(stat = "identity", color = "black") +
   geom_linerange(aes(ymax = HDI_upper, ymin = HDI_lower)) +
-  scale_fill_brewer(type = "qual", palette = "Set1") +
-  guides(fill=F) +
-  xlab("Age Group") +
-  ylab("Mean RT (ms)") +
+  scale_fill_grey() +
+  guides(fill=F, color = F) +
+  labs(x = "Age Group", y = "Mean RT (ms)", title = "Reaction Time") +
   scale_x_discrete(labels=c("Younger", "Older", "Adults")) +
   ylim(0, 1600) +
-  theme_bw() +
   theme(plot.title = element_text(face = "bold", size = 20),
         axis.title.x = element_text(colour="grey40",size=18,
                                     angle=0,hjust=0.5,vjust=0,face="plain"),
@@ -367,10 +357,12 @@ all_rt <- ggplot(aes(x= age_group_fact, y = mean_post, fill = age_group), data =
                                    angle=0,hjust=0.5,vjust=0,face="plain"),
         axis.text.y = element_text(colour="grey20",size=18,
                                    angle=0,hjust=0.5,vjust=0,face="plain"),
-        plot.margin = unit(c(0.5,2,1,1), "cm")) +
-  ggtitle("Reaction Time") 
+        plot.margin = unit(c(0.5,2,1,1), "cm")) 
 
-gridExtra::grid.arrange(all_acc, all_rt, ncol = 2)
+final_bar_plot <- gridExtra::grid.arrange(all_acc, all_rt, ncol = 2)
+
+ggsave(final_bar_plot, filename = "paper/sol-figs/summary.png", 
+       device = "png", width = 10, height = 5)
 ```
 
 ## References

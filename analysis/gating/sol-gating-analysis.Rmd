@@ -14,24 +14,24 @@ Load libraries.
 
 ```{r, echo=F, warning=F, message=FALSE}
 rm(list=ls())
-source("../helpers/useful.R")
-require(magrittr)
+source("analysis/helpers/useful.R"); library(magrittr); library(dplyr)
+theme_set(theme_bw())
 ```
 
 Read in data.
 
 ```{r}
-df <- read.csv("sol_gating_processed-df.csv")
+df <- read.csv("analysis/gating/sol_gating_processed-df.csv", stringsAsFactors = F)
 ```
 
 ### Descriptives
 
 ```{r}
 df %>%
-    group_by(id) %>%
-    mutate(num_trials = max(trial)) %>%
-    select(id, gender, age, asl_fluency, age_learned_asl, num_trials) %>%
-    distinct()
+  group_by(id) %>%
+  mutate(num_trials = max(trial)) %>%
+  select(id, gender, age, asl_fluency, age_learned_asl, num_trials) %>%
+  distinct()
 ```
 
 Histogram of main outcome variable --> Correct on 2-AFC measure
@@ -50,12 +50,12 @@ qplot(x=rt, data=df)
 
 ```{r}
 df <- df %>%
-    filter(id != "NA") %>% 
-    mutate(include_good_rt = ifelse(log(rt) > mean(log(rt)) + 2 * sd(log(rt)) |
-                                        log(rt) < mean(log(rt)) - 2 * sd(log(rt)),
-                                    "exclude", "include"))
+  filter(id != "NA") %>% 
+  mutate(include_good_rt = ifelse(log(rt) > mean(log(rt)) + 2 * sd(log(rt)) |
+                                    log(rt) < mean(log(rt)) - 2 * sd(log(rt)),
+                                  "exclude", "include"))
 
-df %>% group_by(include_good_rt) %>% summarise(n())
+df %>% group_by(include_good_rt) %>% dplyr::summarise(count = n())
 
 df <- filter(df, include_good_rt == "include")
 ```
@@ -66,24 +66,23 @@ Plot accuracy for each gate within each sign.
 
 ```{r, cache = T}
 ms <- df %>%
-    na.omit() %>% 
-    group_by(gate_name, gate_num, gate_signer, gate) %>%
-    summarise(mean_correct = mean(correct),
-              ci_h = ci.high(correct),
-              ci_l = ci.low(correct))
+  na.omit() %>% 
+  dplyr::group_by(gate_name, gate_num, gate_signer, gate) %>%
+  summarise(mean_correct = mean(correct),
+            ci_h = ci.high(correct),
+            ci_l = ci.low(correct))
 ```
 
 Now plot
 
 ```{r, fig.height=12, fig.width=10}
 ggplot(aes(x=gate_num, y=mean_correct, color = gate_signer), data=ms) +
-    facet_wrap( ~ gate_name,ncol=10) +
-    geom_line() +
-    geom_pointrange(aes(ymin=mean_correct - ci_l, 
-                        ymax=mean_correct + ci_h), 
-                    size=0.6) +
-    geom_hline(yintercept=0.5, lty="dashed") +
-    theme_bw()
+  facet_wrap( ~ gate_name, ncol=10) +
+  geom_line() +
+  geom_pointrange(aes(ymin=mean_correct - ci_l, 
+                      ymax=mean_correct + ci_h), 
+                  size=0.6) +
+  geom_hline(yintercept=0.5, lty="dashed") 
 ```
 
 ### Compute empirical F0
@@ -97,14 +96,14 @@ In these cases we stick with the experimenter defined F0.
 ```{r}
 #grab gate names
 df_empricial_f0 <- ms %>% 
-    ungroup() %>% 
-    select(gate_name) %>% 
-    unique()
+  ungroup() %>% 
+  select(gate_name) %>% 
+  unique()
 
 # create vector with gate decisions 
 gate_decision <- c(4, 5, 3, 4, 1, 4, 5, 5, 4, 1, 4, 5, 2, 6, 6, 
-                    4, 4, 5, 3, 6, 5, 2, 3, 6, 5, 3, 5, 4, 6, 6, 6, 
-                    5, 4, 3, 3, 3, 6, 4)
+                   4, 4, 5, 3, 6, 5, 2, 3, 6, 5, 3, 5, 4, 6, 6, 6, 
+                   5, 4, 3, 3, 3, 6, 4)
 # check length: should be 38
 length(gate_decision)
 
@@ -117,10 +116,10 @@ Then only keep the gates where there is a match between gate_decision and gate_n
 
 ```{r}
 ms_gate_decisions <- ms %>% 
-    left_join(y = df_empricial_f0, by = "gate_name") %>%
-    ungroup() %>% 
-    select(gate_name, gate_num, gate, gate_decision) %>% 
-    filter(gate_decision == gate_num)
+  left_join(y = df_empricial_f0, by = "gate_name") %>%
+  ungroup() %>% 
+  select(gate_name, gate_num, gate, gate_decision) %>% 
+  filter(gate_decision == gate_num)
 ```
 
 Extract the frame information from the gate variable. And convert to ms.
@@ -131,16 +130,16 @@ regexp <- "[[:digit:]]"
 str_locate(ms_gate_decisions$gate, regexp)[1]
 
 ms_gate_decisions %<>% 
-    select(gate, gate_decision) %>% 
-    mutate(
-        f0_sec = as.numeric(str_extract(gate, regexp)),
-        f0_frame = as.numeric(str_sub(gate, 
-                           start = str_length(gate) - 3, 
-                           end = str_length(gate) - 2)),
-        f0_tot_frames = (f0_sec * 30) + f0_frame,
-        f0_ms_1 = f0_tot_frames * 33,
-        f0_ms_2 = (f0_sec * 1000) + (f0_frame * 33)
-    )
+  select(gate, gate_decision) %>% 
+  mutate(
+    f0_sec = as.numeric(str_extract(gate, regexp)),
+    f0_frame = as.numeric(str_sub(gate, 
+                                  start = str_length(gate) - 3, 
+                                  end = str_length(gate) - 2)),
+    f0_tot_frames = (f0_sec * 30) + f0_frame,
+    f0_ms_1 = f0_tot_frames * 33,
+    f0_ms_2 = (f0_sec * 1000) + (f0_frame * 33)
+  )
 ```
 
 Save data frame, so we can add the experimenter chosen F0
@@ -153,17 +152,17 @@ Read in data frame with experimenter F0 added and compute the difference for eac
 and the average difference overall. 
 
 ```{r}
-df_final <- read.csv("sol-empirical-gate-decisions.csv")
+df_final <- read.csv("analysis/gating/sol-empirical-gate-decisions.csv")
 ```
 
 ```{r, echo = F}
 df_final %<>%
-    dplyr::mutate(
-        f0_diff_empirical_experiment_1_ms = abs(f0_experimenter - f0_ms_1),
-        f0_diff_empirical_experiment_2_ms = abs(f0_experimenter - f0_ms_2),
-        f0_diff_empirical_experiment_1_frames = round(abs(f0_experimenter - f0_ms_1) / 33),
-        f0_diff_empirical_experiment_2_frames = round(abs(f0_experimenter - f0_ms_2) / 33)
-    )
+  dplyr::mutate(
+    f0_diff_empirical_experiment_1_ms = abs(f0_experimenter - f0_ms_1),
+    f0_diff_empirical_experiment_2_ms = abs(f0_experimenter - f0_ms_2),
+    f0_diff_empirical_experiment_1_frames = round(abs(f0_experimenter - f0_ms_1) / 33),
+    f0_diff_empirical_experiment_2_frames = round(abs(f0_experimenter - f0_ms_2) / 33)
+  )
 ```
 
 Summarise how far off we were. First we compare the difference between empirical and experiment, if we use the following computation to get F0
@@ -172,14 +171,14 @@ $frames * 33$
 
 ```{r, echo = F}
 ms_diff <- df_final %>% 
-    summarise(
-        min_diff_ms = min(f0_diff_empirical_experiment_1_ms),
-        max_diff_ms = max(f0_diff_empirical_experiment_1_ms),
-        min_diff_frames = min(f0_diff_empirical_experiment_1_frames),
-        max_diff_frames = max(f0_diff_empirical_experiment_1_frames),
-        avg_diff_ms = mean(f0_diff_empirical_experiment_1_ms),
-        avg_diff_frames = mean(f0_diff_empirical_experiment_1_frames)
-    )
+  summarise(
+    min_diff_ms = min(f0_diff_empirical_experiment_1_ms),
+    max_diff_ms = max(f0_diff_empirical_experiment_1_ms),
+    min_diff_frames = min(f0_diff_empirical_experiment_1_frames),
+    max_diff_frames = max(f0_diff_empirical_experiment_1_frames),
+    avg_diff_ms = mean(f0_diff_empirical_experiment_1_ms),
+    avg_diff_frames = mean(f0_diff_empirical_experiment_1_frames)
+  )
 
 knitr::kable(ms_diff, digits=2)
 ```
@@ -190,14 +189,14 @@ $(seconds * 1000) + (frames * 33)$
 
 ```{r, echo = F}
 ms_diff_2 <- df_final %>% 
-    summarise(
-        min_diff_ms = min(f0_diff_empirical_experiment_2_ms),
-        max_diff_ms = max(f0_diff_empirical_experiment_2_ms),
-        min_diff_frames = min(f0_diff_empirical_experiment_2_frames),
-        max_diff_frames = max(f0_diff_empirical_experiment_2_frames),
-        avg_diff_ms = mean(f0_diff_empirical_experiment_2_ms),
-        avg_diff_frames = mean(f0_diff_empirical_experiment_2_frames)
-    )
+  summarise(
+    min_diff_ms = min(f0_diff_empirical_experiment_2_ms),
+    max_diff_ms = max(f0_diff_empirical_experiment_2_ms),
+    min_diff_frames = min(f0_diff_empirical_experiment_2_frames),
+    max_diff_frames = max(f0_diff_empirical_experiment_2_frames),
+    avg_diff_ms = mean(f0_diff_empirical_experiment_2_ms),
+    avg_diff_frames = mean(f0_diff_empirical_experiment_2_frames)
+  )
 
 knitr::kable(ms_diff_2, digits=2)
 ```
@@ -205,7 +204,7 @@ knitr::kable(ms_diff_2, digits=2)
 ```{r}
 ggplot2::qplot(f0_diff_empirical_experiment_2_frames, data = df_final,
                binwidth = 0.5) + 
-    ylim(0, 8) +
-    scale_x_continuous(limits = c(0, 8), breaks=0:8) +
-    theme_bw()
+  ylim(0, 8) +
+  scale_x_continuous(limits = c(0, 8), breaks=0:8) +
+  theme_bw()
 ```
