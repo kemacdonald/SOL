@@ -1,0 +1,126 @@
+---
+title: "SOL MLE Analysis"
+author: "Kyle MacDonald"
+date: "11/30/2016"
+output: html_document
+---
+
+## Setup 
+
+```{r}
+rm(list=ls()) # clear workspcace
+knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T,warning=F, message=F, results = "hide")
+library(langcog); library(knitr); library(forcats); library(lme4)
+library(magrittr); library(tidyverse); theme_set(theme_bw())
+```
+
+## Load data
+
+```{r}
+d_2500 <- read.csv("../data/processed_data/summary_tables/sol_ss_all_600_2500.csv")
+```
+
+## Plot distributions of summary stats
+
+Mean accuracy for each child:
+
+```{r}
+d_2500 %>% 
+  filter(age_group != "Adults", value_cat == "Target") %>% 
+  select(Sub.Num, prop_looking) %>% 
+  unique() %>% 
+  ggplot(aes(x = prop_looking)) +
+  geom_density() + 
+  labs(x = "Mean Accuracy", title = "Distribution of Mean Acc") +
+  xlim(0, 1)
+```
+
+Mean RT for each child: 
+
+```{r}
+d_2500 %>%
+  filter(age_group != "Adults", value_cat == "Target") %>% 
+  select(Sub.Num, median_ct_rt) %>% 
+  unique() %>% 
+  ggplot(aes(x = median_ct_rt)) +
+  geom_density(adjust = 2) + 
+  labs(x = "Median RT (msec)", title = "Distribution of Median RT") +
+  xlim(500, 2000)
+```
+
+
+## Distribution of hearing status over age
+
+```{r}
+ms_hs <- d_2500 %>% 
+  filter(age_group != "Adults", value_cat == "Target") %>% 
+  select(Sub.Num, age_peek_months, hearing_status_participant) %>% 
+  unique() %>% 
+  group_by(hearing_status_participant) %>% 
+  summarise(mean_val = mean(age_peek_months))
+
+d_2500 %>% 
+  filter(age_group != "Adults", value_cat == "Target") %>% 
+  select(Sub.Num, age_peek_months, hearing_status_participant) %>% 
+  unique() %>% 
+  ggplot(aes(x = age_peek_months, fill = hearing_status_participant)) +
+  geom_density(position = "identity", alpha = 0.5, adjust = 2) +
+  geom_vline(aes(xintercept = mean_val, color = hearing_status_participant), 
+             data = ms_hs, size = 1, linetype = "dashed") +
+  guides(color = F) +
+  labs(x = "Age (months)", title = "Distribution of Hearing Status",
+       fill = "Hearing Status") +
+  xlim(0, 70) 
+  
+```
+
+## Estimate development of Acc/RT using mixed effects linear models
+
+```{r}
+m1 <- d_2500 %>% 
+  filter(age_group != "Adults", value_cat == "Target") %>% 
+  select(Sub.Num, prop_looking, age_peek_months, signs_produced) %>% 
+  unique() %>% 
+  lm(prop_looking ~ age_peek_months, data = .)
+
+summary(m1)$coef %>% kable(digits = 3)
+```
+
+```{r}
+m2 <- d_2500 %>% 
+  filter(age_group != "Adults", value_cat == "Target") %>% 
+  select(Sub.Num, median_ct_rt, age_peek_months, signs_produced) %>% 
+  unique() %>% 
+  lm(median_ct_rt ~ age_peek_months, data = .)
+
+summary(m2)$coef %>% kable(digits = 3)
+```
+
+```{r}
+m3 <- d_2500 %>% 
+  filter(age_group != "Adults", value_cat == "Target") %>% 
+  select(Sub.Num, prop_looking, signs_produced) %>% 
+  unique() %>% 
+  lm(prop_looking ~ signs_produced, data = .)
+
+summary(m3)$coef %>% kable(digits = 3)
+```
+
+```{r}
+m4 <- d_2500 %>% 
+  filter(age_group != "Adults", value_cat == "Target") %>% 
+  select(Sub.Num, median_ct_rt,  signs_produced) %>% 
+  unique() %>% 
+  lm(median_ct_rt ~ signs_produced, data = .)
+
+summary(m4)$coef %>% kable(digits = 3)
+```
+
+## Compute split-half reliability of VLP measure
+
+```{r}
+
+```
+
+
+

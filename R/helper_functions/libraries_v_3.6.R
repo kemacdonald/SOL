@@ -1,5 +1,3 @@
-# this script removes all current objects and loads the necessary libraries 
-
 # create function for flagging these trial types
 trial_type_fun <- function(trial, start, end) { 
     start_col <- which(names(trial)==start)

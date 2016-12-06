@@ -5,34 +5,33 @@ date: "April 27, 2015"
 output: html_document
 ---
 
-#### Import SOL-gating Data
+## Import SOL-gating Data
 
 Script to munge ipad data for sol-gating experiment. 
 
-
-Load libraries for data manipulation
+### Load libraries for data manipulation
 
 ```{r load_libraries, warning=FALSE, message=FALSE}
 rm(list=ls()) 
 library(plyr); library(dplyr); library(stringr)
 ```
 
-Read in data
+### Read in data
 
-```{r read in version 2 data}
+```{r read in data}
 all.data <- as.data.frame(matrix(ncol = 0, nrow = 0))
+read_path <- "../../data/raw_data/sol-gating/"
+all_results <- list.files(path = read_path, pattern="*.txt")
+```
 
-#grab all file names from data dir. 
-all_results <- list.files(path = "data/raw_data/sol-gating/", 
-                          pattern="*.txt")
+### Create function to munge the data
 
-#function to munge the data
-#takes in a list of filenames (.txt of each sub's data), 
-#strips html escape characters, and grabs the relevant info for each trial
-#returns data frame with all the data
+Takes in a list of filenames (.txt of each sub's data), strips html escape characters, and grabs the relevant info for each trial returns data frame with all the data.
 
-gating_import <- function(filename) {
-        x <- readLines(filename, warn=FALSE)
+```{r}
+gating_import_fun <- function(filename, path) {
+        path_to_file <- paste(path, filename, sep = "/")
+        x <- readLines(path_to_file, warn=FALSE)
         x <- unlist(strsplit(x,'<li>'))
         
         #grab id
@@ -75,18 +74,26 @@ gating_import <- function(filename) {
         x$V15 <- age_learned_asl
         return(unique(x)) ## need this to get the data frame!
 }
+```
 
-#apply munging function to each kid's data file
-all.data <- ldply(.data = all_results, .fun = gating_import)
+Apply data wrangling function to each data file
 
-#add variable names to columns
+```{r}
+all.data <- ldply(.data = all_results, 
+                  .fun = gating_import_fun, 
+                  path = read_path
+                  )
+```
+
+Add variable names to columns
+
+```{r}
 names(all.data) <- c("trial","trial_in_block","block","gate","target_image",
               "chosen_image","chosen_img_index","correct","rt","date", "id",
               "gender", "age", "asl_fluency", "age_learned_asl")
 ```
 
-Chop up gate filename, so we can analyze each timeslice (1-6) for 
-each gate. 
+### Slice each gate's filename, so we can analyze each timeslice (1-6) for each gate. 
 
 ```{r}
 # extract string from long ugly gate name
@@ -99,11 +106,13 @@ gate_extract <- function (gate_name) {
     gate <- str_sub(gate_name, 1, digit_idx)
     return(gate)
 }
+```
 
+```{r}
 gates <- sapply(all.data$gate, function (x) gate_extract(x))
 
 # remove NAs
-gates <- gates[!is.na(gates)]
+# gates <- gates[!is.na(gates)]
 
 # add to data frame
 all.data$gate_name <- gates
@@ -155,13 +164,13 @@ Check the number of gates for each sign
 ```{r}
 gate_df <- all.data %>%
     group_by(gate_name) %>%
-    summarise(num_gates = n()) %>% 
+    dplyr::summarise(num_gates = n()) %>% 
     print()
 ```
 
 Save output
 
 ```{r}
-write.csv(all.data, file = "../../analysis/gating/sol_gating_processed-df.csv", row.names=F)
+write.csv(all.data, file = "../../data/processed_data/gating/sol_gating_processed-df.csv", row.names=F)
 ```
 

@@ -5,4 +5,4 @@
 .mov
 *cache/
 .Rproj.user
-packrat/lib*/
+packrat/lib*

@@ -9,18 +9,15 @@ output: html_document
 
 ```{r}
 rm(list=ls())
-```
-
-```{r}
-source("analysis/helpers/libraries_v_3.6.R")
+source("../helper_functions/libraries_v_3.6.R")
 library(dplyr); library(stringr)
 ```
 
 ### Read in icharts for V1 and V2 
 
 ```{r}
-v1_df <- readiChart("data/raw_data/sol-eye-movements/sol-ichart-v1-post-gating.txt")
-v2_df <- readiChart("data/raw_data/sol-eye-movements/sol-ichart-v2-post-gating.txt")
+v1_df <- readiChart("../../data/raw_data/sol-eye-movements/sol-ichart-v1-post-gating.txt")
+v2_df <- readiChart("../../data/raw_data/sol-eye-movements/sol-ichart-v2-post-gating.txt")
 ```
 
 ### Add variable to track stimuli 

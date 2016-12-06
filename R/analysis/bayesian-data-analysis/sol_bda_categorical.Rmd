@@ -11,8 +11,7 @@ In this document, you will find the details of our Bayesian categorical models f
 
 ```{r, echo = F}
 rm(list=ls()) # clear workspcace
-knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T,
-                      warning=F, message=F, results = "hide")
+knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T,warning=F, message=F, results = "hide")
 
 library(langcog); library(knitr); library(dplyr); library(ggplot2)
 library(tidyr); library(polspline); library(rethinking); library(forcats);
@@ -322,7 +321,7 @@ all_acc <- ggplot(aes(x = age_group_fact, y = mean_post, fill = looking_type),
                  position = position_dodge(width = 0.9)) +
   labs(x = "Age Group", y = "Proportion Looking", title = "Accuracy") + 
   coord_cartesian(ylim=c(0, 1)) +
-  scale_fill_grey(start = 0, breaks = c("Target", "Distracter")) +
+  scale_fill_grey(start = 0.8, end = 0, breaks = c("Target", "Distracter")) +
   guides(fill=guide_legend(title=NULL), color=F) +
   scale_x_discrete(labels=c("Younger", "Older", "Adults")) +
   theme(plot.title = element_text(face = "bold", size = 20),
@@ -341,9 +340,8 @@ all_acc <- ggplot(aes(x = age_group_fact, y = mean_post, fill = looking_type),
 # Bar plot RT
 all_rt <- ggplot(aes(x= age_group_fact, y = mean_post), 
                  data = ms_all_rt) +
-  geom_bar(stat = "identity", color = "black") +
+  geom_bar(stat = "identity", fill = "black") +
   geom_linerange(aes(ymax = HDI_upper, ymin = HDI_lower)) +
-  scale_fill_grey() +
   guides(fill=F, color = F) +
   labs(x = "Age Group", y = "Mean RT (ms)", title = "Reaction Time") +
   scale_x_discrete(labels=c("Younger", "Older", "Adults")) +
