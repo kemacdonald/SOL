@@ -9,15 +9,16 @@ output: html_document
 
 ```{r}
 rm(list=ls()) # clear workspcace
-knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T,warning=F, message=F, results = "hide")
+knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T,warning=F, message=F, 
+                      results = "hide")
 library(langcog); library(knitr); library(forcats); library(lme4)
-library(magrittr); library(tidyverse); theme_set(theme_bw())
+library(magrittr); library(tidyverse); theme_set(theme_minimal())
 ```
 
 ## Load data
 
 ```{r}
-d_2500 <- read.csv("../data/processed_data/summary_tables/sol_ss_all_600_2500.csv")
+d_2500 <- read.csv("../../data/processed_data/summary_tables/sol_ss_all_600_2500.csv")
 ```
 
 ## Plot distributions of summary stats
@@ -30,7 +31,7 @@ d_2500 %>%
   select(Sub.Num, prop_looking) %>% 
   unique() %>% 
   ggplot(aes(x = prop_looking)) +
-  geom_density() + 
+  geom_density(size = 1) + 
   labs(x = "Mean Accuracy", title = "Distribution of Mean Acc") +
   xlim(0, 1)
 ```
@@ -43,11 +44,10 @@ d_2500 %>%
   select(Sub.Num, median_ct_rt) %>% 
   unique() %>% 
   ggplot(aes(x = median_ct_rt)) +
-  geom_density(adjust = 2) + 
+  geom_density(adjust = 2, size = 1) + 
   labs(x = "Median RT (msec)", title = "Distribution of Median RT") +
   xlim(500, 2000)
 ```
-
 
 ## Distribution of hearing status over age
 
@@ -68,30 +68,32 @@ d_2500 %>%
   geom_vline(aes(xintercept = mean_val, color = hearing_status_participant), 
              data = ms_hs, size = 1, linetype = "dashed") +
   guides(color = F) +
-  labs(x = "Age (months)", title = "Distribution of Hearing Status",
+  labs(x = "Age (months)", title = "Distribution of Deaf/Hearing over age",
        fill = "Hearing Status") +
   xlim(0, 70) 
   
 ```
 
-## Estimate development of Acc/RT using mixed effects linear models
+## Estimate development of Acc/RT using MLE in a linear model.
 
 ```{r}
 m1 <- d_2500 %>% 
   filter(age_group != "Adults", value_cat == "Target") %>% 
-  select(Sub.Num, prop_looking, age_peek_months, signs_produced) %>% 
+  select(Sub.Num, prop_looking, age_peek_months, signs_produced, hearing_status_participant) %>%
   unique() %>% 
-  lm(prop_looking ~ age_peek_months, data = .)
+  lm(prop_looking ~ age_peek_months + hearing_status_participant, data = .)
 
-summary(m1)$coef %>% kable(digits = 3)
+summary(m1)$coef %>% 
+  mutate(one_sided_p = pt())
+  kable(digits = 3)
 ```
 
 ```{r}
 m2 <- d_2500 %>% 
   filter(age_group != "Adults", value_cat == "Target") %>% 
-  select(Sub.Num, median_ct_rt, age_peek_months, signs_produced) %>% 
+  select(Sub.Num, median_ct_rt, age_peek_months, signs_produced, hearing_status_participant) %>% 
   unique() %>% 
-  lm(median_ct_rt ~ age_peek_months, data = .)
+  lm(median_ct_rt ~ age_peek_months + hearing_status_participant, data = .)
 
 summary(m2)$coef %>% kable(digits = 3)
 ```
@@ -99,9 +101,9 @@ summary(m2)$coef %>% kable(digits = 3)
 ```{r}
 m3 <- d_2500 %>% 
   filter(age_group != "Adults", value_cat == "Target") %>% 
-  select(Sub.Num, prop_looking, signs_produced) %>% 
+  select(Sub.Num, prop_looking, signs_produced, hearing_status_participant) %>% 
   unique() %>% 
-  lm(prop_looking ~ signs_produced, data = .)
+  lm(prop_looking ~ signs_produced + hearing_status_participant, data = .)
 
 summary(m3)$coef %>% kable(digits = 3)
 ```
@@ -109,18 +111,70 @@ summary(m3)$coef %>% kable(digits = 3)
 ```{r}
 m4 <- d_2500 %>% 
   filter(age_group != "Adults", value_cat == "Target") %>% 
-  select(Sub.Num, median_ct_rt,  signs_produced) %>% 
+  select(Sub.Num, median_ct_rt,  signs_produced, hearing_status_participant) %>% 
   unique() %>% 
-  lm(median_ct_rt ~ signs_produced, data = .)
+  lm(median_ct_rt ~ signs_produced + hearing_status_participant, data = .)
 
 summary(m4)$coef %>% kable(digits = 3)
 ```
 
-## Compute split-half reliability of VLP measure
+## Split-half reliability analysis
+
+Load trial-level data
 
 ```{r}
-
+trial_df <- read_csv("../../data/processed_data/summary_tables/sol_trial_level_df.csv")
 ```
 
+First, we create two bins of trials for each participant by sorting based on even vs. odd trial numbers.
+
+```{r}
+trial_df %<>% mutate(split_half = ifelse(Tr.Num %% 2 == 0, "first", "second"))
+```
+
+```{r}
+trial_df %>% 
+  group_by(Sub.Num, age_code, split_half) %>% 
+  summarise(n_trials = n())
+```
+
+```{r}
+split_df <- trial_df %>% 
+  group_by(Sub.Num, split_half, age_code) %>% 
+  summarise(mean_acc = mean(Accuracy, na.rm = T),
+            median_rt = median(RT, na.rm = T)) %>%
+  gather(key = measure, value = value, mean_acc, median_rt) %>% 
+  spread(key = split_half, value = value) 
+```
+
+```{r}
+ggplot(aes(x = first, y = second, color = age_code), data = split_df) +
+  geom_smooth(method = "lm", se = F) +
+  geom_point() +
+  facet_wrap(~measure, scales = "free") +
+  theme_bw()
+```
+
+```{r}
+## compute pearson r
+sp_r <- split_df %>% 
+  group_by(age_code, measure) %>% 
+  do(data.frame(pearson_r = cor(.$first, .$second, method = "pearson")))
+
+## spearman-brown correction
+sp_r %>% 
+  mutate(sph_rel = round((2 * pearson_r) / (1 + pearson_r), 3)) %>% 
+  kable(digits = 3)
+```
+
+What's the power that we had to detect this correlation?
+
+```{r}
+pwr::pwr.r.test(n = 29, r = 0.5, sig.level = .05, alternative = "greater")
+```
+
+```{r}
+pwr::pwr.r.test(n = 29, r = 0.3, sig.level = .05, alternative = "greater")
+```
 
 

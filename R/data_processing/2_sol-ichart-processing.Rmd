@@ -8,8 +8,9 @@ output: html_document
 This script takes in raw eye movement data and processes it. The outputs are:
 
 1. Data frame with Accuracy and RT measures at the participant-level.
-2. Data frame with cleaned eye movement data for plotting 
-3. Data frame with exclusionary information
+4. Data frame with Accuracy and RT measures at the trial-level.
+2. Data frame with cleaned eye movement data for plotting.
+3. Data frame with exclusionary information.
 
 # Data processing 
 
@@ -18,28 +19,29 @@ rm(list=ls())
 knitr::opts_chunk$set(warning=FALSE, message=FALSE, sanitize = T, 
                       fig.height=8, fig.width=10, echo=F, cache = T)
 
-source("analysis/helpers/libraries_v_3.6.R")
-source("analysis/helpers/useful.R")
-library(magrittr); library(stringr)
-library(kmr); library(dplyr); library(tidyr)
+source("../helper_functions//libraries_v_3.6.R")
+source("../helper_functions//useful.R")
+library(magrittr); library(kmr); library(tidyverse)
 ```
 
 ## Read in data
 
 ```{r}
+read.path <- "../../data/processed_data/"
+
 # Demographic data
-sol_demo <- read.csv("data/processed_data/summary_tables/sol_demo_all.csv", 
-                     stringsAsFactors = F)
+sol_demo <- read.csv(paste0(read.path, "summary_tables/sol_demo_all.csv"), 
+                     stringsAsFactors = F) %>% 
+  mutate(Sub.Num = as.character(Sub.Num))
 
 sol_demo$Sub.Num <- as.character(sol_demo$Sub.Num)
 
-# Eye movement data
-iChart <- read.csv("data/processed_data/vanilla/sol-ichart-merged-post-gating.csv", 
+iChart <- read.csv(paste0(read.path, "vanilla/sol-ichart-merged-post-gating.csv"), 
                    check.names=F, stringsAsFactors=F) %>%  
   mutate(Sub.Num =  as.character(Sub.Num))
 
 # Stimuli information
-sol_target_signs_df <- read.csv("data/processed_data/summary_tables/target_sign_lengths.csv")
+sol_target_signs_df <- read.csv(paste0(read.path,"summary_tables/target_sign_lengths.csv"))
 ```
 
 ## Filter dataset
@@ -56,13 +58,16 @@ include <- sol_demo %>%
   select(Sub.Num, include,
          reason_excluded, stimuli,
          age_code, signs_produced, 
-         hearing_status_participant)
+         hearing_status_participant) %>% 
+  mutate(Sub.Num = as.character(Sub.Num))
 
 iChart <- left_join(iChart, include, by = c("Sub.Num", "stimuli")) %>% 
   filter(include == "yes")
 ```
 
 ## Remove unknown signs
+
+Make a clean target signs variable for filtering later on.
 
 ```{r}
 targets <- c("juice", "cookie", "cup", "ball", "shoe", "kitty",
@@ -75,36 +80,41 @@ make_clean_target <- function (target_image, targets) {
 
 iChart$clean_target_img <- unlist(sapply(iChart$Target.Image, 
                                          function (x) make_clean_target(x, targets)))
+```
 
+Add unknown signs variable. Taken from the sol_demo data frame.
 
-## Add unknown signs variable. Taken from sol_demo data frame.
-
+```{r}
 ss_unknown_signs <- sol_demo %>% 
   filter(include == "yes") %>% 
-  select(Sub.Num, parent_report_unknown_signs)
+  select(Sub.Num, parent_report_unknown_signs) %>% 
+  mutate(parent_report_unknown_signs = ifelse(is.na(parent_report_unknown_signs) == T, "none",
+                                              parent_report_unknown_signs))
 
 iChart <- left_join(iChart, ss_unknown_signs, by = "Sub.Num")
+```
 
+Now we can filter the iChart, removing the "unknown" signs.
 
-# Now we can filter the iChart, removing the "unknown" signs.
+```{r}
+# get number of trial for each participant prior to filtering
 ss_trials_df <- iChart %>% 
   group_by(Sub.Num, parent_report_unknown_signs) %>% 
   dplyr::summarise(Trials = n()) 
+```
 
-# flag unknown trials
-ss_unknown <- iChart %>% 
-  rowwise() %>% 
-  mutate(unknown_trial = ifelse(clean_target_img %in% parent_report_unknown_signs,
-                                "unknown_sign", "known_sign")) %>%
-  select(Sub.Num, Tr.Num, unknown_trial)
+Flag and remove unknown trials
 
-# join this info with the original iChart
-iChart$unknown_trial <- ss_unknown$unknown_trial
+```{r}
+iChart %<>% 
+  mutate(unknown_sign = str_detect(string = parent_report_unknown_signs, 
+                                   pattern = clean_target_img)) %>% 
+  filter(unknown_sign == FALSE)
+```
 
-# now filter
-iChart <- filter(iChart, unknown_trial == "known_sign")
+Check to make sure our filtering worked correctly:
 
-# check to make sure our filtering worked correctly
+```{r}
 post_filter_n <- iChart %>% 
   group_by(Sub.Num) %>% 
   dplyr::summarise(Trials = n()) %>% 
@@ -127,11 +137,15 @@ ss_prescreened <- iChart %>%
   filter(Prescreen.Notes != "") %>% 
   dplyr::summarise(num_prescreened = n())
 
-ss_trials_df <- left_join(ss_trials_df, ss_prescreened, by = "Sub.Num")
+ss_trials_df <- left_join(ss_trials_df, ss_prescreened, by = "Sub.Num") 
 
-ss_trials_df <- ss_trials_df %>% 
-  mutate(good_trials = Trials - sum(trials_removed, num_prescreened, na.rm=T))
+ss_trials_df %<>% 
+  mutate(num_prescreened = as.numeric(num_prescreened),
+         num_prescreened = ifelse(is.na(num_prescreened) == T, 0, num_prescreened),
+         good_trials = Trials - (trials_removed + num_prescreened))
+```
 
+```{r}
 iChart <- filter(iChart, Prescreen.Notes == "")
 ```
 
@@ -169,11 +183,6 @@ exclude_df <- trials_filter %>%
   bind_rows(exclude)
 ```
 
-
-```{r eval = F}
-write.csv(exclude_df, "processed_data/summary_tables/sol-exclusions.csv", row.names = F)
-```
-
 ### Get median split by age
 
 ```{r}
@@ -199,15 +208,17 @@ iChart %<>% mutate(age_group_collapsed = ifelse(age_group == "Adults", "Adults",
 
 gender_df <- iChart %>%
   filter(age_code == "child") %>%
-  distinct(Sub.Num) %>% 
+  select(Sub.Num, Sex, age_group) %>% 
+  unique() %>% 
   group_by(Sex, age_group) %>% 
-  dplyr::summarise(count = unique(n())) 
+  dplyr::summarise(count = n()) 
 
 iChart %>% group_by(age_group) %>% 
-  dplyr::summarise(n_distinct(Sub.Num),
-                   mean(Months), 
-                   min(Months), 
-                   max(Months))
+  dplyr::summarise(count = n_distinct(Sub.Num),
+                   mean_val = mean(Months), 
+                   min_val = min(Months), 
+                   max_val = max(Months)) %>% 
+  knitr::kable()
 ```
 
 ### Process iChart
@@ -269,11 +280,15 @@ iChart_adults <- computeStatistics(iChart_adults, startWindow=0, endWindow=4000)
 rts_adults <- filter(iChart_adults, trial_types %in% c("C_T"))
 
 analysis.window_adults <- quantile(rts_adults$RT, probs=c(0.05, 0.95), na.rm=T)
+```
 
+```{r}
 ggplot(aes(RT), data = rts_adults) +
   geom_histogram() +
-  geom_vline(xintercept = analysis.window_adults[1], col="red", lwd=1.5) +
-  geom_vline(xintercept = analysis.window_adults[2], col="red", lwd=1.5) +
+  labs(x = "RT (msec)",
+       title = "Analysis Window (Adults)") +
+  geom_vline(xintercept = analysis.window_adults[1], col="red", lwd=1.5, linetype = "dashed") +
+  geom_vline(xintercept = analysis.window_adults[2], col="red", lwd=1.5, linetype = "dashed") +
   annotate("text", x = 2500, y = 30, 
            label = "Analysis Window \n (90% RTs)")
 ```
@@ -288,12 +303,16 @@ iChart_kids <- computeStatistics(iChart_kids, startWindow=0, endWindow=4000)
 rts <- filter(iChart_kids, trial_types %in% c("C_T"), age_group != "Adults")
 
 analysis.window <- quantile(rts$RT, probs=c(0.05, 0.95), na.rm=T)
+```
 
+```{r}
 ggplot(aes(x=RT), data=rts)  +
   geom_histogram() +
-  geom_vline(xintercept=analysis.window[1], col="red", lwd=1.5) +
-  geom_vline(xintercept=analysis.window[2], col="red", lwd=1.5) +
-  annotate("text", x = 2500, y = 30, 
+  labs(x = "RT (msec)",
+       title = "Analysis Window (Kids)") +
+  geom_vline(xintercept=analysis.window[1], col="red", lwd=1.5, linetype = "dashed") +
+  geom_vline(xintercept=analysis.window[2], col="red", lwd=1.5, linetype = "dashed") +
+  annotate("text", x = 3000, y = 30, 
            label = "Analysis Window \n (90% RTs)")
 ```
 
@@ -570,7 +589,9 @@ ss <- ss_tanenhaus_comp_TD %>%
 First we need to categorize each trial type based on the analysis window.
 
 ```{r}
-trial_types_analysis_kids <- apply(iChart_kids, 1, trial_type_fun, start = analysis.window[1], end = analysis.window[2])
+trial_types_analysis_kids <- apply(iChart_kids, 1, trial_type_fun, 
+                                   start = analysis.window[1], 
+                                   end = analysis.window[2])
 
 # merge trial type information with iChart
 iChart_kids <- cbind(iChart_kids, trial_types_analysis_kids)
@@ -639,7 +660,7 @@ ss <- ss_medians %>%
 ```
 
 ```{r, eval=F}
-write.csv(ss, "processed_data/summary_tables/sol_ss_all_600_2500.csv", row.names = F)
+write.csv(ss, "../../data/processed_data/summary_tables/sol_ss_all_600_2500.csv", row.names = F)
 ```
 
 # Profile Plot Processing
@@ -732,7 +753,9 @@ ms_mean_iChart <- ms_iChart %>%
 Write graph values to CSV.
 
 ```{r, echo=F, eval=F, message=F, warning=F}
-write.csv(x = ms_mean_iChart, file = "processed_data/summary_tables/sol_gvals_all.csv", row.names = F)
+write.csv(x = ms_mean_iChart, 
+          file = "../../data/processed_data/summary_tables/sol_gvals_all.csv", 
+          row.names = F)
 ```
 
 ## Tanenhaus plot codas vs. deaf
@@ -770,9 +793,27 @@ ms_mean_iChart_coda <- ms_iChart_coda %>%
                    ci_high = ci.high(proportion_looking))
 ```
 
-Write graph values to CSV.
+Write participant-level graph values to CSV.
 
 ```{r, echo=F, eval=F, message=F, warning=F}
-write.csv(x = ms_mean_iChart_coda, file = "processed_data/summary_tables/sol_gvals_coda.csv", 
+write.csv(x = ms_mean_iChart_coda, 
+          file = "../../data/processed_data/summary_tables/sol_gvals_coda.csv", 
           row.names = F)
 ```
+
+### Save trial-level data 
+
+Mean accuracy and RT for each trial
+
+```{r}
+ss_trial_level_df <- iChart %>% 
+  select(Sub.Num, Sex, Response, Tr.Num, RT, Accuracy, signs_produced, age_code,
+         age_peek_months = Months, hearing_status_participant, trial_types)
+```
+
+```{r}
+write.csv(x = ss_trial_level_df, 
+          file = "../../data/processed_data/summary_tables/sol_trial_level_df.csv", 
+          row.names = F)
+```
+
