@@ -9,10 +9,11 @@ output: html_document
 
 ```{r}
 rm(list=ls()) # clear workspcace
-knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T,warning=F, message=F, 
-                      results = "hide")
+knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T,warning=F, message=F)
 library(langcog); library(knitr); library(forcats); library(lme4)
-library(magrittr); library(tidyverse); theme_set(theme_minimal())
+library(magrittr); library(tidyverse)
+
+theme_set(theme_minimal())
 ```
 
 ## Load data
@@ -70,7 +71,9 @@ d_2500 %>%
   guides(color = F) +
   labs(x = "Age (months)", title = "Distribution of Deaf/Hearing over age",
        fill = "Hearing Status") +
-  xlim(0, 70) 
+  xlim(0, 70)  +
+  scale_color_manual(values = c("darkorange", "dodgerblue")) +
+  scale_fill_manual(values = c("darkorange", "dodgerblue")) 
   
 ```
 
@@ -79,23 +82,27 @@ d_2500 %>%
 ```{r}
 m1 <- d_2500 %>% 
   filter(age_group != "Adults", value_cat == "Target") %>% 
-  select(Sub.Num, prop_looking, age_peek_months, signs_produced, hearing_status_participant) %>%
+  select(Sub.Num, prop_looking, age_peek_months, hearing_status_participant) %>%
   unique() %>% 
   lm(prop_looking ~ age_peek_months + hearing_status_participant, data = .)
 
-summary(m1)$coef %>% 
-  mutate(one_sided_p = pt())
+m1 %>% 
+  broom::tidy() %>% 
+  mutate(one_sided_p =  pt(-abs(statistic), df = 28)) %>% 
   kable(digits = 3)
 ```
 
 ```{r}
 m2 <- d_2500 %>% 
   filter(age_group != "Adults", value_cat == "Target") %>% 
-  select(Sub.Num, median_ct_rt, age_peek_months, signs_produced, hearing_status_participant) %>% 
+  select(Sub.Num, median_ct_rt, age_peek_months, hearing_status_participant) %>% 
   unique() %>% 
   lm(median_ct_rt ~ age_peek_months + hearing_status_participant, data = .)
 
-summary(m2)$coef %>% kable(digits = 3)
+m2 %>% 
+  broom::tidy() %>% 
+  mutate(one_sided_p =  pt(-abs(statistic), df = 28)) %>% 
+  kable(digits = 3)
 ```
 
 ```{r}
@@ -105,7 +112,10 @@ m3 <- d_2500 %>%
   unique() %>% 
   lm(prop_looking ~ signs_produced + hearing_status_participant, data = .)
 
-summary(m3)$coef %>% kable(digits = 3)
+m3 %>% 
+  broom::tidy() %>% 
+  mutate(one_sided_p =  pt(-abs(statistic), df = 28)) %>% 
+  kable(digits = 3)
 ```
 
 ```{r}
@@ -115,7 +125,10 @@ m4 <- d_2500 %>%
   unique() %>% 
   lm(median_ct_rt ~ signs_produced + hearing_status_participant, data = .)
 
-summary(m4)$coef %>% kable(digits = 3)
+m4 %>% 
+  broom::tidy() %>% 
+  mutate(one_sided_p =  pt(-abs(statistic), df = 28)) %>% 
+  kable(digits = 3)
 ```
 
 ## Split-half reliability analysis
@@ -132,7 +145,7 @@ First, we create two bins of trials for each participant by sorting based on eve
 trial_df %<>% mutate(split_half = ifelse(Tr.Num %% 2 == 0, "first", "second"))
 ```
 
-```{r}
+```{r, echo=F}
 trial_df %>% 
   group_by(Sub.Num, age_code, split_half) %>% 
   summarise(n_trials = n())
@@ -148,10 +161,15 @@ split_df <- trial_df %>%
 ```
 
 ```{r}
+labels <- c(mean_acc = "Accuracy", median_rt = "RT")
+
 ggplot(aes(x = first, y = second, color = age_code), data = split_df) +
   geom_smooth(method = "lm", se = F) +
   geom_point() +
-  facet_wrap(~measure, scales = "free") +
+  facet_wrap(~measure, scales = "free", labeller = labeller(measure = labels)) +
+  scale_color_manual(values = c("darkorange", "dodgerblue")) +
+  labs(x = "First Half", y = "Second Half", color = "Age group",
+       title = "Split Half Reliability") +
   theme_bw()
 ```
 
