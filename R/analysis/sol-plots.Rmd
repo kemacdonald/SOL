@@ -7,22 +7,21 @@ output: html_document
 ```{r chunk_options}
 rm(list=ls())
 knitr::opts_chunk$set(warning=FALSE, message=FALSE, sanitize = T, 
-                      fig.height=8, fig.width=10, echo=F, cache = T)
+                      fig.height=8, fig.width=10, echo=F, cache = F)
 
-source("analysis/helpers/libraries_v_3.6.R")
-source("analysis/helpers/useful.R")
-library(magrittr); library(stringr)
-library(GGally); library(dplyr); library(tidyr)
+source("../helper_functions/libraries_v_3.6.R")
+source("../helper_functions/useful.R")
+library(magrittr); library(GGally); library(tidyverse)
 ```
 
 ## Read in data
 
 ```{r}
 # tanenhaus graph values
-gv_all <- read.csv("data/processed_data/summary_tables/sol_gvals_all.csv", 
+gv_all <- read.csv("../../data/processed_data/summary_tables/sol_gvals_all.csv", 
                    stringsAsFactors = F)
 
-gv_coda <- read.csv("data/processed_data/summary_tables/sol_gvals_coda.csv", 
+gv_coda <- read.csv("../../data/processed_data/summary_tables/sol_gvals_coda.csv", 
                     stringsAsFactors = F)
 ```
 
@@ -61,7 +60,7 @@ ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, color = value_cat),
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
          plot.margin = unit(c(0.5,0.5,0.5,0.5), "cm"),
          strip.text.x = element_text(size = 18),
-         panel.margin = unit(1, "lines"))
+         panel.spacing = unit(1, "lines"))
 ```
 
 ## Tanenhaus plot: CODA/Deaf

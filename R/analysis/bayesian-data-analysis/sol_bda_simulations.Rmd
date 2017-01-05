@@ -14,48 +14,23 @@ Output: tidy data with posterior samples from 4 models each fit to 3 different a
 
 ```{r, echo = F}
 rm(list=ls()) # clear workspace
-knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T, warning=F, message=F, results = "hide")
+knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T, warning=F, message=F, 
+                      results = "hide")
 
-library(langcog); library(knitr); library(dplyr)
-library(ggplot2); library(tidyr); library(polspline)
-library(rethinking); library(R2jags); library(rjags); 
-library(magrittr); theme_set(theme_bw())
+source("../../helper_functions/useful.R")
 
-find_mode <- function(x) {
-    ux <- unique(x)
-    ux[which.max(tabulate(match(x, ux)))]
-}
-
-HDIofMCMC = function( sampleVec , credMass=0.95 ) {
-    # Computes highest density interval from a sample of representative values,
-    #   estimated as shortest credible interval.
-    # Arguments:
-    #   sampleVec
-    #     is a vector of representative values from a probability distribution.
-    #   credMass
-    #     is a scalar between 0 and 1, indicating the mass within the credible
-    #     interval that is to be estimated.
-    # Value:
-    #   HDIlim is a vector containing the limits of the HDI
-    sortedPts = sort( sampleVec )
-    ciIdxInc = ceiling( credMass * length( sortedPts ) )
-    nCIs = length( sortedPts ) - ciIdxInc
-    ciWidth = rep( 0 , nCIs )
-    for ( i in 1:nCIs ) {
-        ciWidth[ i ] = sortedPts[ i + ciIdxInc ] - sortedPts[ i ]
-    }
-    HDImin = sortedPts[ which.min( ciWidth ) ]
-    HDImax = sortedPts[ which.min( ciWidth ) + ciIdxInc ]
-    HDIlim = c( HDImin , HDImax )
-    return( HDIlim )
-}
+library(langcog); library(knitr); 
+library(polspline); library(rethinking); 
+library(R2jags); library(rjags); 
+library(magrittr); library(tidyverse); 
+theme_set(theme_bw())
 ```
 
 ```{r load data}
 # Load data
-d_2200 <- read.csv("../../data/processed_data/summary_tables/sol_ss_all_600_2200.csv")
-d_2500 <- read.csv("../../data/processed_data/summary_tables/sol_ss_all_600_2500.csv")
-d_2800 <- read.csv("../../data/processed_data/summary_tables/sol_ss_all_600_2800.csv")
+d_2200 <- read.csv("../../../data/processed_data/summary_tables/sol_ss_all_600_2200.csv")
+d_2500 <- read.csv("../../../data/processed_data/summary_tables/sol_ss_all_600_2500.csv")
+d_2800 <- read.csv("../../../data/processed_data/summary_tables/sol_ss_all_600_2800.csv")
 
 d_2200$window <- "600_2200"
 d_2500$window <- "600_2500"
@@ -67,7 +42,7 @@ d <- bind_rows(d_2200, d_2500, d_2800)
 
 Standardize the data
 
-```{r standardize data}
+```{r}
 d %<>% 
     mutate(C_D_count = ifelse(is.na(C_D_count), 0, C_D_count),
            total_trials_shifting = C_T_count + C_D_count,
@@ -77,13 +52,17 @@ d %<>%
                   value_cat, age_group_collapsed, hearing_status_participant, window)
 
 d_all <- d %>% filter(value_cat == "Target" | value_cat == "Distractor")    
+```
 
+```{r}
 d %<>% filter(age_group_collapsed == "Kids", value_cat == "Target")  %>% 
     mutate(age.s = (age_peek_months - mean(age_peek_months, na.rm=T)) / sd(age_peek_months, na.rm=T),
            acc.s = (mean_prop_looking_TD - mean(mean_prop_looking_TD)) / sd(mean_prop_looking_TD),
            rt.s = (median_rt - mean(median_rt)) / sd(median_rt),
            voc.s = (signs_produced - mean(signs_produced)) / sd(signs_produced))
+```
 
+```{r}
 d_voc <- d %>% 
     filter(is.na(signs_produced) == F) %>% 
     mutate(age.s = (age_peek_months - mean(age_peek_months, na.rm=T)) / sd(age_peek_months, na.rm=T),
@@ -118,114 +97,6 @@ This encodes the strength of the linear relationship between the predictor varia
 and the outcome.
 
 # Analysis 1: Accuracy Model and simulations
-
-```{r model sim function}
-# function to run simulations over multiple windows
-# inputs are a list of the data frames (with the ss data), predictor variable name,
-# outcome variable name, and the name of the text file with the JAGs model code
-# returns a single, tidy data frame with simulations for each window
-window_simulations_fun <- function(list_of_dfs, predictor, outcome, model_type, prior_list) {
-  df_final <- data.frame()
-  counter <- 0
-  
-  # check what predictors are to get which variables to unstandardize
-  if ( predictor == "age.s") {
-    unstandardized_pred <- "age_peek_months"
-  } else if ( predictor == "voc.s" ) {
-    unstandardized_pred <- "signs_produced"
-  } else if ( predictor == "acc.s") {
-    unstandardized_pred <- "mean_prop_looking_TD" 
-  } else {
-    unstandardized_pred <- "median_rt"
-  }
-  
-  if ( !(model_type %in% c("accuracy", "rt", "rt_no_mix")) ) {
-    stop("Incorrect model type specification")
-  }
-  
-  for (df in list_of_dfs) {
-    for (prior in prior_list) {
-      counter <- counter + 1
-      window_name <- unique(df$window)
-      prior_name <- prior
-      model_path <- paste("models/", model_type, "_model.txt", sep = "")
-      
-      dataList <- list(
-        y = unlist(df[outcome]),
-        x = unlist(df[predictor]),
-        Ntotal = length(unlist(df[predictor])),
-        n_correct = unlist(df["C_T_count"]),
-        n_trials = unlist(df["total_trials_shifting"]),
-        prior = prior_name
-      )
-      
-      ## Draw samples from the prior and posterior for given window and a given prior
-      samples <- jags(data = dataList, parameters.to.save = parameters,
-                      model.file = model_path, n.chains=nChains, 
-                      n.iter=nIter, n.burnin = burnInSteps,
-                      n.thin=thinSteps, DIC=F)
-      
-      ## Grab just the parameters we care about
-      if ( model_type == "accuracy") {
-        
-        df_tmp <- data.frame(window = window_name,
-                             slope_prior = prior_name,
-                             zbeta0 = samples$BUGSoutput$sims.list$zbeta0, 
-                             zbeta1 = samples$BUGSoutput$sims.list$zbeta1,
-                             zbeta1_prior = samples$BUGSoutput$sims.list$zbeta1_prior,
-                             zbeta0_prior = samples$BUGSoutput$sims.list$zbeta0_prior,
-                             stringsAsFactors = F)
-        
-        ## Unstandardized variable
-        unstandardized_outcome <- "mean_prop_looking_TD"
-      } else if ( model_type == "rt" ) {
-        
-        df_tmp <- data.frame(window = window_name,
-                             slope_prior = prior_name,
-                             zbeta0 = samples$BUGSoutput$sims.list$true_beta0,
-                             zbeta1 = samples$BUGSoutput$sims.list$true_beta1,
-                             zbeta0_prior = samples$BUGSoutput$sims.list$true_beta0_prior,
-                             zbeta1_prior = samples$BUGSoutput$sims.list$true_beta1_prior,
-                             z = samples$BUGSoutput$sims.list$z,
-                             stringsAsFactors = F)
-        ## Unstandardized variable
-        unstandardized_outcome <- "median_rt"
-        
-      } else if (model_type == "rt_no_mix") {
-        
-        df_tmp <- data.frame(window = window_name,
-                             slope_prior = prior_name,
-                             zbeta0 = samples$BUGSoutput$sims.list$zbeta0, 
-                             zbeta1 = samples$BUGSoutput$sims.list$zbeta1,
-                             zbeta1_prior = samples$BUGSoutput$sims.list$zbeta1_prior,
-                             zbeta0_prior = samples$BUGSoutput$sims.list$zbeta0_prior,
-                             stringsAsFactors = F)
-        ## Unstandardized variable
-        unstandardized_outcome <- "median_rt"
-      }
-      
-      # standardize the data
-      sd_unstand_out <- sd(unlist(df[unstandardized_outcome]))
-      mean_unstand_out <- mean(unlist(df[unstandardized_outcome]))
-      sd_unstand_pred <- sd(unlist(df[unstandardized_pred]))
-      mean_unstand_pred <- mean(unlist(df[unstandardized_pred]))
-      
-      df_tmp %<>%  
-        mutate(beta1 = zbeta1 * sd_unstand_out / sd_unstand_pred,
-               beta1_prior = zbeta1_prior * sd_unstand_out / sd_unstand_pred,
-               beta0 = zbeta0 * sd_unstand_out + mean_unstand_out - 
-                 (zbeta1 * mean_unstand_pred * sd_unstand_out) / sd_unstand_pred,
-               beta0_prior = zbeta0_prior * sd_unstand_out + mean_unstand_out - 
-                 (zbeta1_prior * mean_unstand_pred * sd_unstand_out) / sd_unstand_pred,
-               iteration = seq(1, nrow(.)))
-      # store in final data frame
-      df_final <- rbind(df_final, df_tmp)
-    }
-  }
-  return(df_final)
-} 
-```
-
 
 ```{r set parameters for accuracy model}
 adaptSteps = 500  # Number of steps to "tune" the samplers

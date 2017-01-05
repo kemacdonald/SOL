@@ -14,14 +14,16 @@ Load libraries.
 
 ```{r, echo=F, warning=F, message=FALSE}
 rm(list=ls())
-source("analysis/helpers/useful.R"); library(magrittr); library(dplyr)
+source("../helper_functions/useful.R"); 
+library(magrittr); library(tidyverse)
 theme_set(theme_bw())
 ```
 
 Read in data.
 
 ```{r}
-df <- read.csv("analysis/gating/sol_gating_processed-df.csv", stringsAsFactors = F)
+df <- read.csv("../../data/processed_data/gating/sol_gating_processed-df.csv", 
+               stringsAsFactors = F)
 ```
 
 ### Descriptives
@@ -152,7 +154,7 @@ Read in data frame with experimenter F0 added and compute the difference for eac
 and the average difference overall. 
 
 ```{r}
-df_final <- read.csv("analysis/gating/sol-empirical-gate-decisions.csv")
+df_final <- read.csv("../../data/processed_data/gating/sol-empirical-gate-decisions.csv")
 ```
 
 ```{r, echo = F}

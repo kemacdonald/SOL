@@ -8,148 +8,25 @@ In this document, we present a brief analysis and visualization of the latent mi
 
 ```{r chunk options, echo = F}
 rm(list=ls()) # clear workspcace
-knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T, warning=F, message=F, results = "hide")
+knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T, warning=F, message=F, 
+                      results = "hide")
 
-library(langcog); library(knitr); library(R2jags); library(dplyr);
-library(ggplot2); library(tidyr); library(polspline); library(magrittr);
-library(stringr); theme_set(theme_bw())
-```
+source("../../helper_functions/useful.R")
 
-```{r functions}
-window_simulations_fun <- function(list_of_dfs, predictor, outcome, 
-                                   model_type, prior_list, path) {
-  df_final <- data.frame()
-  counter <- 0
-  
-  # check what predictors are to get which variables to unstandardize
-  if ( predictor == "age.s") {
-    unstandardized_pred <- "age_peek_months"
-  } else if ( predictor == "voc.s" ) {
-    unstandardized_pred <- "signs_produced"
-  } else if ( predictor == "acc.s") {
-    unstandardized_pred <- "mean_prop_looking_TD" 
-  } else {
-    unstandardized_pred <- "median_rt"
-  }
-  
-  if ( !(model_type %in% c("accuracy", "rt", "rt_no_mix")) ) {
-    stop("Incorrect model type specification")
-  }
-  
-  for (df in list_of_dfs) {
-    for (prior in prior_list) {
-      counter <- counter + 1
-      window_name <- unique(df$window)
-      prior_name <- prior
-      model_path <- paste(path, model_type, "_model.txt", sep = "")
-      
-      dataList <- list(
-        y = unlist(df[outcome]),
-        x = unlist(df[predictor]),
-        Ntotal = length(unlist(df[predictor])),
-        n_correct = unlist(df["C_T_count"]),
-        n_trials = unlist(df["total_trials_shifting"]),
-        prior = prior_name
-      )
-      
-      ## Draw samples from the prior and posterior for given window and a given prior
-      samples <- jags(data = dataList, parameters.to.save = parameters,
-                      model.file = model_path, n.chains=nChains, 
-                      n.iter=nIter, n.burnin = burnInSteps,
-                      n.thin=thinSteps, DIC=F)
-      
-      ## Grab just the parameters we care about
-      if ( model_type == "accuracy") {
-        
-        df_tmp <- data.frame(window = window_name,
-                             slope_prior = prior_name,
-                             zbeta0 = samples$BUGSoutput$sims.list$zbeta0, 
-                             zbeta1 = samples$BUGSoutput$sims.list$zbeta1,
-                             zbeta1_prior = samples$BUGSoutput$sims.list$zbeta1_prior,
-                             zbeta0_prior = samples$BUGSoutput$sims.list$zbeta0_prior,
-                             stringsAsFactors = F)
-        
-        ## Unstandardized variable
-        unstandardized_outcome <- "mean_prop_looking_TD"
-      } else if ( model_type == "rt" ) {
-        
-        df_tmp <- data.frame(window = window_name,
-                             slope_prior = prior_name,
-                             zbeta0 = samples$BUGSoutput$sims.list$true_beta0,
-                             zbeta1 = samples$BUGSoutput$sims.list$true_beta1,
-                             zbeta0_prior = samples$BUGSoutput$sims.list$true_beta0_prior,
-                             zbeta1_prior = samples$BUGSoutput$sims.list$true_beta1_prior,
-                             z = samples$BUGSoutput$sims.list$z,
-                             stringsAsFactors = F)
-        ## Unstandardized variable
-        unstandardized_outcome <- "median_rt"
-        
-      } else if (model_type == "rt_no_mix") {
-        
-        df_tmp <- data.frame(window = window_name,
-                             slope_prior = prior_name,
-                             zbeta0 = samples$BUGSoutput$sims.list$zbeta0, 
-                             zbeta1 = samples$BUGSoutput$sims.list$zbeta1,
-                             zbeta1_prior = samples$BUGSoutput$sims.list$zbeta1_prior,
-                             zbeta0_prior = samples$BUGSoutput$sims.list$zbeta0_prior,
-                             stringsAsFactors = F)
-        ## Unstandardized variable
-        unstandardized_outcome <- "median_rt"
-      }
-      
-      # standardize the data
-      sd_unstand_out <- sd(unlist(df[unstandardized_outcome]))
-      mean_unstand_out <- mean(unlist(df[unstandardized_outcome]))
-      sd_unstand_pred <- sd(unlist(df[unstandardized_pred]))
-      mean_unstand_pred <- mean(unlist(df[unstandardized_pred]))
-      
-      df_tmp %<>%  
-        mutate(beta1 = zbeta1 * sd_unstand_out / sd_unstand_pred,
-               beta1_prior = zbeta1_prior * sd_unstand_out / sd_unstand_pred,
-               beta0 = zbeta0 * sd_unstand_out + mean_unstand_out - 
-                 (zbeta1 * mean_unstand_pred * sd_unstand_out) / sd_unstand_pred,
-               beta0_prior = zbeta0_prior * sd_unstand_out + mean_unstand_out - 
-                 (zbeta1_prior * mean_unstand_pred * sd_unstand_out) / sd_unstand_pred,
-               iteration = seq(1, nrow(.)))
-      # store in final data frame
-      df_final <- rbind(df_final, df_tmp)
-    }
-  }
-  return(df_final)
-} 
+library(langcog); library(knitr); library(R2jags);
+library(polspline); library(magrittr);
+library(tidyverse)
 
-HDIofMCMC = function( sampleVec , credMass=0.95 ) {
-    # Computes highest density interval from a sample of representative values,
-    #   estimated as shortest credible interval.
-    # Arguments:
-    #   sampleVec
-    #     is a vector of representative values from a probability distribution.
-    #   credMass
-    #     is a scalar between 0 and 1, indicating the mass within the credible
-    #     interval that is to be estimated.
-    # Value:
-    #   HDIlim is a vector containing the limits of the HDI
-    sortedPts = sort( sampleVec )
-    ciIdxInc = ceiling( credMass * length( sortedPts ) )
-    nCIs = length( sortedPts ) - ciIdxInc
-    ciWidth = rep( 0 , nCIs )
-    for ( i in 1:nCIs ) {
-        ciWidth[ i ] = sortedPts[ i + ciIdxInc ] - sortedPts[ i ]
-    }
-    HDImin = sortedPts[ which.min( ciWidth ) ]
-    HDImax = sortedPts[ which.min( ciWidth ) + ciIdxInc ]
-    HDIlim = c( HDImin , HDImax )
-    return( HDIlim )
-}
+theme_set(theme_bw())
 ```
 
 Load data.
 
 ```{r load data}
-d <- read.csv("data/processed_data/summary_tables/sol_ss_dage_models.csv", 
+d <- read.csv("../../../data/processed_data/summary_tables/sol_ss_dage_models.csv", 
               stringsAsFactors = F)
 
-d_voc <- read.csv("data/processed_data/summary_tables/sol_ss_dvoc_models.csv", 
+d_voc <- read.csv("../../../data/processed_data/summary_tables/sol_ss_dvoc_models.csv", 
                   stringsAsFactors = F)
 ```
 
@@ -170,7 +47,7 @@ dfs <- list(d_2200, d_2500, d_2800)
 dfs_voc <- list(d_voc_2200, d_voc_2500, d_voc_2800)
 
 # set path to model files
-model_path <- "analysis/bayesian-data-analysis/models/"
+model_path <- "models/"
 ```
 
 
@@ -190,14 +67,14 @@ Draw samples from all three analysis windows.
 
 ```{r}
 slope_priors <- c(.1, .5, 1, 2)
-df_rt_age_final <- window_simulations_fun(list_of_dfs = dfs_voc, 
+df_rt_age_final <- window_simulations_fun_no_mix(list_of_dfs = dfs_voc, 
                                           predictor = "age.s", outcome = "rt.s", 
                                           model = "rt_no_mix",
                                           prior_list = slope_priors,
                                           path = model_path)
 
 
-df_rt_voc_final <- window_simulations_fun(list_of_dfs = dfs_voc, 
+df_rt_voc_final <- window_simulations_fun_no_mix(list_of_dfs = dfs_voc, 
                                            predictor = "voc.s", outcome = "rt.s", 
                                            model = "rt_no_mix",
                                           prior_list = slope_priors,

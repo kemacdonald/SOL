@@ -10,78 +10,21 @@ In this document, you will find the details of our Bayesian linear regression mo
 
 ```{r, echo = F}
 rm(list=ls()) # clear workspcace
-knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = F, warning=F, message=F, results = "hide")
+knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = F, warning=F, message=F, 
+                      results = "hide")
 
-library(langcog); library(knitr); library(dplyr)
-library(ggplot2); library(tidyr); library(rethinking)
-library(polspline); library(magrittr); library(stringr)
+source("../../helper_functions/useful.R")
+
+library(langcog); library(knitr); 
+library(rethinking); library(polspline); 
+library(magrittr); library(tidyverse)
+
 theme_set(theme_bw())
-
-find_mode <- function(x) {
-  ux <- unique(x)
-  ux[which.max(tabulate(match(x, ux)))]
-}
-
-HDIofMCMC = function( sampleVec , credMass=0.95 ) {
-  # Computes highest density interval from a sample of representative values,
-  #   estimated as shortest credible interval.
-  # Arguments:
-  #   sampleVec
-  #     is a vector of representative values from a probability distribution.
-  #   credMass
-  #     is a scalar between 0 and 1, indicating the mass within the credible
-  #     interval that is to be estimated.
-  # Value:
-  #   HDIlim is a vector containing the limits of the HDI
-  sortedPts = sort( sampleVec )
-  ciIdxInc = ceiling( credMass * length( sortedPts ) )
-  nCIs = length( sortedPts ) - ciIdxInc
-  ciWidth = rep( 0 , nCIs )
-  for ( i in 1:nCIs ) {
-    ciWidth[ i ] = sortedPts[ i + ciIdxInc ] - sortedPts[ i ]
-  }
-  HDImin = sortedPts[ which.min( ciWidth ) ]
-  HDImax = sortedPts[ which.min( ciWidth ) + ciIdxInc ]
-  HDIlim = c( HDImin , HDImax )
-  return( HDIlim )
-}
-
-# Compute p(D) for posterior and prior: Savage-Dickey Method to get Bayes Factor
-# Fits a density using splines to approx. log-density
-# uses 1997 knot and deletion algorithm
-compute_bf <- function (df, posterior_column_name, prior_column_name, bound) {
-  
-  if(bound == "upper") {
-    fit.posterior <- logspline(df[posterior_column_name], ubound = 0)
-    posterior <- dlogspline(0, fit.posterior) # pdf @ beta=0
-    
-    # get prior density using logspline
-    fit.prior <- logspline(df[prior_column_name], ubound = 0)
-    prior <- dlogspline(0, fit.prior) # pdf @ beta=0
-    
-    bf_rt_age <- posterior / prior
-    1/bf_rt_age
-    
-  } else {
-    
-    fit.posterior <- logspline(df[posterior_column_name], lbound = 0)
-    posterior <- dlogspline(0, fit.posterior) # pdf @ beta=0
-    
-    # get prior density using logspline
-    fit.prior <- logspline(df[prior_column_name], lbound = 0)
-    prior <- dlogspline(0, fit.prior) # pdf @ beta=0
-    
-    bf_rt_age <- posterior / prior
-    1/bf_rt_age
-    
-  }
-  
-}
 ```
 
 ```{r paths, echo = F}
-data_path <- "data/processed_data/summary_tables/"
-sims_path <- "analysis/bayesian-data-analysis/simulations/"
+data_path <- "../../../data/processed_data/summary_tables/"
+sims_path <- "simulations/"
 ```
 
 ```{r, load raw data and mcmc chains}
