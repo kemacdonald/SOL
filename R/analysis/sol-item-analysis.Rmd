@@ -5,240 +5,164 @@ date: "1/3/2017"
 output: html_document
 ---
 
-```{r setup include = F}
+```{r setup, include = F}
 rm(list=ls()) # clear workspcace
 knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T,warning=F, message=F)
-
+source("../helper_functions/useful.R")
 library(langcog); library(knitr); library(forcats)
 library(magrittr); library(tidyverse)
+theme_set(ggthemes::theme_few())
+```
 
-source("../helper_functions/libraries_v_3.6.R")
-source("../helper_functions/useful.R")
+Read data:
 
-theme_set(theme_minimal())
+* Sign lengths
+* RT and accuracy for each sign
+
+```{r}
+d <- read_csv("../../data/processed_data/summary_tables/sol_trial_level_df.csv")
+sign_lengths <- read_csv("../../data/processed_data/summary_tables/target_sign_lengths.csv")
+```
+
+First we need to create "sign" variable in summary table so we can add the sign length information.
+
+```{r}
+d %<>% 
+  mutate(sign = ifelse(stimuli == "V1", paste0(clean_target_img, "_p"),
+                       paste0(clean_target_img, "_r")))
+```
+
+Now we can add the sign length information to our data frame and calculate a new variable where we add 300 ms to the length of the target sign in order to account for the time it takes to program an eye movement. That is, we consider eye movements that occurred up to 300 ms after the offset of the target sign as being initiated prior to sign offset, providing evidence for incremental processing. 
+
+```{r}
+d %<>% left_join(., sign_lengths, by = "sign") 
+d %<>% filter(is.na(length_ms) == F) %>% 
+  mutate(length_ms_300 = length_ms + 300)
 ```
 
 ## Item-level Analysis
 
-### PP by item
+Get the difference between RT and sign length for all signs. We also get the proportion of sign needed before shifting in order to normalize for the different sign lengths.
 
-Read in graph values.
 
 ```{r}
-# read in wide data for each stimuli set
-ss.et.item.v1 <- read.table("sol-ichart-v1-post-gating_PP_graphValues_0_4000_minRT_33_maxRT_2933_lg_72_fg_15_n_16.txt", header = T)
-
-ss.et.item.v2 <- read.table("sol-ichart-v2-post-gating_PP_graphValues_0_4000_minRT_100_maxRT_2967_lg_49_fg_34_n_13.txt", header = T)
-
-# add column to track stimuli
-ss.et.item.v1$stimuli <- "V1"
-ss.et.item.v2$stimuli <- "V2"
-
-ss.et.item <- dplyr::bind_rows(ss.et.item.v1, ss.et.item.v2)
+d %<>% mutate(shift_diff_offset = (RT - length_ms_300) / 1000,
+              prop_sign_to_shift = RT / length_ms_300)
 ```
 
-Munge data for plotting
+Now summarise over these new variables
 
-```{r, warning=F, message=F}
-#strip X from header
-names(ss.et.item) <- gsub("X", "", names(ss.et.item))
+```{r}
+ms <- d %>% 
+  filter(correct == 1, RT <= 2000, RT >= 300) %>%
+  group_by(Sub.Num, clean_target_img, age_code) %>% 
+  summarise(m_shift_diff = median(shift_diff_offset)) %>% 
+  group_by(clean_target_img, age_code) %>% 
+  langcog::multi_boot_standard(column = "m_shift_diff", 
+                               empirical_function = "mean") %>% 
+  arrange(desc(mean))
 
-#create long form df for plotting
-ss.et.item.long <- ss.et.item %>% 
-    select(-Condition) %>% 
-    gather(key = Time.ms, value = value, `0`:`3000`) %>% 
-    tidyr::spread(key = statistic, value = value) %>% 
-    mutate(Time.ms = as.numeric(as.character(Time.ms)),
-           groupping = as.character(groupping)) %>% 
-    rename(sign = groupping)
-
-#munge target sign df for merging
-sol_target_signs_df %<>% 
-    separate(sign, into = c("sign", "signer"), sep = "_") %>% 
-    mutate(stimuli = ifelse(signer == "p", "V1", "V2"))
-
-#merge with eye tracking data
-ss.et.item.long <- sol_target_signs_df %>% 
-    select(sign, stimuli, length_ms) %>% 
-    left_join(x = ss.et.item.long, by = c("sign", "stimuli")) 
+ms_all_signs <- d %>% 
+  filter(correct == 1, RT <= 2000, RT >= 300) %>%
+  group_by(Sub.Num, clean_target_img, age_code) %>% 
+  summarise(m_shift_diff = median(shift_diff_offset)) %>% 
+  group_by(age_code) %>% 
+  langcog::multi_boot_standard(column = "m_shift_diff", 
+                               empirical_function = "mean") %>% 
+  mutate(clean_target_img = ifelse(age_code == "adult", "all signs (adults)",
+                                   "all signs (kids)"))
 ```
 
+Forest plot
 
-### Plot by item data
-
-```{r item PP, warning=F, echo=F, eval = F}
-breaks <- seq(0,3000, by=500)
-y_breaks <- seq(0.25,1.0, by = 0.25)
-points <- seq(0,3000, by = 100)
-
-# reorder by length of sign
-ss.et.item.long$sign <- factor(ss.et.item.long$sign, 
-                               levels = c("birdy", "teddy", "book",
-                                          "kitty", "doll",  "car",
-                                          "shoe", "ball"))
-
-x <- qplot(data = filter(ss.et.item.long, stimuli == "V1"), x = Time.ms, y = mean,
-      geom = "blank", xlab=c("Time in ms from onset of noun"), 
-      ylab=c("Proportion looking to target")) + 
-    geom_point(data = filter(ss.et.item.long, Time.ms %in% points, stimuli == "V1"), 
-               size=3, 
-               colour="#e41a1c") +
-    geom_line(size=0.7, colour="#e41a1c") +
-    geom_linerange(data = filter(ss.et.item.long, Time.ms %in% points, stimuli == "V1"),
-                   aes(ymin=mean - se, 
-                       ymax=mean + se), 
-                   width = .03, 
-                   size=0.3, 
-                   alpha = 1,
-                   colour="#e41a1c") +
-    scale_color_brewer(type = "qual", palette = "Set1") +
-    scale_x_discrete(breaks = breaks) +
-    scale_y_continuous(limits=c(0.25, 1.0), breaks = y_breaks) +
-    geom_hline(yintercept = 0.5, linetype="dashed") +
-    geom_vline(aes(xintercept = length_ms), linetype = "dashed") +
-    facet_wrap( ~ sign, ncol = 4) +
-    guides(color=F) +
-    theme_bw() +
-    theme(axis.title.x = element_text(colour="grey40",size=16,
-                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.title.y = element_text(colour="grey40",size=16,
-                                      angle=90,hjust=0.5,vjust=0.5,face="plain"),
-          axis.text.x = element_text(colour="grey20",size=12,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.text.y = element_text(colour="grey20",size=12,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-         plot.margin = unit(c(0.5,2,1,1), "cm"),
-         panel.margin = unit(1, "lines"))
+```{r}
+ms %>% 
+  filter(age_code == "child") %>% 
+  ggplot(aes(x = reorder(clean_target_img, -mean) , y = mean)) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper), 
+                  data = filter(ms_all_signs, age_code == "child"),
+                  shape = 18, size = 1.3) +
+  geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper), color = "darkgrey") +
+  ylim(-0.75, 0.4) +
+  coord_flip() +
+  labs(y = "Mean Difference (sec)", 
+       x = "Target sign")
 ```
 
-```{r item PP 2, warning=F, echo =F, eval = F}
-breaks <- seq(0,3000, by=500)
-y_breaks <- seq(0.25,1.0, by = 0.25)
-points <- seq(0,3000, by = 100)
+Next, we do the same kind of analysis but using the `prop_sign_needed` variable, which should help account for the signs being different lengths.
 
-ss.et.item.long$sign <- factor(ss.et.item.long$sign, 
-                               levels = c("book", "teddy", "kitty", 
-                                          "car", "ball", "birdy", 
-                                          "doll", "shoe"))
+```{r}
+ms.2 <- d %>% 
+  filter(correct == 1, RT <= 2000, RT >= 300) %>%
+  group_by(Sub.Num, clean_target_img, age_code) %>% 
+  summarise(m_prop_sign_needed = median(prop_sign_to_shift)) %>% 
+  group_by(clean_target_img, age_code) %>% 
+  langcog::multi_boot_standard(column = "m_prop_sign_needed", 
+                               empirical_function = "mean") %>% 
+  arrange(desc(mean))
 
-y <- qplot(data = filter(ss.et.item.long, stimuli == "V2"), x = Time.ms, y = mean,
-      geom = "blank", xlab=c("Time in ms from onset of noun"), 
-      ylab=c("Proportion looking to target")) + 
-    geom_point(data = filter(ss.et.item.long, Time.ms %in% points, stimuli == "V2"), 
-               size=3,
-               color = "#377eb8") +
-    geom_line(size=0.7, color = "#377eb8") +
-    geom_linerange(data = filter(ss.et.item.long, Time.ms %in% points, stimuli == "V2"),
-                   aes(ymin=mean - se, 
-                       ymax=mean + se), 
-                   width = .03, 
-                   size=0.3, 
-                   alpha = 1,
-                   color = "#377eb8") +
-    scale_color_brewer(type = "qual", palette = "Set1") +
-    scale_x_discrete(breaks = breaks) +
-    scale_y_continuous(limits=c(0.25, 1.0), breaks = y_breaks) +
-    geom_hline(yintercept = 0.5, linetype="dashed") +
-    geom_vline(aes(xintercept = length_ms), linetype = "dashed") +
-    facet_wrap( ~ sign, ncol = 4) +
-    guides(color=F) +
-    theme_bw() +
-    theme(axis.title.x = element_text(colour="grey40",size=16,
-                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.title.y = element_text(colour="grey40",size=16,
-                                      angle=90,hjust=0.5,vjust=0.5,face="plain"),
-          axis.text.x = element_text(colour="grey20",size=12,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.text.y = element_text(colour="grey20",size=12,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-         plot.margin = unit(c(0.5,2,1,1), "cm"),
-         panel.margin = unit(1, "lines"))
+ms_all_signs.2 <- d %>% 
+  filter(correct == 1, RT <= 2000, RT >= 300) %>%
+  group_by(Sub.Num, clean_target_img, age_code) %>% 
+  summarise(m_prop_sign_needed = median(prop_sign_to_shift)) %>% 
+  group_by(age_code) %>% 
+  langcog::multi_boot_standard(column = "m_prop_sign_needed", 
+                               empirical_function = "mean") %>% 
+  mutate(clean_target_img = "all signs")
 ```
 
-### Plot all items for both stimulus sets 
-
-```{r, fig.height=8, fig.width=10, eval = F}
-gridExtra::grid.arrange(x, y, ncol = 1)
+```{r}
+ms.final <- bind_rows(ms.2, ms_all_signs.2) %>% 
+  mutate(all_signs = ifelse(clean_target_img == "all signs", "yes", "no")) %>% 
+  arrange(mean)
 ```
 
-### Plot RT distribution for each stimulus set. 
-
-```{r, echo = F}
-ggplot(data = iChart, aes(x=RT, fill = age_group_collapsed)) +
-    geom_density(alpha=.5, position="identity") +
-    theme_bw()
+```{r}
+add_plot_order <- function(data_frame) {
+  
+  new_df <- data_frame %>% 
+    arrange(mean) %>% 
+    mutate(plot_order = 1:nrow(.))
+  
+  all_signs_location <- new_df %>% 
+    ungroup() %>% 
+    filter(all_signs == "yes") %>% 
+    select(plot_order) %>% 
+    .[[1]]
+  
+  new_df %<>%  
+    mutate(plot_order = ifelse(all_signs == "yes", min(plot_order),
+                               ifelse(plot_order <= all_signs_location, 
+                                      plot_order + 1, plot_order))) 
+  
+  new_df
+}
 ```
 
-Add sign length information to iChart.
-
-```{r eval = F}
-iChart <- left_join(iChart, rename(sol_target_signs_df, clean_target_img = sign), 
-                    by = c("clean_target_img", "stimuli"))
+```{r}
+ms.final %<>% 
+  group_by(age_code) %>% 
+  do(add_plot_order(.))
 ```
 
-Get only good RTs: Center to Target shifts, within the analysis window.
+Forest plot 2
 
-```{r eval = F}
-iChart_rt <- filter(iChart, trial_types == "C_T", RT >= analysis.window[1], RT <= analysis.window[2], is.na(length_ms) == FALSE)
-```
+```{r}
+ms.final$age_code <- fct_relevel(ms.final$age_code, "child")
 
-### Plot RT distribution for each stimulus set and each sign. 
-
-```{r, fig.width=10, fig.height = 7, eval = F}
-a <- ggplot(data = filter(iChart_rt, stimuli == "V1"), aes(x=RT, fill = age_group)) +
-    geom_histogram(alpha=1, position="identity", color = "black", bindwidth = 25) +
-    facet_wrap(~ clean_target_img, scales = "fixed", ncol = 4) +
-    geom_vline(aes(xintercept = length_ms), linetype = "solid", color = "red") +
-    ggtitle("Vanilla 1 Stimuli") +
-    theme_bw()
-
-b <- ggplot(data = filter(iChart_rt, stimuli == "V2"), aes(x=RT, fill = age_group)) +
-    geom_histogram(alpha=1, position="identity", color = "black", bindwidth = 25) +
-    facet_wrap(~ clean_target_img, scales = "fixed", ncol = 4) +
-    geom_vline(aes(xintercept = length_ms), linetype = "solid", color = "red") +
-    ggtitle("Vanilla 2 Stimuli") +
-    theme_bw()
-
-gridExtra::grid.arrange(a, b, ncol = 1)
-```
-
-```{r, eval = F}
-ms_rt_item <- iChart_rt %>% 
-    group_by(Sub.Num, stimuli, clean_target_img, length_ms, age_group) %>% 
-    dplyr::summarise(mean_rt = mean(RT, na.rm=T)) %>% 
-    mutate(diff_rt = mean_rt - length_ms) %>% 
-    group_by(stimuli, clean_target_img, length_ms, age_group) %>% 
-    dplyr::summarise(mean_diff_rt = mean(diff_rt, na.rm=T))
-```
-
-```{r, eval = F}
-ms_rt_item_group <- iChart_rt %>% 
-    group_by(Sub.Num, stimuli, clean_target_img, length_ms, age_group) %>% 
-    dplyr::summarise(mean_rt = mean(RT, na.rm=T)) %>% 
-    mutate(diff_rt = mean_rt - length_ms) %>% 
-    group_by(age_group) %>% 
-    dplyr::summarise(mean_diff_rt = mean(diff_rt, na.rm=T),
-              ci_low = ci.low(diff_rt),
-              ci_high = ci.high(diff_rt))
-```
-
-```{r, eval = F}
-qplot(data = ms_rt_item_group, x = age_group, y = mean_diff_rt, geom = "blank") +
-    geom_bar(fill = "steelblue", stat = "identity", color = "black") +
-    geom_linerange(aes(ymin=mean_diff_rt - ci_low, 
-                       ymax=mean_diff_rt + ci_high)) +
-    geom_hline(yintercept = 0)
-```
-
-### Plot difference between participants' mean RT by item and offset of that sign. 
-
-```{r, eval = F}
-ggplot(data = ms_rt_item, aes(x=mean_diff_rt, fill=stimuli)) +
-    geom_histogram(alpha=1, position="dodge", colour="black") +
-    geom_vline(xintercept = 0, linetype = "dashed") +
-    geom_text(aes(x = mean_diff_rt, y = 1.5, label = clean_target_img), 
-              angle = 90,
-              position = "jitter") +
-    facet_wrap(~ age_group, ncol = 1) + 
-    theme_bw()
+ms.final %>% 
+  ggplot(aes(x = reorder(clean_target_img, plot_order), y = mean, 
+             color = all_signs, shape = all_signs, size = all_signs)) +
+  scale_color_manual(values = c("black", "red")) +
+  scale_shape_manual(values = c(20, 18)) +
+  scale_size_manual(values = c(0.8, 1.3)) +
+  geom_hline(yintercept = 1, linetype = "dashed") +
+  geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper)) +
+  ylim(0.25, 1.5) + 
+  coord_flip() +
+  guides(color = F, shape = F, size = F) +
+  labs(y = "Prop. Target Sign", 
+       x = "Target sign") +
+  facet_wrap(~age_code)
 ```

@@ -12,6 +12,7 @@ knitr::opts_chunk$set(warning=FALSE, message=FALSE, sanitize = T,
 source("../helper_functions/libraries_v_3.6.R")
 source("../helper_functions/useful.R")
 library(magrittr); library(GGally); library(tidyverse)
+theme_set(ggthemes::theme_few())
 ```
 
 ## Read in data
@@ -28,9 +29,9 @@ gv_coda <- read.csv("../../data/processed_data/summary_tables/sol_gvals_coda.csv
 ## Tanenhaus plot: all participants
 
 ```{r tanenhaus-plot}
-breaks <- seq(0,4000, by=500)
+breaks <- seq(0,4000, by=1000)
 y_breaks <- seq(0.25,1.0, by = 0.25)
-points <- seq(0,4000, by = 200)
+points <- seq(0,4000, by = 300)
 
 ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, color = value_cat), 
        data = gv_all) + 
@@ -49,17 +50,16 @@ ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, color = value_cat),
     xlab("Time in ms from onset of noun") +
     ylab("Proportion looking") +
     guides(color = F) +
-    theme_bw() +
-    theme(axis.title.x = element_text(colour="grey40",size=22,
+    theme(axis.title.x = element_text(colour="grey40",size=16,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.title.y = element_text(colour="grey40",size=22,
+          axis.title.y = element_text(colour="grey40",size=16,
                                       angle=90,hjust=0.5,vjust=0.5,face="plain"),
-          axis.text.x = element_text(colour="grey20",size=14,
+          axis.text.x = element_text(colour="grey20",size=12,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.text.y = element_text(colour="grey20",size=14,
+          axis.text.y = element_text(colour="grey20",size=12,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
          plot.margin = unit(c(0.5,0.5,0.5,0.5), "cm"),
-         strip.text.x = element_text(size = 18),
+         strip.text.x = element_text(size = 12),
          panel.spacing = unit(1, "lines"))
 ```
 
@@ -68,7 +68,7 @@ ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, color = value_cat),
 ```{r coda-deaf-plot}
 breaks <- seq(0,4000, by=500)
 y_breaks <- seq(0.25,1.0, by = 0.25)
-points <- seq(0,4000, by = 200)
+points <- seq(0,4000, by = 300)
 
 ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, linetype = hearing_status_participant, 
            color = value_cat, shape = hearing_status_participant), 
@@ -91,13 +91,13 @@ ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, linetype = hearing_status_p
     ylab("Proportion looking") +
     theme_bw() +
     guides(color = F, linetype = F, fill = F, shape = F) +
-    theme(axis.title.x = element_text(colour="grey40",size=22,
+    theme(axis.title.x = element_text(colour="grey40",size=16,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.title.y = element_text(colour="grey40",size=22,
+          axis.title.y = element_text(colour="grey40",size=16,
                                       angle=90,hjust=0.5,vjust=0.5,face="plain"),
-          axis.text.x = element_text(colour="grey20",size=18,
+          axis.text.x = element_text(colour="grey20",size=12,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.text.y = element_text(colour="grey20",size=18,
+          axis.text.y = element_text(colour="grey20",size=12,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
          plot.margin = unit(c(0.5,2,1,1), "cm"))
 ```

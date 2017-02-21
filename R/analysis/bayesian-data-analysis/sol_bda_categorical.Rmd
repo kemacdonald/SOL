@@ -18,7 +18,7 @@ source("../../helper_functions/useful.R")
 library(langcog); library(knitr); library(forcats);
 library(polspline); library(rethinking); 
 library(magrittr); library(tidyverse)
-theme_set(theme_bw())
+theme_set(ggthemes::theme_few())
 ```
 
 Load data
@@ -291,30 +291,29 @@ ggplot(aes(x = age_group, y = post_sample),
   geom_violin(draw_quantiles = c(0.5)) 
 ```
 
-```{r barplot}
+```{r boxplot}
 # Bar Plot Acc
 all_acc <- ggplot(aes(x = age_group_fact, y = mean_post, fill = looking_type), 
                   data = ms_all) +
   geom_bar(stat = "identity", position="dodge", color = "black") +
   geom_linerange(aes(ymin = HDI_lower, ymax = HDI_upper),
                  position = position_dodge(width = 0.9)) +
-  labs(x = "Age Group", y = "Proportion Looking", title = "Accuracy") + 
+  labs(x = "Age Group", y = "Proportion Looking") + 
   coord_cartesian(ylim=c(0, 1)) +
   scale_fill_grey(start = 0.8, end = 0, breaks = c("Target", "Distracter")) +
   guides(fill=guide_legend(title=NULL), color=F) +
   scale_x_discrete(labels=c("Younger", "Older", "Adults")) +
-  theme(plot.title = element_text(face = "bold", size = 20),
-        axis.title.x = element_text(colour="grey40",size=18,
-                                    angle=0,hjust=0.5,vjust=0,face="plain"),
-        axis.title.y = element_text(colour="grey40",size=18,
-                                    angle=90,hjust=0.5,vjust=0.5,face="plain"),
-        axis.text.x = element_text(colour="grey20",size=18,
-                                   angle=0,hjust=0.5,vjust=0,face="plain"),
-        axis.text.y = element_text(colour="grey20",size=18,
-                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+  theme(axis.title.x = element_text(colour="grey40",size=16,
+                                      angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.title.y = element_text(colour="grey40",size=16,
+                                      angle=90,hjust=0.5,vjust=0.5,face="plain"),
+          axis.text.x = element_text(colour="grey20",size=12,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.text.y = element_text(colour="grey20",size=12,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
         plot.margin = unit(c(0.5,2,1,1), "cm"),
         legend.position = c(0.3, 0.88),
-        legend.text = element_text(size = 16)) 
+        legend.text = element_text(size = 12)) 
 
 # Bar plot RT
 all_rt <- ggplot(aes(x= age_group_fact, y = mean_post), 
@@ -322,22 +321,30 @@ all_rt <- ggplot(aes(x= age_group_fact, y = mean_post),
   geom_bar(stat = "identity", fill = "black") +
   geom_linerange(aes(ymax = HDI_upper, ymin = HDI_lower)) +
   guides(fill=F, color = F) +
-  labs(x = "Age Group", y = "Mean RT (ms)", title = "Reaction Time") +
+  labs(x = "Age Group", y = "Mean RT (ms)") +
   scale_x_discrete(labels=c("Younger", "Older", "Adults")) +
   ylim(0, 1600) +
-  theme(plot.title = element_text(face = "bold", size = 20),
-        axis.title.x = element_text(colour="grey40",size=18,
-                                    angle=0,hjust=0.5,vjust=0,face="plain"),
-        axis.title.y = element_text(colour="grey40",size=18,
-                                    angle=90,hjust=0.5,vjust=0.5,face="plain"),
-        axis.text.x = element_text(colour="grey20",size=18,
-                                   angle=0,hjust=0.5,vjust=0,face="plain"),
-        axis.text.y = element_text(colour="grey20",size=18,
-                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+  theme(axis.title.x = element_text(colour="grey40",size=16,
+                                      angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.title.y = element_text(colour="grey40",size=16,
+                                      angle=90,hjust=0.5,vjust=0.5,face="plain"),
+          axis.text.x = element_text(colour="grey20",size=12,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.text.y = element_text(colour="grey20",size=12,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
         plot.margin = unit(c(0.5,2,1,1), "cm")) 
 
-final_bar_plot <- gridExtra::grid.arrange(all_acc, all_rt, ncol = 2)
+```
 
+Merge plots
+
+```{r}
+final_bar_plot <- gridExtra::grid.arrange(all_acc, all_rt, ncol = 2)
+```
+
+Save the final plot
+
+```{r}
 ggsave(final_bar_plot, filename = "paper/sol-figs/summary.png", 
        device = "png", width = 10, height = 5)
 ```

@@ -88,8 +88,8 @@ Add unknown signs variable. Taken from the sol_demo data frame.
 ss_unknown_signs <- sol_demo %>% 
   filter(include == "yes") %>% 
   select(Sub.Num, parent_report_unknown_signs) %>% 
-  mutate(parent_report_unknown_signs = ifelse(is.na(parent_report_unknown_signs) == T, "none",
-                                              parent_report_unknown_signs))
+  mutate(parent_report_unknown_signs = ifelse(is.na(parent_report_unknown_signs) == T,
+                                              "none", parent_report_unknown_signs))
 
 iChart <- left_join(iChart, ss_unknown_signs, by = "Sub.Num")
 ```
@@ -122,10 +122,9 @@ post_filter_n <- iChart %>%
 
 ss_trials_df$post_filter <- post_filter_n$Trials
 
-ss_trials_df <- ss_trials_df %>% 
-  mutate(trials_removed = as.integer(Trials) - as.integer(post_filter))
+ss_trials_df %<>% mutate(trials_removed = as.integer(Trials) - as.integer(post_filter))
 
-# Get total number of trials removed because of known signs
+# Get total number of trials removed because of unknown signs
 sum(ss_trials_df$trials_removed)
 ```
 
@@ -140,8 +139,8 @@ ss_prescreened <- iChart %>%
 ss_trials_df <- left_join(ss_trials_df, ss_prescreened, by = "Sub.Num") 
 
 ss_trials_df %<>% 
-  mutate(num_prescreened = as.numeric(num_prescreened),
-         num_prescreened = ifelse(is.na(num_prescreened) == T, 0, num_prescreened),
+  mutate(num_prescreened = ifelse(is.na(num_prescreened), 0, num_prescreened),
+         num_prescreened = as.numeric(num_prescreened),
          good_trials = Trials - (trials_removed + num_prescreened))
 ```
 
@@ -287,8 +286,10 @@ ggplot(aes(RT), data = rts_adults) +
   geom_histogram() +
   labs(x = "RT (msec)",
        title = "Analysis Window (Adults)") +
-  geom_vline(xintercept = analysis.window_adults[1], col="red", lwd=1.5, linetype = "dashed") +
-  geom_vline(xintercept = analysis.window_adults[2], col="red", lwd=1.5, linetype = "dashed") +
+  geom_vline(xintercept = analysis.window_adults[1], col="red", 
+             lwd=1.5, linetype = "dashed") +
+  geom_vline(xintercept = analysis.window_adults[2], col="red", 
+             lwd=1.5, linetype = "dashed") +
   annotate("text", x = 2500, y = 30, 
            label = "Analysis Window \n (90% RTs)")
 ```
@@ -319,9 +320,14 @@ ggplot(aes(x=RT), data=rts)  +
 Compute statistics over analysis window: 0 to analysis window + 500ms. We add 500ms because it allows us to include trials in which the participant initiates and completes a shift at the very end of the window.
 
 ```{r, message=F, warning=F}
-iChart <- computeStatistics(iChart, startWindow=0, endWindow=analysis.window[2]+500)
-iChart_kids <- computeStatistics(iChart_kids, startWindow=0, endWindow=analysis.window[2]+500)
-iChart_adults <- computeStatistics(iChart_adults, startWindow=0, endWindow=analysis.window_adults[2]+500)
+iChart <- computeStatistics(iChart, startWindow=0, 
+                            endWindow=analysis.window[2]+500)
+
+iChart_kids <- computeStatistics(iChart_kids, startWindow=0,
+                                 endWindow=analysis.window[2]+500)
+
+iChart_adults <- computeStatistics(iChart_adults, startWindow=0,
+                                   endWindow=analysis.window_adults[2]+500)
 ```
 
 Reject trials with really long RTs and with long gaps. Gaps are defined as 
@@ -541,7 +547,7 @@ ss_tanenhaus_comp_TD <- ms_iChart_TD %>%
   dplyr::summarise(mean_prop_looking_TD = mean(proportion_looking, na.rm = T))
 ```
 
-## Create summary table
+## Create summary table at the participant-level
 
 Get mean accuracy and rt for each participant.
 
@@ -660,7 +666,8 @@ ss <- ss_medians %>%
 ```
 
 ```{r, eval=F}
-write.csv(ss, "../../data/processed_data/summary_tables/sol_ss_all_600_2500.csv", row.names = F)
+write.csv(ss, "../../data/processed_data/summary_tables/sol_ss_all_600_2500.csv", 
+          row.names = F)
 ```
 
 # Profile Plot Processing
@@ -712,7 +719,8 @@ Grab just the eye movement data and group information
 ```{r}
 ss_iChart <- iChart %>% 
   filter(Response == "D", GoodFirstGap == T, GoodLongestGap == T) %>% 
-  select(Sub.Num, Tr.Num, age_group, Response, `0`:`4000`) 
+  select(Sub.Num, Tr.Num, stimuli, age_group, Response, RT, trial_types, 
+         clean_target_img, `0`:`4000`) 
 ```
 
 Convert to long format
@@ -807,8 +815,10 @@ Mean accuracy and RT for each trial
 
 ```{r}
 ss_trial_level_df <- iChart %>% 
-  select(Sub.Num, Sex, Response, Tr.Num, RT, Accuracy, signs_produced, age_code,
-         age_peek_months = Months, hearing_status_participant, trial_types)
+  select(Sub.Num, Sex, Response, Tr.Num, clean_target_img, stimuli, age_code,
+         age_peek_months = Months, hearing_status_participant, trial_types, 
+          RT, Accuracy, signs_produced) %>% 
+  mutate(correct = ifelse(trial_types == "C_T", 1, 0))
 ```
 
 ```{r}
