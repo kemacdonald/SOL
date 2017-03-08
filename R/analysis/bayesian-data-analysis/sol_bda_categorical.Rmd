@@ -46,7 +46,7 @@ d_model <- d %>%
                                          "Younger")),
          age_group_adults_collapsed = ifelse(age_group == "Adults", 1, 0),
          hearing_group = ifelse(hearing_status_participant == "hearing", 1, 0)) %>% 
-  rename(median_rt = median_ct_rt)
+  dplyr::rename(median_rt = median_ct_rt)
 ```
 
 ### CODA vs. Deaf
@@ -68,13 +68,18 @@ acc_hearing_stat_cat_targ.m <- map2stan(
 
 # get samples
 post_hearing_stat.acc <- extract.samples(acc_hearing_stat_cat_targ.m)
-mu.hearing <- post_hearing_stat.acc$Intercept
-mu.deaf <- post_hearing_stat.acc$b_Hearing + post_hearing_stat.acc$Intercept
-post_df_hearing_stat.acc <- data.frame(mu.hearing, mu.deaf)
+hearing <- post_hearing_stat.acc$Intercept
+deaf <- post_hearing_stat.acc$b_Hearing + post_hearing_stat.acc$Intercept
+post_df_hearing_stat.acc <- data.frame(hearing, deaf) %>% 
+  gather(key = hearing_status, value = posterior_sample) %>% 
+  mutate(age_group = "kids",
+         measure = "accuracy")
+
+# print means and HDIs
 precis(post_df_hearing_stat.acc)
 
 # test contrast
-diff.deaf.hearing <- mu.hearing - mu.deaf
+diff.deaf.hearing <- hearing - deaf
 quantile(diff.deaf.hearing, probs = c(0.025, 0.5, 0.975))
 ```
 
@@ -95,15 +100,19 @@ rt_hearing_stat.m <- map2stan(
 
 # extract samples
 post_hearing_stat.rt <- extract.samples(rt_hearing_stat.m)
-mu.hearing.rt <- as.numeric(post_hearing_stat.rt$Intercept)
-mu.deaf.rt <- as.numeric(post_hearing_stat.rt$b_Hearing + post_hearing_stat.rt$Intercept)
-post_hearing_stat.rt <- data.frame(mu.hearing.rt, mu.deaf.rt) 
-precis(post_hearing_stat.rt)
+hearing <- as.numeric(post_hearing_stat.rt$Intercept)
+deaf <- as.numeric(post_hearing_stat.rt$b_Hearing + post_hearing_stat.rt$Intercept)
+
+post_hearing_stat.rt <- data.frame(hearing, deaf) %>% 
+  gather(key = hearing_status, value = posterior_sample) %>% 
+  mutate(age_group = "kids",
+         measure = "rt")
 
 # test contrast
-diff.deaf.hearing.rt <- mu.hearing.rt - mu.deaf.rt
+diff.deaf.hearing.rt <- hearing - deaf
 quantile(diff.deaf.hearing.rt, probs = c(0.025, 0.5, 0.975))
 ```
+
 
 ### Target looking for each age group
 
@@ -225,10 +234,14 @@ acc_age_cat_targ.m.collapsed <- map2stan(
 
 post_ages.acc_collapsed <- extract.samples(acc_age_cat_targ.m.collapsed)
 
-mu.kids.collapsed <- post_ages.acc_collapsed$Intercept
-mu.adults.collapsed <- post_ages.acc_collapsed$b_Adults + post_ages.acc_collapsed$Intercept
-post_df.acc.collapsed <- data.frame(mu.kids.collapsed, mu.adults.collapsed)
-precis(post_df.acc.collapsed)
+kids <- post_ages.acc_collapsed$Intercept
+adults <- post_ages.acc_collapsed$b_Adults + post_ages.acc_collapsed$Intercept
+
+# get samples
+post_df.acc.collapsed <- data.frame(kids, adults) %>% 
+  gather(key = age_group, value = posterior_sample) %>% 
+  mutate(hearing_status = "deaf", 
+         measure = "accuracy")
 
 diff.old.young.acc.collapsed <- mu.kids.collapsed - mu.adults.collapsed
 quantile(diff.old.young.acc.collapsed, probs = c(0.025, 0.5, 0.975))
@@ -248,105 +261,26 @@ rt_age_cat_collapsed.m <- map2stan(
 
 post_ages.rt_collapsed <- extract.samples(rt_age_cat_collapsed.m)
 
-mu.kids.rt.collapsed <- as.numeric(post_ages.rt_collapsed$Intercept)
-mu.adults.rt.collapsed <- as.numeric(post_ages.rt_collapsed$b_Adults + post_ages.rt_collapsed$Intercept)
-post_df.rt.collapsed <- data.frame(mu.kids.rt.collapsed, mu.adults.rt.collapsed) 
-precis(post_df.rt.collapsed)
+kids <- as.numeric(post_ages.rt_collapsed$Intercept)
+adults <- as.numeric(post_ages.rt_collapsed$b_Adults + post_ages.rt_collapsed$Intercept)
+
+post_df.rt.collapsed <- data.frame(kids, adults) %>% 
+  gather(key = age_group, value = posterior_sample) %>% 
+  mutate(hearing_status = "deaf", 
+         measure = "rt")
+
 
 diff.old.young.rt.collapsed <- mu.kids.rt.collapsed - mu.adults.rt.collapsed
 quantile(diff.old.young.rt.collapsed, probs = c(0.025, 0.5, 0.975))
 ```
 
-## Summary barplots for categorical analyses
-
-```{r barplot munging, fig.width = 8}
-# Accuracy: MAP and HDI for each age group
-post_df.acc_all %<>% gather(key = age_group, value = post_sample, mu.younger:mu.adults) 
-
-ms_all <- post_df.acc_all %>%
-  group_by(age_group, looking_type) %>% 
-  summarise(mean_post = mean(post_sample),
-            HDI_lower = HDIofMCMC(post_sample, credMass = 0.95)[1],
-            HDI_upper = HDIofMCMC(post_sample, credMass = 0.95)[2]) %>% 
-  mutate(HDI_lower = ifelse(HDI_lower <= 0, 0, HDI_lower),
-         looking_type = ifelse(looking_type == "Distractor", "Distracter", "Target"),
-         age_group_fact = factor(age_group, 
-                                levels = c("mu.younger", "mu.older", "mu.adults")))
-
-# RT: MAP and HDI for each age group
-post_df.rt %<>% gather(key = age_group, value = post_sample)
-
-ms_all_rt <- post_df.rt %>%
-  group_by(age_group) %>% 
-  summarise(mean_post = mean(post_sample),
-            HDI_lower = HDIofMCMC(post_sample, credMass = 0.95)[1],
-            HDI_upper = HDIofMCMC(post_sample, credMass = 0.95)[2]) %>% 
-  mutate(age_group_fact = factor(age_group, levels = c("mu.younger.rt", 
-                                                       "mu.older.rt", 
-                                                       "mu.adults.rt")))
-
-ggplot(aes(x = age_group, y = post_sample),
-       data = post_df.rt) +
-  geom_violin() +
-  geom_violin(draw_quantiles = c(0.5)) 
-```
-
-```{r boxplot}
-# Bar Plot Acc
-all_acc <- ggplot(aes(x = age_group_fact, y = mean_post, fill = looking_type), 
-                  data = ms_all) +
-  geom_bar(stat = "identity", position="dodge", color = "black") +
-  geom_linerange(aes(ymin = HDI_lower, ymax = HDI_upper),
-                 position = position_dodge(width = 0.9)) +
-  labs(x = "Age Group", y = "Proportion Looking") + 
-  coord_cartesian(ylim=c(0, 1)) +
-  scale_fill_grey(start = 0.8, end = 0, breaks = c("Target", "Distracter")) +
-  guides(fill=guide_legend(title=NULL), color=F) +
-  scale_x_discrete(labels=c("Younger", "Older", "Adults")) +
-  theme(axis.title.x = element_text(colour="grey40",size=16,
-                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.title.y = element_text(colour="grey40",size=16,
-                                      angle=90,hjust=0.5,vjust=0.5,face="plain"),
-          axis.text.x = element_text(colour="grey20",size=12,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.text.y = element_text(colour="grey20",size=12,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-        plot.margin = unit(c(0.5,2,1,1), "cm"),
-        legend.position = c(0.3, 0.88),
-        legend.text = element_text(size = 12)) 
-
-# Bar plot RT
-all_rt <- ggplot(aes(x= age_group_fact, y = mean_post), 
-                 data = ms_all_rt) +
-  geom_bar(stat = "identity", fill = "black") +
-  geom_linerange(aes(ymax = HDI_upper, ymin = HDI_lower)) +
-  guides(fill=F, color = F) +
-  labs(x = "Age Group", y = "Mean RT (ms)") +
-  scale_x_discrete(labels=c("Younger", "Older", "Adults")) +
-  ylim(0, 1600) +
-  theme(axis.title.x = element_text(colour="grey40",size=16,
-                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.title.y = element_text(colour="grey40",size=16,
-                                      angle=90,hjust=0.5,vjust=0.5,face="plain"),
-          axis.text.x = element_text(colour="grey20",size=12,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.text.y = element_text(colour="grey20",size=12,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-        plot.margin = unit(c(0.5,2,1,1), "cm")) 
-
-```
-
-Merge plots
+### Merge model output for ACC/RT coda-deaf comparisons to be used in the plotting script.
 
 ```{r}
-final_bar_plot <- gridExtra::grid.arrange(all_acc, all_rt, ncol = 2)
-```
+model_output <- bind_rows(post_df_hearing_stat.acc, post_hearing_stat.rt,
+                          post_df.acc.collapsed, post_df.rt.collapsed)
 
-Save the final plot
-
-```{r}
-ggsave(final_bar_plot, filename = "paper/sol-figs/summary.png", 
-       device = "png", width = 10, height = 5)
+write_csv(model_output, "simulations/group_means_acc_rt.csv")
 ```
 
 ## References

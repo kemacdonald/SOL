@@ -12,6 +12,7 @@ knitr::opts_chunk$set(warning=FALSE, message=FALSE, sanitize = T,
 source("../helper_functions/libraries_v_3.6.R")
 source("../helper_functions/useful.R")
 library(magrittr); library(GGally); library(tidyverse)
+library(cowplot)
 theme_set(ggthemes::theme_few())
 ```
 
@@ -24,43 +25,46 @@ gv_all <- read.csv("../../data/processed_data/summary_tables/sol_gvals_all.csv",
 
 gv_coda <- read.csv("../../data/processed_data/summary_tables/sol_gvals_coda.csv", 
                     stringsAsFactors = F)
+
+gv_categorical <- read_csv("bayesian-data-analysis/simulations/group_means_acc_rt.csv")
 ```
 
-## Tanenhaus plot: all participants
+## Tanenhaus plot: Adults
 
 ```{r tanenhaus-plot}
-breaks <- seq(0,4000, by=1000)
+breaks <- seq(0,4000, by=500)
 y_breaks <- seq(0.25,1.0, by = 0.25)
-points <- seq(0,4000, by = 300)
+points <- seq(0,4000, by = 200)
 
-ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, color = value_cat), 
-       data = gv_all) + 
-    ylim(0,1) +
-    geom_rect(aes(xmin = 600, xmax = 2500, ymin = -Inf, ymax = Inf), alpha = 0.1, 
-              fill = "grey95", color = NA) +
-    geom_line(data = filter(gv_all, to.n(Time.ms) %in% points), size=0.7) +
-    geom_linerange(data = filter(gv_all, Time.ms %in% points),
-                   aes(ymin=mean_prop_looking - ci_low, 
-                       ymax=mean_prop_looking + ci_high), alpha = 0.5) +
-    geom_point(data = filter(gv_all, to.n(Time.ms) %in% points), size=2.5) +
-    xlim(0,4000) +
-    facet_grid(. ~ age_group) +
-  scale_color_manual(values = c("grey65", "grey40", "grey1")) +
-    #scale_color_brewer(palette = "Set1", type = "qual") +
-    xlab("Time in ms from onset of noun") +
-    ylab("Proportion looking") +
-    guides(color = F) +
-    theme(axis.title.x = element_text(colour="grey40",size=16,
-                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.title.y = element_text(colour="grey40",size=16,
-                                      angle=90,hjust=0.5,vjust=0.5,face="plain"),
-          axis.text.x = element_text(colour="grey20",size=12,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.text.y = element_text(colour="grey20",size=12,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-         plot.margin = unit(c(0.5,0.5,0.5,0.5), "cm"),
-         strip.text.x = element_text(size = 12),
-         panel.spacing = unit(1, "lines"))
+
+a <- gv_all %>% 
+  filter(age_group == "Adults") %>% 
+  ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, color = value_cat), 
+         data = .) + 
+  ylim(0,1) +
+  geom_rect(aes(xmin = 600, xmax = 2500, ymin = -Inf, ymax = Inf), alpha = 0.1, 
+            fill = "grey95", color = NA) +
+  geom_line(data = filter(gv_all, to.n(Time.ms) %in% points, age_group == "Adults"), 
+            size=1) +
+  geom_linerange(data = filter(gv_all, Time.ms %in% points, age_group == "Adults"),
+                 aes(ymin=mean_prop_looking - ci_low, 
+                     ymax=mean_prop_looking + ci_high), size = 0.5, alpha = 0.5) +
+  geom_point(data = filter(gv_all, to.n(Time.ms) %in% points, age_group == "Adults"), 
+             size=2, stroke = 1.5) +
+  xlim(0,4000) +
+  #facet_grid(. ~ age_group) +
+  scale_color_manual(values = c("grey70", "grey50", "grey1")) +
+  xlab("Time in ms from onset of noun") +
+  ylab("Proportion looking") +
+  guides(color = F) +
+  theme(axis.title.x = element_text(colour="grey40",size=16,
+                                    angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.title.y = element_text(colour="grey40",size=16,
+                                    angle=90,hjust=0.5,vjust=0.5,face="plain"),
+        axis.text.x = element_text(colour="grey20",size=12,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.text.y = element_text(colour="grey20",size=12,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"))
 ```
 
 ## Tanenhaus plot: CODA/Deaf
@@ -70,28 +74,102 @@ breaks <- seq(0,4000, by=500)
 y_breaks <- seq(0.25,1.0, by = 0.25)
 points <- seq(0,4000, by = 300)
 
-ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, linetype = hearing_status_participant, 
-           color = value_cat, shape = hearing_status_participant), 
-       data = gv_coda) + 
-    geom_rect(aes(xmin = 600, xmax = 2500, ymin = -Inf, ymax = Inf), alpha = 0.1, 
-              fill = "grey90", color = NA) +
-    geom_line(data = filter(gv_coda, Time.ms %in% points), size=1) +
-    geom_linerange(data = filter(gv_coda, Time.ms %in% points),
-                   aes(ymin=mean_prop_looking - ci_low, 
-                       ymax=mean_prop_looking + ci_high), size=0.5, alpha = 0.7) +
-    geom_point(data = filter(gv_coda, to.n(Time.ms) %in% points), size=2, 
-               fill = "white", 
-               stroke = 1.5) +
-    scale_shape_manual(values = c(19, 21)) +
-    #scale_color_brewer(palette = "Set1", type = "qual") +
+b <- ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, 
+                linetype = hearing_status_participant, 
+                color = value_cat, shape = hearing_status_participant), 
+            data = gv_coda) + 
+  geom_rect(aes(xmin = 600, xmax = 2500, ymin = -Inf, ymax = Inf), alpha = 0.1, 
+            fill = "grey90", color = NA) +
+  geom_line(data = filter(gv_coda, Time.ms %in% points), size=1) +
+  geom_linerange(data = filter(gv_coda, Time.ms %in% points),
+                 aes(ymin=mean_prop_looking - ci_low, 
+                     ymax=mean_prop_looking + ci_high), size=0.5, alpha = 0.7) +
+  geom_point(data = filter(gv_coda, to.n(Time.ms) %in% points), size=2, 
+             fill = "white", 
+             stroke = 1.5) +
+  scale_shape_manual(values = c(19, 21)) +
+  #scale_color_brewer(palette = "Set1", type = "qual") +
   scale_color_manual(values = c("grey70", "grey50", "grey1")) +
-    xlim(0, 4000) +
-    ylim(0,1) +
-    xlab("Time in ms from onset of noun") +
-    ylab("Proportion looking") +
-    theme_bw() +
-    guides(color = F, linetype = F, fill = F, shape = F) +
-    theme(axis.title.x = element_text(colour="grey40",size=16,
+  xlim(0, 4000) +
+  ylim(0,1) +
+  xlab("Time in ms from onset of noun") +
+  ylab("Proportion looking") +
+  guides(color = F, linetype = F, fill = F, shape = F) +
+  theme(axis.title.x = element_text(colour="grey40",size=16,
+                                    angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.title.y = element_text(colour="grey40",size=16,
+                                    angle=90,hjust=0.5,vjust=0.5,face="plain"),
+        axis.text.x = element_text(colour="grey20",size=12,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"),
+        axis.text.y = element_text(colour="grey20",size=12,
+                                   angle=0,hjust=0.5,vjust=0,face="plain"))
+```
+
+```{r}
+plot_grid(a, b, ncol = 1, labels = c("A", "B"))
+```
+
+
+
+## Summary barplots for categorical analyses
+
+```{r}
+gv_categorical %>% 
+  ggplot(., aes(x = age_group, y = posterior_sample, fill = hearing_status)) +
+  geom_boxplot(width = 0.6) +
+  facet_wrap(~measure, ncol = 1, scales = "free") +
+  scale_fill_solarized()
+```
+
+
+
+```{r barplot munging, fig.width = 8}
+# Accuracy: MAP and HDI for each age group
+koda_deaf_df <- gv_categorical %>% 
+  select(mu.hearing:mu.deaf.rt) %>% 
+  gather(key = hearing_status, value = posterior_sample) 
+
+ms_all <- gv_all %>%
+  group_by(age_group, looking_type) %>% 
+  summarise(mean_post = mean(post_sample),
+            HDI_lower = HDIofMCMC(post_sample, credMass = 0.95)[1],
+            HDI_upper = HDIofMCMC(post_sample, credMass = 0.95)[2]) %>% 
+  mutate(HDI_lower = ifelse(HDI_lower <= 0, 0, HDI_lower),
+         looking_type = ifelse(looking_type == "Distractor", "Distracter", "Target"),
+         age_group_fact = factor(age_group, 
+                                levels = c("mu.younger", "mu.older", "mu.adults")))
+
+# RT: MAP and HDI for each age group
+post_df.rt %<>% gather(key = age_group, value = post_sample)
+
+ms_all_rt <- post_df.rt %>%
+  group_by(age_group) %>% 
+  summarise(mean_post = mean(post_sample),
+            HDI_lower = HDIofMCMC(post_sample, credMass = 0.95)[1],
+            HDI_upper = HDIofMCMC(post_sample, credMass = 0.95)[2]) %>% 
+  mutate(age_group_fact = factor(age_group, levels = c("mu.younger.rt", 
+                                                       "mu.older.rt", 
+                                                       "mu.adults.rt")))
+
+ggplot(aes(x = age_group, y = post_sample),
+       data = post_df.rt) +
+  geom_violin() +
+  geom_violin(draw_quantiles = c(0.5)) 
+```
+
+```{r boxplot}
+# Bar Plot Acc
+all_acc <- ggplot(aes(x = age_group_fact, y = mean_post, fill = looking_type), 
+                  data = ms_all) +
+  geom_bar(stat = "identity", position="dodge", color = "black") +
+  geom_linerange(aes(ymin = HDI_lower, ymax = HDI_upper),
+                 position = position_dodge(width = 0.9)) +
+  labs(x = "Age Group", y = "Proportion Looking") + 
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_fill_grey(start = 0.8, end = 0, breaks = c("Target", "Distracter")) +
+  guides(fill=guide_legend(title=NULL), color=F) +
+  scale_x_discrete(labels=c("Younger", "Older", "Adults")) +
+  theme(axis.title.x = element_text(colour="grey40",size=16,
                                       angle=0,hjust=0.5,vjust=0,face="plain"),
           axis.title.y = element_text(colour="grey40",size=16,
                                       angle=90,hjust=0.5,vjust=0.5,face="plain"),
@@ -99,5 +177,40 @@ ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, linetype = hearing_status_p
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
           axis.text.y = element_text(colour="grey20",size=12,
                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-         plot.margin = unit(c(0.5,2,1,1), "cm"))
+        plot.margin = unit(c(0.5,2,1,1), "cm"),
+        legend.position = c(0.3, 0.88),
+        legend.text = element_text(size = 12)) 
+
+# Bar plot RT
+all_rt <- ggplot(aes(x= age_group_fact, y = mean_post), 
+                 data = ms_all_rt) +
+  geom_bar(stat = "identity", fill = "black") +
+  geom_linerange(aes(ymax = HDI_upper, ymin = HDI_lower)) +
+  guides(fill=F, color = F) +
+  labs(x = "Age Group", y = "Mean RT (ms)") +
+  scale_x_discrete(labels=c("Younger", "Older", "Adults")) +
+  ylim(0, 1600) +
+  theme(axis.title.x = element_text(colour="grey40",size=16,
+                                      angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.title.y = element_text(colour="grey40",size=16,
+                                      angle=90,hjust=0.5,vjust=0.5,face="plain"),
+          axis.text.x = element_text(colour="grey20",size=12,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
+          axis.text.y = element_text(colour="grey20",size=12,
+                                     angle=0,hjust=0.5,vjust=0,face="plain"),
+        plot.margin = unit(c(0.5,2,1,1), "cm")) 
+
+```
+
+Merge plots
+
+```{r}
+final_bar_plot <- gridExtra::grid.arrange(all_acc, all_rt, ncol = 2)
+```
+
+Save the final plot
+
+```{r}
+ggsave(final_bar_plot, filename = "paper/sol-figs/summary.png", 
+       device = "png", width = 10, height = 5)
 ```
