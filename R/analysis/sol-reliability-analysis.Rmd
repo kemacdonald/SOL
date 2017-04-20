@@ -18,6 +18,8 @@ theme_set(ggthemes::theme_few())
 
 ## Split-half reliability analysis
 
+Approach taken from (http://schatz.sju.edu/multivar/reliab/splithalf.html).
+
 Load trial-level data
 
 ```{r}
@@ -59,7 +61,7 @@ ggplot(aes(x = first, y = second, color = age_code), data = split_df) +
 ```{r}
 ## compute pearson r
 sp_r <- split_df %>% 
-  group_by(age_code, measure) %>% 
+  group_by(measure) %>% 
   do(data.frame(pearson_r = cor(.$first, .$second, method = "pearson")))
 
 ## spearman-brown correction
@@ -68,12 +70,21 @@ sp_r %>%
   kable(digits = 3)
 ```
 
-What's the power that we had to detect this correlation?
+Use `alpha()` function in the psych package.
 
 ```{r}
-pwr::pwr.r.test(n = 29, r = 0.5, sig.level = .05, alternative = "greater")
+acc <- split_df %>% filter(measure == "mean_acc") %>% ungroup() %>% select(first, second)
+rel_acc <- psych::alpha(acc)
+
+# print cronbach's alpha
+round(rel_acc$total$raw_alpha, 2)
 ```
 
 ```{r}
-pwr::pwr.r.test(n = 29, r = 0.3, sig.level = .05, alternative = "greater")
+rt <- split_df %>% filter(measure == "median_rt") %>% ungroup() %>% select(first, second)
+rel_rt <- psych::alpha(rt)
+
+# print cronbach's alpha
+round(rel_rt$total$raw_alpha, 2)
 ```
+

@@ -9,7 +9,8 @@ rm(list=ls()) # clear workspcace
 knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T,warning=F, message=F)
 source("../helper_functions/useful.R")
 library(langcog); library(knitr); library(forcats)
-library(magrittr); library(tidyverse); library(rethinking)
+library(magrittr);library(rethinking)
+library(car); library(tidyverse) 
 theme_set(theme_classic())
 ```
 
@@ -46,7 +47,6 @@ d.sign_lengths %<>% filter(is.na(Tr.Num) == F) %>%
   mutate(Tr.Num = as.integer(Tr.Num)) %>% 
   select(-Key)
 ```
-
 
 Create "signer" variable in summary table so we can add the sign length information.
 
@@ -89,8 +89,9 @@ Plot distribution of prop sign needed variable
 
 ```{r}
 ss.all.signs %>% 
-  ggplot(., aes(x = m_prop_sign_needed)) +
-  geom_histogram()
+  ggplot(., aes(x = m_prop_sign_needed, color = age_code)) +
+  geom_density(adjust = 1.5, size = 1) +
+  xlim(0,1.5)
 ```
 
 Remove outliers +/- 2 sd from the mean for each group
@@ -111,15 +112,6 @@ ss.all.signs %<>%
          stdev = sd(m_prop_sign_needed),
          outlier = ifelse(m_prop_sign_needed <= m - 2 * stdev |
                             m_prop_sign_needed >= m + 2 * stdev, "yes", "no"))
-```
-
-Plot distribution, flagging outliers
-
-```{r}
-ss.all.signs %>% 
-  ggplot(., aes(x = m_prop_sign_needed, fill = age_code)) +
-  geom_density(alpha = 0.7) +
-  scale_fill_solarized()
 ```
 
 ```{r}
@@ -160,7 +152,7 @@ ms.final$age_code <- fct_relevel(ms.final$age_code, "children")
 Make the plot
 
 ```{r}
-item_plot <- ms.final %>% 
+ ms.final %>% 
   ggplot(aes(x = reorder(clean_target_img, plot_order), y = mean, 
              color = all_signs, shape = all_signs, size = all_signs)) +
   scale_color_manual(values = c("black", "red")) +
@@ -168,10 +160,11 @@ item_plot <- ms.final %>%
   scale_size_manual(values = c(0.8, 1.4)) +
   geom_hline(yintercept = 1, linetype = "dashed") +
   geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper)) +
+  scale_x_discrete(expand = c(0.1,0)) +
   coord_flip() +
   guides(color = F, shape = F, size = F) +
   scale_y_continuous(limits = c(0.1, 1.6), breaks = c(0.25, 0.5, 0.75, 1.0, 1.25, 1.5)) +
-  labs(y = "Prop. Target Sign Prior to Gaze Shift", x = "Target sign") +
+  labs(y = "Proportion of Target Sign Processed Prior to Gaze Shift", x = "Target sign") +
   facet_wrap(~age_code, ncol = 2) +
   ggthemes::theme_few()
 ```
