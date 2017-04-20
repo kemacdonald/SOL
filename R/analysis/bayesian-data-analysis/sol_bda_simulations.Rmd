@@ -23,8 +23,15 @@ library(langcog); library(knitr);
 library(polspline); library(rethinking); 
 library(R2jags); library(rjags); 
 library(magrittr); library(tidyverse); 
-theme_set(theme_bw())
+library(car)
 ```
+
+Set the seed so we can reproduce the exact simulations.
+
+```{r}
+set.seed(13412)
+```
+
 
 ```{r load data}
 # Load data
@@ -40,35 +47,63 @@ d_2800$window <- "600_2800"
 d <- bind_rows(d_2200, d_2500, d_2800)
 ```
 
+```{r}
+d %>% 
+  filter(age_group_collapsed == "Kids") %>% 
+  select(Sub.Num) %>% 
+  unique() %>% 
+  nrow()
+```
+
+Following Barr (2008), we use a logit transform to convert the accuracy scores which are on a proportion scale to a log odds scale to be more suitable for the linear model.
+
+```{r}
+d %<>% mutate(logit_acc = car::logit(mean_prop_looking_TD))
+```
+
+
 Standardize the data
 
 ```{r}
-d %<>% 
-    mutate(C_D_count = ifelse(is.na(C_D_count), 0, C_D_count),
-           total_trials_shifting = C_T_count + C_D_count,
-           Sub.Num = as.character(Sub.Num)) %>% 
-    dplyr::select(Sub.Num, age_peek_months, age_group, signs_produced, C_T_count, total_trials_shifting,
-                  median_rt = median_ct_rt, C_T_prop, mean_prop_looking_TD,
-                  value_cat, age_group_collapsed, hearing_status_participant, window)
+d %<>% mutate(C_D_count = ifelse(is.na(C_D_count), 0, C_D_count),
+              total_trials_shifting = C_T_count + C_D_count,
+              Sub.Num = as.character(Sub.Num)) %>% 
+  dplyr::select(Sub.Num, age_peek_months, age_group, signs_produced, 
+                C_T_count,total_trials_shifting,
+                median_rt = median_ct_rt, 
+                C_T_prop, logit_acc, mean_prop_looking_TD,
+                value_cat, age_group_collapsed, hearing_status_participant, window)
 
 d_all <- d %>% filter(value_cat == "Target" | value_cat == "Distractor")    
 ```
 
 ```{r}
 d %<>% filter(age_group_collapsed == "Kids", value_cat == "Target")  %>% 
-    mutate(age.s = (age_peek_months - mean(age_peek_months, na.rm=T)) / sd(age_peek_months, na.rm=T),
-           acc.s = (mean_prop_looking_TD - mean(mean_prop_looking_TD)) / sd(mean_prop_looking_TD),
-           rt.s = (median_rt - mean(median_rt)) / sd(median_rt),
-           voc.s = (signs_produced - mean(signs_produced)) / sd(signs_produced))
+  mutate(age.s = (age_peek_months - mean(age_peek_months, na.rm=T)) / sd(age_peek_months, na.rm=T),
+         acc.s.logit = (logit_acc - mean(logit_acc)) / sd(logit_acc),
+         acc.s = (logit_acc - mean(logit_acc)) / sd(logit_acc),
+         rt.s = (median_rt - mean(median_rt)) / sd(median_rt),
+         voc.s = (signs_produced - mean(signs_produced)) / sd(signs_produced),
+         hearing_status_dummy = ifelse(hearing_status_participant == "deaf", 1, 0))
 ```
 
 ```{r}
 d_voc <- d %>% 
-    filter(is.na(signs_produced) == F) %>% 
-    mutate(age.s = (age_peek_months - mean(age_peek_months, na.rm=T)) / sd(age_peek_months, na.rm=T),
-           acc.s = (mean_prop_looking_TD - mean(mean_prop_looking_TD)) / sd(mean_prop_looking_TD),
-           rt.s = (median_rt - mean(median_rt)) / sd(median_rt),
-           voc.s = (signs_produced - mean(signs_produced, na.rm = T)) / sd(signs_produced, na.rm = T))
+  filter(is.na(signs_produced) == F) %>% 
+  mutate(age.s = (age_peek_months - mean(age_peek_months, na.rm=T)) / sd(age_peek_months, na.rm=T),
+         acc.s.logit = (logit_acc - mean(logit_acc)) / sd(logit_acc),
+         acc.s = (mean_prop_looking_TD - mean(mean_prop_looking_TD)) / sd(mean_prop_looking_TD),
+         rt.s = (median_rt - mean(median_rt)) / sd(median_rt),
+         voc.s = (signs_produced - mean(signs_produced, na.rm = T)) / sd(signs_produced, na.rm = T),
+         hearing_status_dummy = ifelse(hearing_status_participant == "deaf", 1, 0))
+```
+
+```{r}
+d %>% 
+  filter(age_group_collapsed == "Kids") %>% 
+  select(Sub.Num) %>% 
+  unique() %>% 
+  nrow()
 ```
 
 Save output.
@@ -118,7 +153,7 @@ dfs_voc <- list(d_voc_2200, d_voc_2500, d_voc_2800)
 slope_priors <- c(.1, .5, 1, 2)
 
 df_acc_age_final <- window_simulations_fun(list_of_dfs = dfs_voc, 
-                                           predictor = "age.s", outcome = "acc.s", 
+                                           predictor = "age.s", outcome = "acc.s.logit", 
                                            model_type = "accuracy",
                                            prior_list = slope_priors)
 
@@ -131,7 +166,9 @@ df_acc_voc_final <- window_simulations_fun(list_of_dfs = dfs_voc,
 Inspect chains for convergence and see any differences across windows.
 
 ```{r}
-a <- ggplot(aes(x=iteration, y=beta1), data = df_acc_age_final) + 
+a <- df_acc_age_final %>% 
+  sample_n(., size = 2000) %>% 
+  ggplot(aes(x=iteration, y=beta1), data = .) + 
   geom_line() +
   ggtitle("Trace of Slope Parameter for Accuracy ~ Age") +
   facet_grid(slope_prior~window)  +
@@ -139,7 +176,9 @@ a <- ggplot(aes(x=iteration, y=beta1), data = df_acc_age_final) +
   xlab("Iteration Number") +
   guides(color = F)
 
-b <- ggplot(aes(x=iteration, y=beta1), data = df_acc_voc_final) + 
+b <- df_acc_voc_final %>% 
+  sample_n(., size = 2000) %>%
+  ggplot(aes(x=iteration, y=beta1), data = .) + 
   geom_line() +
   ggtitle("Trace of Slope Parameter for Accuracy ~ Vocab") +
   facet_grid(slope_prior~window)  +
@@ -154,16 +193,16 @@ Get means and 95% HDIs.
 
 ```{r}
 df_acc_age_final %>% 
-    group_by(window, slope_prior) %>% 
-    summarise(mean = mean(beta1),
-              lower = HDIofMCMC(beta1)[1],
-              upper = HDIofMCMC(beta1)[2])
+  group_by(window, slope_prior) %>% 
+  summarise(mean = mean(beta1),
+            lower = HDIofMCMC(beta1)[1],
+            upper = HDIofMCMC(beta1)[2])
 
 df_acc_voc_final %>% 
-    group_by(window, slope_prior) %>% 
-    summarise(mean = mean(beta1),
-              lower = HDIofMCMC(beta1)[1],
-              upper = HDIofMCMC(beta1)[2])
+  group_by(window, slope_prior) %>% 
+  summarise(mean = mean(beta1),
+            lower = HDIofMCMC(beta1)[1],
+            upper = HDIofMCMC(beta1)[2])
 ```
 
 Save data frames with posterior samples for all three analysis windows for later analysis.
@@ -180,10 +219,10 @@ Set parameters to monitor and initial values for each RT model.
 ```{r set params for rt model}
 parameters = c( "true_beta0" , "true_beta1", "true_beta0_prior", "true_beta1_prior", "z")
 myinits <-  list(
-    list(phi = 0.75, z = round(runif(length(d_2200$age.s)))),
-    list(phi = 0.5, z = round(runif(length(d_2200$age.s)))),
-    list(phi = 0.99, z = round(runif(length(d_2200$age.s))))
-    )
+  list(phi = 0.75, z = round(runif(length(d_2200$age.s)))),
+  list(phi = 0.5, z = round(runif(length(d_2200$age.s)))),
+  list(phi = 0.99, z = round(runif(length(d_2200$age.s))))
+)
 ```
 
 Draw samples from all three analysis windows.
@@ -191,21 +230,23 @@ Draw samples from all three analysis windows.
 ```{r}
 slope_priors <- c(.1, .5, 1, 2)
 df_rt_age_final <- window_simulations_fun(list_of_dfs = dfs_voc, 
-                                           predictor = "age.s", outcome = "rt.s", 
-                                           model = "rt",
+                                          predictor = "age.s", outcome = "rt.s", 
+                                          model = "rt",
                                           prior_list = slope_priors)
 
 
 df_rt_voc_final <- window_simulations_fun(list_of_dfs = dfs_voc, 
-                                           predictor = "voc.s", outcome = "rt.s", 
-                                           model = "rt",
+                                          predictor = "voc.s", outcome = "rt.s", 
+                                          model = "rt",
                                           prior_list = slope_priors)
 ```
 
 Inspect chains for convergence and see any differences across windows and priors.
 
 ```{r}
-a <- ggplot(aes(x=iteration, y=beta1), data = df_rt_age_final) + 
+a <- df_rt_age_final %>% 
+  sample_n(., size = 2000) %>% 
+  ggplot(aes(x=iteration, y=beta1), data = .) + 
   geom_line() +
   ggtitle("Trace of Slope Parameter for RT ~ Age") +
   facet_grid(slope_prior~window)  +
@@ -213,7 +254,9 @@ a <- ggplot(aes(x=iteration, y=beta1), data = df_rt_age_final) +
   xlab("Iteration Number") +
   guides(color = F)
 
-b <- ggplot(aes(x=iteration, y=beta1), data = df_rt_voc_final) + 
+b <- df_rt_voc_final %>% 
+  sample_n(., size = 2000) %>% 
+  ggplot(aes(x=iteration, y=beta1), data = .) + 
   geom_line() +
   ggtitle("Trace of Slope Parameter for RT ~ Vocab") +
   facet_grid(slope_prior~window)  +
@@ -228,115 +271,21 @@ Get means and 95% HDIs.
 
 ```{r}
 df_rt_age_final %>% 
-    group_by(window, slope_prior) %>% 
-    summarise(mean = mean(beta1),
-              lower = HDIofMCMC(beta1)[1],
-              upper = HDIofMCMC(beta1)[2])
+  group_by(window, slope_prior) %>% 
+  summarise(mean = mean(beta1),
+            lower = HDIofMCMC(beta1)[1],
+            upper = HDIofMCMC(beta1)[2])
 
 df_rt_voc_final %>% 
-    group_by(window, slope_prior) %>% 
-    summarise(mean = mean(beta1),
-              lower = HDIofMCMC(beta1)[1],
-              upper = HDIofMCMC(beta1)[2])
+  group_by(window, slope_prior) %>% 
+  summarise(mean = mean(beta1),
+            lower = HDIofMCMC(beta1)[1],
+            upper = HDIofMCMC(beta1)[2])
 ```
 
-Save output.
-
-```{r, eval = F}
-write.csv(x = df_rt_age_final, "simulations/diff_windows/sol_rt_age_mcmc.csv", row.names = F)
-write.csv(x = df_rt_voc_final, "simulations/diff_windows/sol_rt_voc_mcmc.csv", row.names = F)
-```
-
-# Analysis 3: CODA vs. Deaf (BF)
-
-## Coda vs. Deaf Accuracy 
+Save MCMC output.
 
 ```{r}
-# get accuracy data
-x <- d %>% 
-    filter(value_cat == "Target", age_group_collapsed == "Kids", 
-           hearing_status_participant == "deaf", window == "600_2500") %>% 
-    select(mean_prop_looking_TD) 
-
-y <- d %>% 
-    filter(value_cat == "Target", age_group_collapsed == "Kids", 
-           hearing_status_participant == "hearing", window == "600_2500") %>% 
-    select(mean_prop_looking_TD)
-
-x <- x$mean_prop_looking_TD
-y <- y$mean_prop_looking_TD
-
-n1 <- length(x)
-n2 <- length(y)
-
-# Rescale data 
-y <- y - mean(x)
-y <- y/sd(x)
-x <- (x-mean(x))/sd(x); data <- list("x", "y", "n1", "n2") # to be passed on to JAGS
-
-myinits <- list(
-    list(delta = rnorm(1,0,3), mu = rnorm(1,0,1), sigmatmp = runif(1,0,5)),
-    list(delta = rnorm(1,0,3), mu = rnorm(1,0,1), sigmatmp = runif(1,0,5)),
-    list(delta = rnorm(1,0,3), mu = rnorm(1,0,1), sigmatmp = runif(1,0,5)))
-
-# Parameters to be monitored
-parameters <- c("delta")
-
-# The following command calls JAGS with specific options.
-# For a detailed description see the R2jags documentation.
-samples <- jags(data, inits=myinits, parameters,
-                model.file = "models/categorical_model.txt",
-                n.chains=3, n.iter=10000, n.burnin=5000, n.thin=1, DIC=T)
-
-# Store output of mcmc for later analysis
-df_final <- data.frame(delta.posterior.acc=samples$BUGSoutput$sims.list$delta)
-```
-
-## Coda vs. Deaf RT 
-
-```{r}
-# get accuracy data
-x <- d %>% 
-    filter(value_cat == "Target", age_group_collapsed == "Kids", 
-           hearing_status_participant == "deaf", window == "600_2500") %>% 
-    select(median_rt) 
-
-y <- d %>% 
-    filter(value_cat == "Target", age_group_collapsed == "Kids", 
-           hearing_status_participant == "hearing", window == "600_2500") %>% 
-    select(median_rt)
-
-x <- x$median_rt
-y <- y$median_rt
-
-n1 <- length(x)
-n2 <- length(y)
-
-# Rescale data 
-y <- y - mean(x)
-y <- y/sd(x)
-x <- (x-mean(x))/sd(x); data <- list("x", "y", "n1", "n2") # to be passed on to JAGS
-
-myinits <- list(
-    list(delta = rnorm(1,0,3), mu = rnorm(1,0,1), sigmatmp = runif(1,0,5)),
-    list(delta = rnorm(1,0,3), mu = rnorm(1,0,1), sigmatmp = runif(1,0,5)),
-    list(delta = rnorm(1,0,3), mu = rnorm(1,0,1), sigmatmp = runif(1,0,5)))
-
-# Parameters to be monitored
-parameters <- c("delta")
-
-# The following command calls JAGS with specific options.
-# For a detailed description see the R2jags documentation.
-samples <- jags(data, inits=myinits, parameters,
-                model.file = "models/categorical_model.txt",
-                n.chains=3, n.iter=10000, n.burnin=5000, n.thin=1, DIC=T)
-
-# Save to final data frame
-df_final$delta.posterior.rt <- samples$BUGSoutput$sims.list$delta
-```
-
-Save output.
-
-```{r, eval = F}
-write.csv(x = df_final, "simulations/diff_windows/coda_deaf_bf_mcmc.csv", row.names = F)
+write.csv(x = df_rt_age_final, "simulations/sol_rt_age_mcmc.csv", row.names = F)
+write.csv(x = df_rt_voc_final, "simulations/sol_rt_voc_mcmc.csv", row.names = F)
 ```

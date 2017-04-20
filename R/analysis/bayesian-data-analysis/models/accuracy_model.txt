@@ -1,5 +1,6 @@
 # Specify the model for standardized data:
 model {
+    # Likelihood
     for ( i in 1:Ntotal ) {
         y[i] ~ dnorm( zbeta0 + zbeta1 * x[i] , 1/(zsigma)^2 )
     }
@@ -14,4 +15,5 @@ model {
     zbeta1_prior ~ dnorm(0,prior)I(0,)
     zbeta0_prior ~ dnorm(0,1/(10)^2) 
 }
+        
         

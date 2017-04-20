@@ -4,6 +4,8 @@ author: "Kyle MacDonald"
 output: html_document
 ---
 
+This document contains code for generating the visualizations that appear in the paper, "Real-time lexical comprehension in young children learning American Sign Language (ASL)."This script
+
 ```{r chunk_options}
 rm(list=ls())
 knitr::opts_chunk$set(warning=FALSE, message=FALSE, sanitize = T, 
@@ -12,21 +14,21 @@ knitr::opts_chunk$set(warning=FALSE, message=FALSE, sanitize = T,
 source("../helper_functions/libraries_v_3.6.R")
 source("../helper_functions/useful.R")
 library(magrittr); library(GGally); library(tidyverse)
-library(cowplot)
-theme_set(ggthemes::theme_few())
+library(cowplot); 
+theme_set(theme_classic())
 ```
 
 ## Read in data
 
 ```{r}
-# tanenhaus graph values
-gv_all <- read.csv("../../data/processed_data/summary_tables/sol_gvals_all.csv", 
-                   stringsAsFactors = F)
-
-gv_coda <- read.csv("../../data/processed_data/summary_tables/sol_gvals_coda.csv", 
-                    stringsAsFactors = F)
-
+gv_all <- read_csv("../../data/processed_data/graph_values/sol_gvals_all.csv")
+gv_coda <- read_csv("../../data/processed_data/graph_values/sol_gvals_coda.csv")
+raw_data <- read_csv("../../data/processed_data/summary_tables/sol_ss_all_600_2500.csv")
 gv_categorical <- read_csv("bayesian-data-analysis/simulations/group_means_acc_rt.csv")
+```
+
+```{r}
+median_sign_offset <- 1204
 ```
 
 ## Tanenhaus plot: Adults
@@ -36,35 +38,49 @@ breaks <- seq(0,4000, by=500)
 y_breaks <- seq(0.25,1.0, by = 0.25)
 points <- seq(0,4000, by = 200)
 
-
-a <- gv_all %>% 
+tan_adults <- gv_all %>% 
   filter(age_group == "Adults") %>% 
   ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, color = value_cat), 
          data = .) + 
-  ylim(0,1) +
-  geom_rect(aes(xmin = 600, xmax = 2500, ymin = -Inf, ymax = Inf), alpha = 0.1, 
-            fill = "grey95", color = NA) +
-  geom_line(data = filter(gv_all, to.n(Time.ms) %in% points, age_group == "Adults"), 
-            size=1) +
-  geom_linerange(data = filter(gv_all, Time.ms %in% points, age_group == "Adults"),
+  ylim(-.02,1) +
+  geom_rect(aes(xmin = 600, xmax = 2500, ymin = -Inf, ymax = -.02), alpha = 0.1, 
+            fill = "grey70", color = NA) +
+  geom_vline(xintercept = 1200, linetype = "dashed") +
+  geom_line(data = filter(gv_all, to.n(Time.ms) %in% points, 
+                          age_group == "Adults"), size=0.7) +
+  geom_linerange(data = filter(gv_all, Time.ms %in% points, 
+                               age_group == "Adults"),
                  aes(ymin=mean_prop_looking - ci_low, 
                      ymax=mean_prop_looking + ci_high), size = 0.5, alpha = 0.5) +
-  geom_point(data = filter(gv_all, to.n(Time.ms) %in% points, age_group == "Adults"), 
-             size=2, stroke = 1.5) +
+  geom_point(data = filter(gv_all, to.n(Time.ms) %in% points, 
+                           age_group == "Adults"), size=1.5, stroke = 1) +
   xlim(0,4000) +
-  #facet_grid(. ~ age_group) +
   scale_color_manual(values = c("grey70", "grey50", "grey1")) +
-  xlab("Time in ms from onset of noun") +
-  ylab("Proportion looking") +
+  labs(x = "Time in ms from onset of noun", y = "Proportion looking") +
   guides(color = F) +
-  theme(axis.title.x = element_text(colour="grey40",size=16,
-                                    angle=0,hjust=0.5,vjust=0,face="plain"),
-        axis.title.y = element_text(colour="grey40",size=16,
-                                    angle=90,hjust=0.5,vjust=0.5,face="plain"),
-        axis.text.x = element_text(colour="grey20",size=12,
-                                   angle=0,hjust=0.5,vjust=0,face="plain"),
-        axis.text.y = element_text(colour="grey20",size=12,
-                                   angle=0,hjust=0.5,vjust=0,face="plain"))
+  theme(plot.margin = unit(c(1,4,1,1), "lines"),
+        text = element_text(size = 14)) +
+  annotate(geom = "text", label = "median sign offset", x = 1900, y = 1.0) +
+  annotation_custom(grob = textGrob(label = "Signer"),
+                    ymin = 0.7,      
+                    ymax = 0.75,
+                    xmin = 4300,         
+                    xmax = 4500) +
+  annotation_custom(grob = textGrob(label = "Target"),
+                    ymin = 0.28,      
+                    ymax = 0.35,
+                    xmin = 4300,         
+                    xmax = 4500) +
+  annotation_custom(grob = textGrob(label = "Distracter"),
+                    ymin = 0,      
+                    ymax = 0,
+                    xmin = 4300,         
+                    xmax = 4600)
+
+# Code to override clipping
+gt <- ggplot_gtable(ggplot_build(tan_adults))
+gt$layout$clip[gt$layout$name == "panel"] <- "off"
+grid.draw(gt)
 ```
 
 ## Tanenhaus plot: CODA/Deaf
@@ -74,143 +90,156 @@ breaks <- seq(0,4000, by=500)
 y_breaks <- seq(0.25,1.0, by = 0.25)
 points <- seq(0,4000, by = 300)
 
-b <- ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, 
-                linetype = hearing_status_participant, 
-                color = value_cat, shape = hearing_status_participant), 
-            data = gv_coda) + 
-  geom_rect(aes(xmin = 600, xmax = 2500, ymin = -Inf, ymax = Inf), alpha = 0.1, 
-            fill = "grey90", color = NA) +
-  geom_line(data = filter(gv_coda, Time.ms %in% points), size=1) +
+tan_kids <- ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, 
+                       linetype = hearing_status_participant, 
+                       color = value_cat, shape = hearing_status_participant), 
+                   data = gv_coda) + 
+  geom_rect(aes(xmin = 600, xmax = 2500, ymin = -Inf, ymax = -.02), alpha = 0.1, 
+            fill = "grey70", color = NA) +
+  geom_vline(xintercept = 1200, linetype = "dashed") +
+  geom_line(data = filter(gv_coda, Time.ms %in% points), size=0.7) +
   geom_linerange(data = filter(gv_coda, Time.ms %in% points),
                  aes(ymin=mean_prop_looking - ci_low, 
                      ymax=mean_prop_looking + ci_high), size=0.5, alpha = 0.7) +
-  geom_point(data = filter(gv_coda, to.n(Time.ms) %in% points), size=2, 
-             fill = "white", 
-             stroke = 1.5) +
+  geom_point(data = filter(gv_coda, to.n(Time.ms) %in% points), size=1.5, 
+             fill = "white", stroke = 1.5) +
+  annotate(geom = "text", label = "median sign offset", x = 1900, y = 1.0) +
   scale_shape_manual(values = c(19, 21)) +
-  #scale_color_brewer(palette = "Set1", type = "qual") +
   scale_color_manual(values = c("grey70", "grey50", "grey1")) +
   xlim(0, 4000) +
-  ylim(0,1) +
-  xlab("Time in ms from onset of noun") +
-  ylab("Proportion looking") +
-  guides(color = F, linetype = F, fill = F, shape = F) +
-  theme(axis.title.x = element_text(colour="grey40",size=16,
-                                    angle=0,hjust=0.5,vjust=0,face="plain"),
-        axis.title.y = element_text(colour="grey40",size=16,
-                                    angle=90,hjust=0.5,vjust=0.5,face="plain"),
-        axis.text.x = element_text(colour="grey20",size=12,
-                                   angle=0,hjust=0.5,vjust=0,face="plain"),
-        axis.text.y = element_text(colour="grey20",size=12,
-                                   angle=0,hjust=0.5,vjust=0,face="plain"))
+  ylim(-.02,1) +
+  guides(color = F, linetype = F, fill = F)  +
+  labs(x = "Time in ms from onset of noun", y = "Proportion looking",
+       shape = "Hearing status:") +
+  theme(plot.margin = unit(c(1,4,1,1), "lines"),
+        text = element_text(size = 14),
+        legend.position=c(1,1),legend.justification=c(1,1),
+        legend.background = element_rect(fill="transparent"))  +
+  annotation_custom(grob = textGrob(label = "Signer"),
+                    ymin = 0.5,      
+                    ymax = 0.55,
+                    xmin = 4300,         
+                    xmax = 4500) +
+  annotation_custom(grob = textGrob(label = "Target"),
+                    ymin = 0.28,      
+                    ymax = 0.35,
+                    xmin = 4300,         
+                    xmax = 4500) +
+  annotation_custom(grob = textGrob(label = "Distracter"),
+                    ymin = 0.1,      
+                    ymax = 0.15,
+                    xmin = 4300,         
+                    xmax = 4600)
+
+# Code to override clipping
+gt_kids <- ggplot_gtable(ggplot_build(tan_kids))
+gt_kids$layout$clip[gt_kids$layout$name == "panel"] <- "off"
+grid.draw(gt_kids)
+```
+
+## Summary violin for categorical analyses
+
+Get means and confidence intervals for accuracy and RT
+
+```{r}
+ms_acc <- raw_data %>% 
+  select(Sub.Num, mean_prop_looking_TD, age_group_collapsed, value_cat,
+         hearing_status_participant) %>% 
+  filter(value_cat == "Target") %>%
+  rename(age_group = age_group_collapsed,
+         hearing_status = hearing_status_participant) %>% 
+  group_by(age_group, hearing_status) %>% 
+  langcog::multi_boot_standard(column = "mean_prop_looking_TD",
+                               empirical_function = "median") %>% 
+  mutate(plot_value = median,
+         age_var_clean = ifelse(age_group == "Kids", "children", "adults")) 
 ```
 
 ```{r}
-plot_grid(a, b, ncol = 1, labels = c("A", "B"))
+gv_categorical %<>% 
+  group_by(age_group, measure) %>% 
+  mutate(m = mean(posterior_sample),
+         stdev = sd(posterior_sample),
+         hdi_lower = quantile(posterior_sample, probs = 0.025),
+         hdi_upper = quantile(posterior_sample, probs = 0.975),
+         plot_value = posterior_sample,
+         age_var_clean = ifelse(age_group == "kids", "children", "adults")) 
+
+m_hdi <- gv_categorical %>% 
+  ungroup() %>% 
+  select(hearing_status, age_var_clean, m, hdi_lower, hdi_upper, measure) %>% 
+  distinct() %>% 
+  rename(plot_value = m)
 ```
-
-
-
-## Summary barplots for categorical analyses
 
 ```{r}
-gv_categorical %>% 
-  ggplot(., aes(x = age_group, y = posterior_sample, fill = hearing_status)) +
-  geom_boxplot(width = 0.6) +
-  facet_wrap(~measure, ncol = 1, scales = "free") +
-  scale_fill_solarized()
+acc_violin <- gv_categorical %>% 
+  filter(measure == "accuracy") %>% 
+  ggplot(., aes(x = age_var_clean, y = plot_value, 
+                fill = hearing_status)) +
+  geom_violin(size = 1, adjust = 2, draw_quantiles = 0.5, color = "grey50", alpha = 0.85) +
+  geom_hline(yintercept = 0.5, linetype = "dashed", alpha = 0.4) +
+  scale_x_discrete(limits=c("children","adults"), expand=c(0.5, 0)) +
+  ylim(0.2, 1) +
+  labs(x = "Age Group", y = "Prop. Target Looking", fill = "Hearing status") +
+  scale_color_manual(values = c("grey", "black")) +
+  scale_fill_manual(values = c("black", "white")) +
+  guides(color = F) +
+  theme(text = element_text(size = 14))
+```
+
+Extract and then remove the legend
+
+```{r}
+legend <- get_legend(acc_violin)
+acc_violin <- acc_violin + theme(legend.position = "none")
 ```
 
 
-
-```{r barplot munging, fig.width = 8}
-# Accuracy: MAP and HDI for each age group
-koda_deaf_df <- gv_categorical %>% 
-  select(mu.hearing:mu.deaf.rt) %>% 
-  gather(key = hearing_status, value = posterior_sample) 
-
-ms_all <- gv_all %>%
-  group_by(age_group, looking_type) %>% 
-  summarise(mean_post = mean(post_sample),
-            HDI_lower = HDIofMCMC(post_sample, credMass = 0.95)[1],
-            HDI_upper = HDIofMCMC(post_sample, credMass = 0.95)[2]) %>% 
-  mutate(HDI_lower = ifelse(HDI_lower <= 0, 0, HDI_lower),
-         looking_type = ifelse(looking_type == "Distractor", "Distracter", "Target"),
-         age_group_fact = factor(age_group, 
-                                levels = c("mu.younger", "mu.older", "mu.adults")))
-
-# RT: MAP and HDI for each age group
-post_df.rt %<>% gather(key = age_group, value = post_sample)
-
-ms_all_rt <- post_df.rt %>%
-  group_by(age_group) %>% 
-  summarise(mean_post = mean(post_sample),
-            HDI_lower = HDIofMCMC(post_sample, credMass = 0.95)[1],
-            HDI_upper = HDIofMCMC(post_sample, credMass = 0.95)[2]) %>% 
-  mutate(age_group_fact = factor(age_group, levels = c("mu.younger.rt", 
-                                                       "mu.older.rt", 
-                                                       "mu.adults.rt")))
-
-ggplot(aes(x = age_group, y = post_sample),
-       data = post_df.rt) +
-  geom_violin() +
-  geom_violin(draw_quantiles = c(0.5)) 
+```{r}
+rt_violin <- gv_categorical %>% 
+  filter(measure == "rt") %>% 
+  ggplot(., aes(x = age_var_clean, y = posterior_sample, 
+                fill = hearing_status)) +
+  geom_violin(size = 1, adjust = 2, draw_quantiles = 0.5, color = "grey50", alpha = 0.85) +
+  scale_x_discrete(limits=c("children","adults"), expand=c(0.5, 0)) +
+  ylim(500, 1500) +
+  labs(x = "Age Group", y = "RT (ms)", color = "Hearing Status") +
+  scale_color_manual(values = c("grey", "black")) +
+  scale_fill_manual(values = c("black", "white")) +
+  guides(color = F, fill = F) +
+  theme(text = element_text(size = 14))
 ```
 
-```{r boxplot}
-# Bar Plot Acc
-all_acc <- ggplot(aes(x = age_group_fact, y = mean_post, fill = looking_type), 
-                  data = ms_all) +
-  geom_bar(stat = "identity", position="dodge", color = "black") +
-  geom_linerange(aes(ymin = HDI_lower, ymax = HDI_upper),
-                 position = position_dodge(width = 0.9)) +
-  labs(x = "Age Group", y = "Proportion Looking") + 
-  coord_cartesian(ylim=c(0, 1)) +
-  scale_fill_grey(start = 0.8, end = 0, breaks = c("Target", "Distracter")) +
-  guides(fill=guide_legend(title=NULL), color=F) +
-  scale_x_discrete(labels=c("Younger", "Older", "Adults")) +
-  theme(axis.title.x = element_text(colour="grey40",size=16,
-                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.title.y = element_text(colour="grey40",size=16,
-                                      angle=90,hjust=0.5,vjust=0.5,face="plain"),
-          axis.text.x = element_text(colour="grey20",size=12,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.text.y = element_text(colour="grey20",size=12,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-        plot.margin = unit(c(0.5,2,1,1), "cm"),
-        legend.position = c(0.3, 0.88),
-        legend.text = element_text(size = 12)) 
+Add plot labels
 
-# Bar plot RT
-all_rt <- ggplot(aes(x= age_group_fact, y = mean_post), 
-                 data = ms_all_rt) +
-  geom_bar(stat = "identity", fill = "black") +
-  geom_linerange(aes(ymax = HDI_upper, ymin = HDI_lower)) +
-  guides(fill=F, color = F) +
-  labs(x = "Age Group", y = "Mean RT (ms)") +
-  scale_x_discrete(labels=c("Younger", "Older", "Adults")) +
-  ylim(0, 1600) +
-  theme(axis.title.x = element_text(colour="grey40",size=16,
-                                      angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.title.y = element_text(colour="grey40",size=16,
-                                      angle=90,hjust=0.5,vjust=0.5,face="plain"),
-          axis.text.x = element_text(colour="grey20",size=12,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-          axis.text.y = element_text(colour="grey20",size=12,
-                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-        plot.margin = unit(c(0.5,2,1,1), "cm")) 
-
+```{r}
+gt_kids <- ggdraw(gt_kids) + draw_plot_label("A")
+gt <- ggdraw(gt) + draw_plot_label("B")
+acc_violin <- ggdraw(acc_violin) + draw_plot_label("C")
+rt_violin <- ggdraw(rt_violin) + draw_plot_label("D")
 ```
 
 Merge plots
 
 ```{r}
-final_bar_plot <- gridExtra::grid.arrange(all_acc, all_rt, ncol = 2)
+fig1 <- ggdraw() +
+  draw_plot(gt_kids, x = 0, y = .5, width = 0.6, height = .5) +
+  draw_plot(gt, x = 0, y = 0, width = 0.6, height = .5) +
+  draw_plot(acc_violin, x =0.7, y = 0.55, width = .3, height = .4) +
+  draw_plot(rt_violin, x = 0.7, y = 0.05, width = .3, height = .4) 
+
+# add legend
+final_plot <- plot_grid(fig1, legend, rel_widths = c(1, .2))
 ```
 
 Save the final plot
 
 ```{r}
-ggsave(final_bar_plot, filename = "paper/sol-figs/summary.png", 
-       device = "png", width = 10, height = 5)
+save_plot(filename = "../../paper/sol-figs/fig2_timecourse.png", final_plot,
+          ncol = 3,
+          nrow = 2,
+          base_aspect_ratio = 1)
 ```
+
+

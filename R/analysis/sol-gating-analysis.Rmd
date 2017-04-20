@@ -5,10 +5,7 @@ date: "April 27, 2015"
 output: html_document
 ---
 
-This script analyzes data for sol-gating experiment. The goal 
-of this analysisis to find the precise gate when participants 
-can reliably identify the sign for each sign used in the SOL 
-stimulus set.
+This document contains the code that analyzes data for a gating experiment that appears in the paper "Real-time lexical comprehension in young children learning American Sign Language (ASL)." The goal of this analysisis to find the point in the sign when participants can reliably identify the sign for each target item used in the stimulus set.
 
 Load libraries.
 

@@ -1,0 +1,79 @@
+---
+title: "SOL Reliability Analysis"
+author: "Kyle MacDonald"
+date: "4/19/2017"
+output: html_document
+---
+
+This document contains all of the interal reliability analyses for the processing measures reported in the paper, "Real-time lexical comprehension in young children learning American Sign Language (ASL)."
+
+```{r}
+rm(list=ls()) # clear workspcace
+knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T,warning=F, message=F)
+library(langcog); library(knitr); library(forcats); library(lme4)
+library(magrittr); library(tidyverse); library(car)
+
+theme_set(ggthemes::theme_few())
+```
+
+## Split-half reliability analysis
+
+Load trial-level data
+
+```{r}
+trial_df <- read_csv("../../data/processed_data/summary_tables/sol_trial_level_df.csv")
+```
+
+First, we create two bins of trials for each participant by sorting based on even vs. odd trial numbers.
+
+```{r}
+trial_df %<>% mutate(split_half = ifelse(Tr.Num %% 2 == 0, "first", "second"))
+```
+
+```{r, echo=F}
+trial_df %>% 
+  group_by(Sub.Num, age_code, split_half) %>% 
+  summarise(n_trials = n())
+```
+
+```{r}
+split_df <- trial_df %>% 
+  group_by(Sub.Num, split_half, age_code) %>% 
+  summarise(mean_acc = mean(Accuracy, na.rm = T),
+            median_rt = median(RT, na.rm = T)) %>%
+  gather(key = measure, value = value, mean_acc, median_rt) %>% 
+  spread(key = split_half, value = value) 
+```
+
+```{r}
+labels <- c(mean_acc = "Accuracy", median_rt = "RT")
+
+ggplot(aes(x = first, y = second, color = age_code), data = split_df) +
+  geom_smooth(method = "lm", se = F) +
+  geom_point() +
+  facet_wrap(~measure, scales = "free", labeller = labeller(measure = labels)) +
+  scale_color_manual(values = c("darkorange", "dodgerblue")) +
+  labs(x = "First Half", y = "Second Half", color = "Age group") 
+```
+
+```{r}
+## compute pearson r
+sp_r <- split_df %>% 
+  group_by(age_code, measure) %>% 
+  do(data.frame(pearson_r = cor(.$first, .$second, method = "pearson")))
+
+## spearman-brown correction
+sp_r %>% 
+  mutate(sph_rel = round((2 * pearson_r) / (1 + pearson_r), 3)) %>% 
+  kable(digits = 3)
+```
+
+What's the power that we had to detect this correlation?
+
+```{r}
+pwr::pwr.r.test(n = 29, r = 0.5, sig.level = .05, alternative = "greater")
+```
+
+```{r}
+pwr::pwr.r.test(n = 29, r = 0.3, sig.level = .05, alternative = "greater")
+```

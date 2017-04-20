@@ -1,9 +1,12 @@
 ---
 title: "SOL MLE Analysis"
 author: "Kyle MacDonald"
-date: "11/30/2016"
-output: html_document
+output:
+  word_document: default
+  html_document: default
 ---
+
+This document contains all of the frequentist analyses that appear in the supplemental online materials for the paper, "Real-time lexical comprehension in young children learning American Sign Language (ASL)."
 
 ## Setup 
 
@@ -11,7 +14,7 @@ output: html_document
 rm(list=ls()) # clear workspcace
 knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T,warning=F, message=F)
 library(langcog); library(knitr); library(forcats); library(lme4)
-library(magrittr); library(tidyverse)
+library(magrittr); library(tidyverse); library(car)
 
 theme_set(ggthemes::theme_few())
 ```
@@ -22,17 +25,36 @@ theme_set(ggthemes::theme_few())
 d_2500 <- read.csv("../../data/processed_data/summary_tables/sol_ss_all_600_2500.csv")
 ```
 
-## Plot distributions of summary stats
+Make a table of background information
+
+```{r}
+d_2500 %>% 
+  filter(age_group_collapsed == "Kids", include == "yes") %>% 
+  select(Sub.Num, age_peek_months, hearing_status_participant, gender) %>% 
+  group_by(hearing_status_participant) %>% 
+  unique() %>% 
+  summarise(n = n(),
+            Mean.age  = mean(age_peek_months),
+            SD.age = sd(age_peek_months),
+            Min.age = min(age_peek_months),
+            Max.age = max(age_peek_months)
+            ) %>% 
+  mutate_if(is.numeric, round, digits = 1) %>% 
+  rename(Hearing.status = hearing_status_participant) %>% 
+  kable()
+```
+
+## Plot distributions of dependent variables (Acc and RT)
 
 Mean accuracy for each child:
 
 ```{r}
-d_2500 %>% 
+acc_dist <- d_2500 %>% 
   filter(age_group != "Adults", value_cat == "Target") %>% 
-  select(Sub.Num, prop_looking) %>% 
+  select(Sub.Num, mean_prop_looking_TD) %>% 
   unique() %>% 
-  ggplot(aes(x = prop_looking)) +
-  geom_line(stat="density", size = 1.5, adjust = 2) +
+  ggplot(aes(x = mean_prop_looking_TD)) +
+  geom_line(stat="density", size = 1.5, adjust = 1.5) +
   labs(x = "Mean Accuracy") +
   xlim(0, 1)
 ```
@@ -40,7 +62,7 @@ d_2500 %>%
 Mean RT for each child: 
 
 ```{r}
-d_2500 %>%
+rt_dist <- d_2500 %>%
   filter(age_group != "Adults", value_cat == "Target") %>% 
   select(Sub.Num, median_ct_rt) %>% 
   unique() %>% 
@@ -50,7 +72,13 @@ d_2500 %>%
   xlim(500, 2000)
 ```
 
-## Distribution of hearing status over age
+Make plot
+
+```{r}
+cowplot::plot_grid(acc_dist, rt_dist, labels = c("A", "B"))
+```
+
+## Show distribution of hearing status over age
 
 ```{r}
 ms_hs <- d_2500 %>% 
@@ -68,31 +96,52 @@ d_2500 %>%
   geom_line(stat="density", size = 1, adjust = 2) +
   geom_vline(aes(xintercept = mean_val, color = hearing_status_participant), 
              data = ms_hs, size = 1, linetype = "dashed") +
-  guides(color = F) +
   labs(x = "Age (months)",
        fill = "Hearing Status") +
   xlim(0, 70)  +
-  scale_color_manual(values = c("darkorange", "dodgerblue")) 
+  scale_color_manual(values = c("darkorange", "dodgerblue"))  +
+  theme(legend.position = "top")
   
 ```
 
-## Estimate development of Acc/RT using MLE in a linear model.
+## Analysis 1: Estimate difference in Acc/RT for hearing/deaf signers
+
+```{r}
+d_2500 %>% 
+  filter(age_group != "Adults", value_cat == "Target") %>% 
+  select(Sub.Num, mean_prop_looking_TD, age_peek_months, hearing_status_participant) %>%
+  unique() %>% 
+  t.test(mean_prop_looking_TD ~ hearing_status_participant, data = .)
+```
+
+```{r}
+d_2500 %>% 
+  filter(age_group != "Adults", value_cat == "Target") %>% 
+  select(Sub.Num, median_ct_rt, age_peek_months, hearing_status_participant) %>%
+  unique() %>% 
+  t.test(median_ct_rt ~ hearing_status_participant, data = .)
+```
+
+## Analysis 2: Evidence of incremental processing
+
+For this analysis, see the .Rmd file: "sol-incremental-analysis.Rmd"
+
+## Analysis 3: estimate relations of Acc/RT to age/vocab using MLE 
 
 ```{r}
 m1 <- d_2500 %>% 
   filter(age_group != "Adults", value_cat == "Target") %>% 
-  select(Sub.Num, prop_looking, age_peek_months, hearing_status_participant) %>%
+  select(Sub.Num, mean_prop_looking_TD, age_peek_months, hearing_status_participant) %>%
   unique() %>% 
-  lm(prop_looking ~ age_peek_months + hearing_status_participant, data = .)
+  lm(logit(mean_prop_looking_TD) ~ age_peek_months + hearing_status_participant, data = .)
 
 m1.int <- d_2500 %>% 
   filter(age_group != "Adults", value_cat == "Target") %>% 
-  select(Sub.Num, prop_looking, age_peek_months, hearing_status_participant) %>%
+  select(Sub.Num, mean_prop_looking_TD, age_peek_months, hearing_status_participant) %>%
   unique() %>% 
-  lm(prop_looking ~ age_peek_months * hearing_status_participant, data = .)
+  lm(logit(mean_prop_looking_TD) ~ age_peek_months * hearing_status_participant, data = .)
 
-m1.model.comp <- anova(m1, m1.int)
-# the more complicated model with an interaction term for hearing status does not improve fit
+m1.model.comp <- anova(m1, m1.int) # the more complicated model with an interaction term for hearing status does not improve fit
 
 m1 %>% 
   broom::tidy() %>% 
@@ -113,8 +162,7 @@ m2.int <- d_2500 %>%
   unique() %>% 
   lm(median_ct_rt ~ age_peek_months * hearing_status_participant, data = .)
 
-m2.model.comp <- anova(m2, m2.int)
-# adding interaction term does not help model fit and is not sig, so we can drop
+m2.model.comp <- anova(m2, m2.int) # adding interaction term does not help model fit and is not sig, so we can drop
 
 m2 %>% 
   broom::tidy() %>% 
@@ -125,18 +173,17 @@ m2 %>%
 ```{r}
 m3 <- d_2500 %>% 
   filter(age_group != "Adults", value_cat == "Target") %>% 
-  select(Sub.Num, prop_looking, signs_produced, hearing_status_participant) %>% 
+  select(Sub.Num, mean_prop_looking_TD, signs_produced, hearing_status_participant) %>% 
   unique() %>% 
-  lm(prop_looking ~ signs_produced + hearing_status_participant, data = .)
+  lm(logit(mean_prop_looking_TD) ~ signs_produced + hearing_status_participant, data = .)
 
 m3.int <- d_2500 %>% 
   filter(age_group != "Adults", value_cat == "Target") %>% 
-  select(Sub.Num, prop_looking, signs_produced, hearing_status_participant) %>% 
+  select(Sub.Num, mean_prop_looking_TD, signs_produced, hearing_status_participant) %>% 
   unique() %>% 
-  lm(prop_looking ~ signs_produced * hearing_status_participant, data = .)
+  lm(logit(mean_prop_looking_TD) ~ signs_produced * hearing_status_participant, data = .)
 
-m3.model.comp <- anova(m3, m3.int)
-# adding interaction term does not improve model fit and is not sig
+m3.model.comp <- anova(m3, m3.int) # adding interaction term does not improve model fit and is not sig
 
 m3 %>% 
   broom::tidy() %>% 
@@ -157,74 +204,10 @@ m4.int <- d_2500 %>%
   unique() %>% 
   lm(median_ct_rt ~ signs_produced * hearing_status_participant, data = .)
 
-m4.model.comp <- anova(m4, m4.int)
-# adding interaction term does not improve model fit and is not sig
+m4.model.comp <- anova(m4, m4.int) # adding interaction term does not improve model fit and is not sig
+
 m4 %>% 
   broom::tidy() %>% 
   mutate(one_sided_p =  pt(-abs(statistic), df = 28)) %>% 
   kable(digits = 3)
 ```
-
-## Split-half reliability analysis
-
-Load trial-level data
-
-```{r}
-trial_df <- read_csv("../../data/processed_data/summary_tables/sol_trial_level_df.csv")
-```
-
-First, we create two bins of trials for each participant by sorting based on even vs. odd trial numbers.
-
-```{r}
-trial_df %<>% mutate(split_half = ifelse(Tr.Num %% 2 == 0, "first", "second"))
-```
-
-```{r, echo=F}
-trial_df %>% 
-  group_by(Sub.Num, age_code, split_half) %>% 
-  summarise(n_trials = n())
-```
-
-```{r}
-split_df <- trial_df %>% 
-  group_by(Sub.Num, split_half, age_code) %>% 
-  summarise(mean_acc = mean(Accuracy, na.rm = T),
-            median_rt = median(RT, na.rm = T)) %>%
-  gather(key = measure, value = value, mean_acc, median_rt) %>% 
-  spread(key = split_half, value = value) 
-```
-
-```{r}
-labels <- c(mean_acc = "Accuracy", median_rt = "RT")
-
-ggplot(aes(x = first, y = second, color = age_code), data = split_df) +
-  geom_smooth(method = "lm", se = F) +
-  geom_point() +
-  facet_wrap(~measure, scales = "free", labeller = labeller(measure = labels)) +
-  scale_color_manual(values = c("darkorange", "dodgerblue")) +
-  labs(x = "First Half", y = "Second Half", color = "Age group") 
-```
-
-```{r}
-## compute pearson r
-sp_r <- split_df %>% 
-  group_by(age_code, measure) %>% 
-  do(data.frame(pearson_r = cor(.$first, .$second, method = "pearson")))
-
-## spearman-brown correction
-sp_r %>% 
-  mutate(sph_rel = round((2 * pearson_r) / (1 + pearson_r), 3)) %>% 
-  kable(digits = 3)
-```
-
-What's the power that we had to detect this correlation?
-
-```{r}
-pwr::pwr.r.test(n = 29, r = 0.5, sig.level = .05, alternative = "greater")
-```
-
-```{r}
-pwr::pwr.r.test(n = 29, r = 0.3, sig.level = .05, alternative = "greater")
-```
-
-

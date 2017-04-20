@@ -19,7 +19,7 @@ source("../../helper_functions/useful.R")
 library(langcog); library(knitr); 
 library(polspline); library(rethinking); 
 library(tidyverse); library(magrittr); 
-theme_set(theme_bw())
+theme_set(theme_classic())
 ```
 
 ```{r paths, echo = F}
@@ -37,7 +37,6 @@ df_acc_age <- read.csv(paste0(sims_path, "sol_acc_age_mcmc.csv"), stringsAsFacto
 df_acc_voc <- read.csv(paste0(sims_path, "sol_acc_voc_mcmc.csv"), stringsAsFactors = F)
 df_rt_age <- read.csv(paste0(sims_path, "sol_rt_age_mcmc.csv"), stringsAsFactors = F)
 df_rt_voc <- read.csv(paste0(sims_path, "sol_rt_voc_mcmc.csv"), stringsAsFactors = F)
-df_rt_acc <- read.csv(paste0(sims_path, "sol_rt_acc_mcmc.csv"), stringsAsFactors = F)
 ```
 
 # Bayes Factor across analysis windows
@@ -129,6 +128,7 @@ acc_coefplot <- ggplot(aes(x = as.factor(slope_prior), y = mean, color = window)
   xlab("SD of Prior") +
   ylab("Accuracy Slope") +
   ggtitle("Accuracy Models") +
+  theme_bw() +
   theme(plot.title = element_text(size = 18),
         axis.title.x = element_text(colour="grey30",size=22,
                                     angle=0,hjust=0.5,vjust=0,face="plain"),
@@ -141,7 +141,8 @@ acc_coefplot <- ggplot(aes(x = as.factor(slope_prior), y = mean, color = window)
         strip.text.x = element_text(size = 16),
         panel.grid.major=element_blank(),
         panel.spacing = unit(2, "lines")) +
-  guides(color = F)
+  guides(color = F) 
+  
 
 rt_coefplot <- ggplot(aes(x = as.factor(slope_prior), y = mean, color = window), 
                       data = ms_windows_rt) +
@@ -155,6 +156,7 @@ rt_coefplot <- ggplot(aes(x = as.factor(slope_prior), y = mean, color = window),
   xlab(NULL) +
   ylab("RT Slope") +
   ggtitle("RT Models") +
+  theme_bw() +
   theme(plot.title = element_text(size = 18),
         axis.title.x = element_text(colour="grey30",size=22,
                                     angle=0,hjust=0.5,vjust=0,face="plain"),
@@ -196,16 +198,14 @@ a <- ggplot(aes(x=beta1_prior), data = df_acc_age) +
   ylab("Density") +
   xlim(0, .075) +
   ggtitle("Accuracy Model") +
-  theme(plot.title = element_text(size = 18),
-        axis.title.x = element_text(colour="grey30",size=22,
+  theme(axis.title.x = element_text(colour="grey30",size=12,
                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-        axis.title.y = element_text(colour="grey30",size=22,
+        axis.title.y = element_text(colour="grey30",size=12,
                                     hjust=0.5,vjust=0.5,face="plain"),
-        axis.text.x = element_text(colour="grey20",size=14,
+        axis.text.x = element_text(colour="grey20",size=12,
                                    angle=0,hjust=0.5,vjust=0,face="plain"),
-        axis.text.y = element_text(colour="grey20",size=16,
+        axis.text.y = element_text(colour="grey20",size=12,
                                    angle=0,hjust=0.5,vjust=0,face="plain"),
-        strip.text.x = element_text(size = 16),
         panel.grid.major=element_blank(),
         panel.spacing = unit(2, "lines"))
 
@@ -217,16 +217,14 @@ b <- ggplot(aes(x=beta1_prior), data = df_rt_age) +
   ylab(NULL) +
   xlim(0, -90) +
   ggtitle("RT Model") +
-  theme(plot.title = element_text(size = 18),
-        axis.title.x = element_text(colour="grey30",size=22,
+  theme(axis.title.x = element_text(colour="grey30",size=12,
                                     angle=0,hjust=0.5,vjust=0,face="plain"),
-        axis.title.y = element_text(colour="grey30",size=22,
+        axis.title.y = element_text(colour="grey30",size=12,
                                     hjust=0.5,vjust=0.5,face="plain"),
-        axis.text.x = element_text(colour="grey20",size=14,
+        axis.text.x = element_text(colour="grey20",size=12,
                                    angle=0,hjust=0.5,vjust=0,face="plain"),
-        axis.text.y = element_text(colour="grey20",size=16,
+        axis.text.y = element_text(colour="grey20",size=12,
                                    angle=0,hjust=0.5,vjust=0,face="plain"),
-        strip.text.x = element_text(size = 16),
         panel.grid.major=element_blank(),
         panel.spacing = unit(2, "lines"))
 

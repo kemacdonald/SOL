@@ -1,0 +1,308 @@
+---
+title: "SOL item analysis"
+author: "Kyle MacDonald"
+output: html_document
+---
+
+```{r setup, include = F}
+rm(list=ls()) # clear workspcace
+knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T,warning=F, message=F)
+source("../helper_functions/useful.R")
+library(langcog); library(knitr); library(forcats)
+library(magrittr); library(tidyverse); library(rethinking)
+theme_set(theme_classic())
+```
+
+Read data:
+
+* Sign lengths
+* RT and accuracy for each sign
+
+```{r}
+d <- read_csv("../../data/processed_data/summary_tables/sol_trial_level_df.csv")
+d.sign_lengths <- read_csv("../../data/demographics/target_sign_lengths_all.csv",
+                         col_types = "ccccnnnnn")
+```
+
+Split sign variable into carrier and target information
+
+```{r}
+d.sign_lengths %<>% separate(sign, into = c("clean_target_img", "carrier"), sep = "_")
+```
+
+Separate trial number information and convert the data frame to long format to make merging with VP measures easier.
+
+```{r}
+# separate
+d.sign_lengths %<>% separate(trial_num_peek, 
+                             into = c("Tr.Num.1", "Tr.Num.2", "Tr.Num.3",
+                                      "Tr.Num.4"), sep = ",", fill = "right")
+
+# gather 
+d.sign_lengths %<>% gather(key = Key, value = Tr.Num, Tr.Num.1:Tr.Num.4)
+
+# remove NAs
+d.sign_lengths %<>% filter(is.na(Tr.Num) == F) %>% 
+  mutate(Tr.Num = as.integer(Tr.Num)) %>% 
+  select(-Key)
+```
+
+
+Create "signer" variable in summary table so we can add the sign length information.
+
+```{r}
+d %<>% mutate(signer = ifelse(stimuli == "V1", "p", "r"))
+```
+
+Now we can add the sign length information to our data frame and calculate a new variable where we add 200 ms to the length of the target sign in order to account for the time it takes to program an eye movement. That is, we consider eye movements that occurred up to 300 ms after the offset of the target sign as being initiated prior to sign offset, providing evidence for incremental processing. 
+
+```{r}
+d %<>% left_join(., d.sign_lengths, by = c("clean_target_img", "signer", "Tr.Num", "stimuli"))
+
+d %<>% filter(is.na(length_ms) == F) %>% mutate(length_ms_200 = length_ms + 200)
+```
+
+## Item-level Analysis
+
+Get the difference between RT and sign length for all signs. We also get the proportion of sign needed before shifting in order to normalize for the different sign lengths.
+
+```{r}
+d %<>% mutate(shift_diff_offset = (RT - length_ms_200) / 1000,
+              prop_sign_to_shift = RT / length_ms_200)
+```
+
+Next, we do the same kind of analysis but using the `prop_sign_needed` variable, which should help account for the signs being different lengths. Note that we are only including correct shifts since these are most likely to be driven by speed of lexical acess.
+
+```{r}
+ss <-  d %>% 
+  filter(correct == 1, RT <= 2500) %>%
+  group_by(Sub.Num, clean_target_img, age_code) %>% 
+  summarise(m_prop_sign_needed = median(prop_sign_to_shift)) 
+
+ss.all.signs <- d %>% 
+  filter(correct == 1, RT <= 2500) %>%
+  group_by(Sub.Num, age_code) %>% 
+  summarise(m_prop_sign_needed = median(prop_sign_to_shift)) 
+```
+
+Plot distribution of prop sign needed variable
+
+```{r}
+ss.all.signs %>% 
+  ggplot(., aes(x = m_prop_sign_needed)) +
+  geom_histogram()
+```
+
+Remove outliers +/- 2 sd from the mean for each group
+
+```{r}
+ss %<>% 
+  filter(is.na(m_prop_sign_needed) == F) %>% 
+  group_by(age_code) %>% 
+  mutate(m = mean(m_prop_sign_needed),
+         stdev = sd(m_prop_sign_needed, na.rm = T),
+         outlier = ifelse(m_prop_sign_needed <= m - 2 * stdev |
+                            m_prop_sign_needed >= m + 2 * stdev, "yes", "no")) 
+
+ss.all.signs %<>% 
+  filter(is.na(m_prop_sign_needed) == F) %>% 
+  group_by(age_code) %>% 
+  mutate(m = mean(m_prop_sign_needed),
+         stdev = sd(m_prop_sign_needed),
+         outlier = ifelse(m_prop_sign_needed <= m - 2 * stdev |
+                            m_prop_sign_needed >= m + 2 * stdev, "yes", "no"))
+```
+
+Plot distribution, flagging outliers
+
+```{r}
+ss.all.signs %>% 
+  ggplot(., aes(x = m_prop_sign_needed, fill = age_code)) +
+  geom_density(alpha = 0.7) +
+  scale_fill_solarized()
+```
+
+```{r}
+ms <- ss %>% 
+  filter(outlier == "no") %>% 
+  group_by(clean_target_img, age_code) %>% 
+  langcog::multi_boot_standard(column = "m_prop_sign_needed", 
+                               empirical_function = "mean") %>% 
+  arrange(desc(mean))
+
+ms_all_signs <- ss.all.signs %>% 
+  filter(outlier == "no") %>% 
+  group_by(age_code) %>% 
+  langcog::multi_boot_standard(column = "m_prop_sign_needed", 
+                               empirical_function = "mean") %>% 
+  mutate(clean_target_img = "all signs")
+```
+
+```{r}
+ms.final <- bind_rows(ms, ms_all_signs) %>% 
+  mutate(all_signs = ifelse(clean_target_img == "all signs", "yes", "no")) %>% 
+  arrange(mean)
+```
+
+```{r}
+ms.final %<>% 
+  group_by(age_code) %>% 
+  do(add_plot_order(.))
+```
+
+Clean up variable names and order for plot
+
+```{r}
+ms.final$age_code <- recode(ms.final$age_code, child = "children", adult = "adults")
+ms.final$age_code <- fct_relevel(ms.final$age_code, "children")
+```
+
+Make the plot
+
+```{r}
+item_plot <- ms.final %>% 
+  ggplot(aes(x = reorder(clean_target_img, plot_order), y = mean, 
+             color = all_signs, shape = all_signs, size = all_signs)) +
+  scale_color_manual(values = c("black", "red")) +
+  scale_shape_manual(values = c(20, 18)) +
+  scale_size_manual(values = c(0.8, 1.4)) +
+  geom_hline(yintercept = 1, linetype = "dashed") +
+  geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper)) +
+  coord_flip() +
+  guides(color = F, shape = F, size = F) +
+  scale_y_continuous(limits = c(0.1, 1.6), breaks = c(0.25, 0.5, 0.75, 1.0, 1.25, 1.5)) +
+  labs(y = "Prop. Target Sign Prior to Gaze Shift", x = "Target sign") +
+  facet_wrap(~age_code, ncol = 2) +
+  ggthemes::theme_few()
+```
+
+Save plot
+
+```{r}
+ggsave(item_plot, filename = "../../paper/sol-figs/fig3_item_analysis.png", 
+       device = "png", width = 7, height = 4)
+```
+
+Get summary information about sign lengths
+
+```{r}
+d.sign_lengths %>% 
+  .$length_ms %>% 
+  summary() 
+```
+
+## Incremental Bayesian analysis model
+
+Estimate the difference between kids and adults using bayesian estimation.
+
+First we need to create dummy variables for the relevant group comparisons.
+
+```{r dummy vars}
+ss.model <- ss.all.signs %>% mutate(age_code_num = ifelse(age_code == "adult", 1, 0))
+```
+
+```{r prop_sign_needed}
+m1 <- map2stan(
+  alist(
+    m_prop_sign_needed ~ dnorm(mu, sigma),
+    mu <- Intercept + b_kid*age_code_num,
+    Intercept ~ dnorm(1.0, 10), 
+    b_kid ~ dnorm(0, 1),
+    sigma ~ dunif(0, 10)
+  ),
+  data = data.frame(select(ss.model, m_prop_sign_needed, age_code_num))
+)
+
+# get samples
+m1.samples <- extract.samples(m1)
+adults <- m1.samples$Intercept
+kids <- m1.samples$b_kid + m1.samples$Intercept
+
+# create data frame with samples
+post_df <- data.frame(adults, kids) %>% 
+  gather(key = age_code, value = posterior_sample) %>% 
+  mutate(age_code = as.factor(age_code))
+```
+
+Test contrast of differences between kids and adults by getting the mean, and 95% HDI on the difference in means.
+
+```{r}
+diff.post <- kids - adults
+
+round(quantile(diff.post , probs = c(0.025, 0.5, 0.975)), 2)
+```
+
+The HDI does not include zero, indicating that there is evidence for a difference between kids and adults in the prop. sign processed prior to shifting.
+
+-------
+
+Next, we estimate whether each group (kids and adults) are shifting prior to the offset of the target sign.
+
+```{r}
+d.kid <- ss.model %>% 
+  ungroup() %>% 
+  filter(age_code == "child") %>% 
+  select(m_prop_sign_needed)
+
+m2.kids <- map2stan(
+  alist(
+    m_prop_sign_needed ~ dnorm(mu, sigma),
+    mu <- Intercept,
+    Intercept ~ dnorm(1.0, 10), 
+    sigma ~ dunif(0, 10)
+  ),
+  data = data.frame(d.kid)
+)
+
+# get smaples
+m2.kids.samples <- extract.samples(m2.kids)
+```
+
+```{r}
+round(quantile(m2.kids.samples$Intercept , probs = c(0.025, 0.5, 0.975)), 2)
+```
+
+Next, we estimate whether each group (kids and adults) are shifting prior to the offset of the target sign.
+
+```{r}
+d.adult <- ss.model %>% 
+  ungroup() %>% 
+  filter(age_code == "adult") %>% 
+  select(m_prop_sign_needed)
+
+m2.adult <- map2stan(
+  alist(
+    m_prop_sign_needed ~ dnorm(mu, sigma),
+    mu <- Intercept,
+    Intercept ~ dnorm(1.0, 10), 
+    sigma ~ dunif(0, 10)
+  ),
+  data = data.frame(d.adult)
+)
+
+# get smaples
+m2.adult.samples <- extract.samples(m2.adult)
+```
+
+```{r}
+round(quantile(m2.adult.samples$Intercept , probs = c(0.025, 0.5, 0.975)), 2)
+```
+
+## Incremental frequentist analysis model
+
+One sample t-test comparing prop shifting against null hypothesis: 1.0.
+
+```{r}
+ss.all.signs %>% 
+  filter(age_code == "child") %>% 
+  .$m_prop_sign_needed %>% 
+  t.test(mu = 1.0)
+```
+
+```{r}
+ss.all.signs %>% 
+  filter(age_code == "adult") %>% 
+  .$m_prop_sign_needed %>% 
+  t.test(mu = 1.0)
+```
+

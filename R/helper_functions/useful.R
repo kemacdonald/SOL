@@ -15,6 +15,28 @@ library(dplyr)
 ## add some style elements for ggplot2
 theme_set(theme_classic())
 
+## add plot order for incremental analysis
+add_plot_order <- function(data_frame) {
+  
+  new_df <- data_frame %>% 
+    arrange(mean) %>% 
+    mutate(plot_order = 1:nrow(.))
+  
+  all_signs_location <- new_df %>% 
+    ungroup() %>% 
+    filter(all_signs == "yes") %>% 
+    select(plot_order) %>% 
+    .[[1]]
+  
+  new_df %<>%  
+    mutate(plot_order = ifelse(all_signs == "yes", min(plot_order),
+                               ifelse(plot_order <= all_signs_location, 
+                                      plot_order + 1, plot_order))) 
+  
+  new_df
+}
+
+
 ## standard error of the mean
 sem <- function (x) {
   sd(x,na.rm=TRUE) / sqrt(length(x))
@@ -158,10 +180,21 @@ find_mode <- function(x) {
 }
 
 
+# this function converts logits to probability
+# borrowed from https://sebastiansauer.github.io/convert_logit2prob/
+
+logit2prob <- function(logit){
+  odds <- exp(logit)
+  prob <- odds / (1 + odds)
+  return(prob)
+}
+
+
 # function to run simulations over multiple windows
 # inputs are a list of the data frames (with the ss data), predictor variable name,
 # outcome variable name, and the name of the text file with the JAGs model code
 # returns a single, tidy data frame with simulations for each window
+
 window_simulations_fun <- function(list_of_dfs, predictor, outcome, model_type, prior_list) {
   df_final <- data.frame()
   counter <- 0
@@ -173,7 +206,10 @@ window_simulations_fun <- function(list_of_dfs, predictor, outcome, model_type, 
     unstandardized_pred <- "signs_produced"
   } else if ( predictor == "acc.s") {
     unstandardized_pred <- "mean_prop_looking_TD" 
-  } else {
+  } else if (predictor == "acc.s.logit") {
+    unstandardized_pred <- "logit_acc" 
+  }
+  else {
     unstandardized_pred <- "median_rt"
   }
   
@@ -215,7 +251,12 @@ window_simulations_fun <- function(list_of_dfs, predictor, outcome, model_type, 
                              stringsAsFactors = F)
         
         ## Unstandardized variable
-        unstandardized_outcome <- "mean_prop_looking_TD"
+        if (predictor == "acc.s.logit") {
+          unstandardized_outcome <- "logit_acc"
+        } else {
+          unstandardized_outcome <- "mean_prop_looking_TD"  
+        }
+        
       } else if ( model_type == "rt" ) {
         
         df_tmp <- data.frame(window = window_name,
@@ -242,7 +283,7 @@ window_simulations_fun <- function(list_of_dfs, predictor, outcome, model_type, 
         unstandardized_outcome <- "median_rt"
       }
       
-      # standardize the data
+      # unstandardize the data
       sd_unstand_out <- sd(unlist(df[unstandardized_outcome]))
       mean_unstand_out <- mean(unlist(df[unstandardized_outcome]))
       sd_unstand_pred <- sd(unlist(df[unstandardized_pred]))
@@ -256,6 +297,13 @@ window_simulations_fun <- function(list_of_dfs, predictor, outcome, model_type, 
                beta0_prior = zbeta0_prior * sd_unstand_out + mean_unstand_out - 
                  (zbeta1_prior * mean_unstand_pred * sd_unstand_out) / sd_unstand_pred,
                iteration = seq(1, nrow(.)))
+      
+      # convert from logit back to probability scale
+      if (predictor == "acc.s.logit") {
+        df_tmp %<>% mutate(beta1_prob = logit2prob(beta1))
+        
+      }
+      
       # store in final data frame
       df_final <- rbind(df_final, df_tmp)
     }

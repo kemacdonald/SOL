@@ -27,32 +27,26 @@ library(magrittr); library(kmr); library(tidyverse)
 ## Read in data
 
 ```{r}
-read.path <- "../../data/processed_data/"
-
 # Demographic data
-sol_demo <- read.csv(paste0(read.path, "summary_tables/sol_demo_all.csv"), 
-                     stringsAsFactors = F) %>% 
+sol_demo <- read.csv("../../data/demographics/sol_demo_all.csv", stringsAsFactors = F) %>% 
   mutate(Sub.Num = as.character(Sub.Num))
 
 sol_demo$Sub.Num <- as.character(sol_demo$Sub.Num)
 
-iChart <- read.csv(paste0(read.path, "vanilla/sol-ichart-merged-post-gating.csv"), 
+# eye movement data
+iChart <- read.csv("../../data/processed_data/processed_em_data/sol-ichart-merged-post-gating.csv", 
                    check.names=F, stringsAsFactors=F) %>%  
   mutate(Sub.Num =  as.character(Sub.Num))
 
 # Stimuli information
-sol_target_signs_df <- read.csv(paste0(read.path,"summary_tables/target_sign_lengths.csv"))
+sol_target_signs_df <- read.csv("../../data/demographics/target_sign_lengths_all.csv")
 ```
 
 ## Filter dataset
 
-Filter out participants that should not go into analyses based on exclusionary criteria: a) age, b) didn’t know signs in the task, c) not enough ASL exposure.
+Filter out trials/participants that should not go into analyses based on preset exclusionary criteria: a) didn’t know signs in the tas and b) not enough ASL exposur.
 
 ```{r}
-exclude <- sol_demo %>% 
-  filter(include == "no", age_code != "adult") %>% 
-  select(Sub.Num, reason_excluded) 
-
 include <- sol_demo %>%
   filter(include == "yes") %>% 
   select(Sub.Num, include,
@@ -139,10 +133,12 @@ ss_prescreened <- iChart %>%
 ss_trials_df <- left_join(ss_trials_df, ss_prescreened, by = "Sub.Num") 
 
 ss_trials_df %<>% 
-  mutate(num_prescreened = ifelse(is.na(num_prescreened), 0, num_prescreened),
-         num_prescreened = as.numeric(num_prescreened),
-         good_trials = Trials - (trials_removed + num_prescreened))
+  mutate(num_prescreened = as.numeric(num_prescreened),
+    num_prescreened = ifelse(is.na(num_prescreened), 0, num_prescreened),
+    good_trials = Trials - (trials_removed + num_prescreened))
 ```
+
+Filter
 
 ```{r}
 iChart <- filter(iChart, Prescreen.Notes == "")
@@ -170,16 +166,6 @@ iChart <- left_join(iChart, trials_filter, by = "Sub.Num")
 
 # now filter
 iChart <- filter(iChart, exclude_few_trials == "include")
-```
-
-Create final exclusions table
-
-```{r}
-exclude_df <- trials_filter %>% 
-  filter(exclude_few_trials == "exclude") %>% 
-  select(Sub.Num) %>% 
-  mutate(reason_excluded = "too few trials") %>% 
-  bind_rows(exclude)
 ```
 
 ### Get median split by age
@@ -665,7 +651,15 @@ ss <- ss_medians %>%
   left_join(x = ss, by = "Sub.Num")
 ```
 
-```{r, eval=F}
+```{r}
+ss %>% 
+  filter(age_group_collapsed == "Kids") %>% 
+  select(Sub.Num) %>% 
+  unique() %>% 
+  nrow()
+```
+
+```{r}
 write.csv(ss, "../../data/processed_data/summary_tables/sol_ss_all_600_2500.csv", 
           row.names = F)
 ```
@@ -760,9 +754,9 @@ ms_mean_iChart <- ms_iChart %>%
 
 Write graph values to CSV.
 
-```{r, echo=F, eval=F, message=F, warning=F}
+```{r}
 write.csv(x = ms_mean_iChart, 
-          file = "../../data/processed_data/summary_tables/sol_gvals_all.csv", 
+          file = "../../data/processed_data/graph_values/sol_gvals_all.csv", 
           row.names = F)
 ```
 
@@ -803,9 +797,9 @@ ms_mean_iChart_coda <- ms_iChart_coda %>%
 
 Write participant-level graph values to CSV.
 
-```{r, echo=F, eval=F, message=F, warning=F}
+```{r}
 write.csv(x = ms_mean_iChart_coda, 
-          file = "../../data/processed_data/summary_tables/sol_gvals_coda.csv", 
+          file = "../../data/processed_data/graph_values/sol_gvals_coda.csv", 
           row.names = F)
 ```
 
@@ -817,9 +811,10 @@ Mean accuracy and RT for each trial
 ss_trial_level_df <- iChart %>% 
   select(Sub.Num, Sex, Response, Tr.Num, clean_target_img, stimuli, age_code,
          age_peek_months = Months, hearing_status_participant, trial_types, 
-          RT, Accuracy, signs_produced) %>% 
+          RT, Accuracy, signs_produced, include, GoodRT, reason_excluded) %>% 
   mutate(correct = ifelse(trial_types == "C_T", 1, 0))
 ```
+
 
 ```{r}
 write.csv(x = ss_trial_level_df, 

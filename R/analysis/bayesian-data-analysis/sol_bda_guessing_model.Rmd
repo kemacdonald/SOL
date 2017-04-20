@@ -17,7 +17,7 @@ library(langcog); library(knitr); library(R2jags);
 library(polspline); library(magrittr);
 library(tidyverse)
 
-theme_set(theme_bw())
+theme_set(theme_classic())
 ```
 
 Load data.
@@ -145,7 +145,6 @@ ggplot(data=ms, aes(x=reorder(subid, prop_guessing), y = prop_guessing)) +
   ylim(0,1) +
   xlab('Participant ID#') +
   ylab("Posterior Prob. Guessing") +
-  ggtitle("Results of Latent Mixture Model") +
-  theme_bw() +
+  ggtitle("Output of Latent Mixture (\"Guessing\") Model") +
   theme(axis.text.x = element_text(angle=90, vjust = 1))
 ```
