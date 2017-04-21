@@ -9,7 +9,7 @@ rm(list=ls()) # clear workspcace
 knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T,warning=F, message=F)
 source("../helper_functions/useful.R")
 library(langcog); library(knitr); library(forcats)
-library(magrittr);library(rethinking)
+library(magrittr);library(rethinking); library(BayesFactor)
 library(car); library(tidyverse) 
 theme_set(theme_classic())
 ```
@@ -77,12 +77,12 @@ Next, we do the same kind of analysis but using the `prop_sign_needed` variable,
 ss <-  d %>% 
   filter(correct == 1, RT <= 2500) %>%
   group_by(Sub.Num, clean_target_img, age_code) %>% 
-  summarise(m_prop_sign_needed = median(prop_sign_to_shift)) 
+  summarise(m_prop_sign_needed = mean(prop_sign_to_shift)) 
 
 ss.all.signs <- d %>% 
   filter(correct == 1, RT <= 2500) %>%
   group_by(Sub.Num, age_code) %>% 
-  summarise(m_prop_sign_needed = median(prop_sign_to_shift)) 
+  summarise(m_prop_sign_needed = mean(prop_sign_to_shift)) 
 ```
 
 Plot distribution of prop sign needed variable
@@ -94,7 +94,7 @@ ss.all.signs %>%
   xlim(0,1.5)
 ```
 
-Remove outliers +/- 2 sd from the mean for each group
+Flag outliers +/- 2 sd from the mean for each group
 
 ```{r}
 ss %<>% 
@@ -114,52 +114,80 @@ ss.all.signs %<>%
                             m_prop_sign_needed >= m + 2 * stdev, "yes", "no"))
 ```
 
-```{r}
-ms <- ss %>% 
-  filter(outlier == "no") %>% 
-  group_by(clean_target_img, age_code) %>% 
-  langcog::multi_boot_standard(column = "m_prop_sign_needed", 
-                               empirical_function = "mean") %>% 
-  arrange(desc(mean))
+Get 95% HDI for each sign.
 
-ms_all_signs <- ss.all.signs %>% 
-  filter(outlier == "no") %>% 
+```{r}
+samples <- ss %>% 
+  #filter(outlier == "no") %>% 
+  as.data.frame() %>% 
+  lmBF(m_prop_sign_needed ~ clean_target_img + age_code, data = .,
+       posterior = TRUE, iterations = 5000) %>% 
+  data.frame()
+
+samples.long <- samples %>% 
+  gather(key = sign, value = sign_coef, clean_target_img.ball:clean_target_img.teddy) %>% 
+  gather(key = age_code, value = age_coef, age_code.adult:age_code.child) %>% 
+  mutate(sign = gsub(x = sign, pattern = "clean_target_img.", replacement = ""),
+         age_code = gsub(x = age_code, pattern = "age_code.", replacement = ""))
+
+samples.long %<>% mutate(posterior.estimate = mu + age_coef + sign_coef)
+```
+
+```{r}
+samples.all.signs <- ss.all.signs %>% 
+  #filter(outlier == "no") %>% 
+  as.data.frame() %>% 
+  lmBF(m_prop_sign_needed ~ age_code, data = .,
+       posterior = TRUE, iterations = 5000) %>% 
+  data.frame()
+
+samples.all.signs.long <- samples.all.signs %>% 
+  gather(key = age_code, value = age_coef, age_code.adult:age_code.child) %>% 
+  mutate(age_code = gsub(x = age_code, pattern = "age_code.", replacement = ""))
+
+samples.all.signs.long %<>% mutate(posterior.estimate = mu + age_coef)
+```
+
+
+Now summarize
+
+```{r}
+ms.all.signs <- samples.all.signs.long %>% 
   group_by(age_code) %>% 
-  langcog::multi_boot_standard(column = "m_prop_sign_needed", 
-                               empirical_function = "mean") %>% 
-  mutate(clean_target_img = "all signs")
+  summarise(mean = mean(posterior.estimate),
+            lower = quantile(posterior.estimate, prob = 0.025),
+            upper = quantile(posterior.estimate, prob = 0.975)) %>% 
+  mutate(sign = "all signs")
 ```
 
 ```{r}
-ms.final <- bind_rows(ms, ms_all_signs) %>% 
-  mutate(all_signs = ifelse(clean_target_img == "all signs", "yes", "no")) %>% 
-  arrange(mean)
+ms <- samples.long %>% 
+  group_by(age_code, sign) %>% 
+  summarise(mean = mean(posterior.estimate),
+            lower = quantile(posterior.estimate, prob = 0.025),
+            upper = quantile(posterior.estimate, prob = 0.975)) 
 ```
 
 ```{r}
-ms.final %<>% 
+ms.final <- bind_rows(ms, ms.all.signs) %>% 
+  mutate(all_signs = ifelse(sign == "all signs", "yes", "no")) %>% 
   group_by(age_code) %>% 
-  do(add_plot_order(.))
-```
-
-Clean up variable names and order for plot
-
-```{r}
-ms.final$age_code <- recode(ms.final$age_code, child = "children", adult = "adults")
-ms.final$age_code <- fct_relevel(ms.final$age_code, "children")
+  do(add_plot_order(.)) %>% 
+  ungroup() %>% 
+  mutate(age_code = fct_relevel(as.factor(age_code), "child"))
 ```
 
 Make the plot
 
 ```{r}
- ms.final %>% 
-  ggplot(aes(x = reorder(clean_target_img, plot_order), y = mean, 
-             color = all_signs, shape = all_signs, size = all_signs)) +
+item_plot <- ms.final %>% 
+  ggplot(aes(x = reorder(sign, plot_order), y = mean,
+         color = all_signs, shape = all_signs, size = all_signs)) +
   scale_color_manual(values = c("black", "red")) +
   scale_shape_manual(values = c(20, 18)) +
   scale_size_manual(values = c(0.8, 1.4)) +
   geom_hline(yintercept = 1, linetype = "dashed") +
-  geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper)) +
+  geom_pointrange(aes(ymin = lower, ymax = upper)) +
   scale_x_discrete(expand = c(0.1,0)) +
   coord_flip() +
   guides(color = F, shape = F, size = F) +

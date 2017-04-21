@@ -44,6 +44,21 @@ d_2500 %>%
   kable()
 ```
 
+```{r}
+d_2500 %>% 
+  filter(age_group_collapsed == "Kids", include == "yes") %>% 
+  select(Sub.Num, age_peek_months, hearing_status_participant, gender) %>% 
+  unique() %>% 
+  summarise(n = n(),
+            Mean.age  = mean(age_peek_months),
+            SD.age = sd(age_peek_months),
+            Min.age = min(age_peek_months),
+            Max.age = max(age_peek_months)
+            ) %>% 
+  mutate_if(is.numeric, round, digits = 1) 
+```
+
+
 ## Plot distributions of dependent variables (Acc and RT)
 
 Mean accuracy for each child:
@@ -55,7 +70,7 @@ acc_dist <- d_2500 %>%
   unique() %>% 
   ggplot(aes(x = mean_prop_looking_TD)) +
   geom_line(stat="density", size = 1.5, adjust = 1.5) +
-  labs(x = "Mean Accuracy") +
+  labs(x = "Accuracy") +
   xlim(0, 1)
 ```
 
@@ -68,7 +83,7 @@ rt_dist <- d_2500 %>%
   unique() %>% 
   ggplot(aes(x = median_ct_rt)) +
   geom_line(stat="density", size = 1.5, adjust = 2) +
-  labs(x = "Median RT (msec)") +
+  labs(x = "RT (msec)") +
   xlim(500, 2000)
 ```
 
