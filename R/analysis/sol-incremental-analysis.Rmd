@@ -148,7 +148,6 @@ samples.all.signs.long <- samples.all.signs %>%
 samples.all.signs.long %<>% mutate(posterior.estimate = mu + age_coef)
 ```
 
-
 Now summarize
 
 ```{r}
@@ -180,6 +179,8 @@ ms.final <- bind_rows(ms, ms.all.signs) %>%
 Make the plot
 
 ```{r}
+levels(ms.final$age_code) <- c("children", "adults")
+
 item_plot <- ms.final %>% 
   ggplot(aes(x = reorder(sign, plot_order), y = mean,
          color = all_signs, shape = all_signs, size = all_signs)) +
@@ -204,7 +205,7 @@ ggsave(item_plot, filename = "../../paper/sol-figs/fig3_item_analysis.png",
        device = "png", width = 7, height = 4)
 ```
 
-Get summary information about sign lengths
+Print summary information about sign lengths
 
 ```{r}
 d.sign_lengths %>% 
