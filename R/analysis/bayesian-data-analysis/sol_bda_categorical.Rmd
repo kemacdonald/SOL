@@ -43,7 +43,8 @@ First we need to create dummy variables for the relevant group comparisons.
 ```{r dummy vars}
 d_model <- d %>% 
   filter(value_cat == "Target") %>% 
-  select(Sub.Num, age_group_collapsed, hearing_status_participant, mean_prop_looking_TD, median_ct_rt) %>% 
+  select(Sub.Num, age_group_collapsed, hearing_status_participant, 
+         mean_prop_looking_TD, median_ct_rt) %>% 
   rename(median_rt = median_ct_rt,
          age_group_string = age_group_collapsed) %>% 
   mutate(age_group = ifelse(age_group_string == "Adults", 1, 0),
@@ -76,12 +77,12 @@ post_df_hearing_stat.acc <- data.frame(hearing, deaf) %>%
   gather(key = hearing_status, value = posterior_sample) %>% 
   mutate(age_group = "kids",
          measure = "accuracy",
-         prob_acc = logit2prob(posterior_sample))
+         prob_acc_sample = logit2prob(posterior_sample))
 
 
 post_df_hearing_stat.acc %>% 
   group_by(hearing_status) %>% 
-  summarise(m = round(mean(prob_acc), 2))
+  summarise(m = round(mean(prob_acc_sample), 2))
 
 # test contrast
 diff.deaf.hearing <- logit2prob(hearing) - logit2prob(deaf)
@@ -108,12 +109,12 @@ post_hearing_stat.rt <- extract.samples(rt_hearing_stat.m)
 hearing <- as.numeric(post_hearing_stat.rt$Intercept)
 deaf <- as.numeric(post_hearing_stat.rt$b_Hearing + post_hearing_stat.rt$Intercept)
 
-post_hearing_stat.rt_df <- data.frame(hearing, deaf) %>% 
+post_df_hearing_stat.rt <- data.frame(hearing, deaf) %>% 
   gather(key = hearing_status, value = posterior_sample) %>% 
   mutate(age_group = "kids",
          measure = "rt")
 
-post_hearing_stat.rt_df %>% 
+post_df_hearing_stat.rt %>% 
   group_by(hearing_status) %>% 
   summarise(m = round(mean(posterior_sample), 2))
 
@@ -148,12 +149,12 @@ post_df.acc.collapsed <- data.frame(kids, adults) %>%
   gather(key = age_group, value = posterior_sample) %>% 
   mutate(hearing_status = "deaf", 
          measure = "accuracy",
-         prob_acc = logit2prob(posterior_sample))
+         prob_acc_sample = logit2prob(posterior_sample))
 
 # summarize
 post_df.acc.collapsed %>% 
   group_by(age_group) %>% 
-  summarise(m = round(mean(prob_acc), 2))
+  summarise(m = round(mean(prob_acc_sample), 2))
 
 diff.acc.kids.adults <- logit2prob(adults) - logit2prob(kids)
 round(quantile(diff.acc.kids.adults, probs = c(0.025, 0.5, 0.975)), 2)
@@ -195,7 +196,7 @@ round(quantile(diff.old.young.rt.collapsed, probs = c(0.025, 0.5, 0.975)), 2)
 ### Merge model output for ACC/RT coda-deaf comparisons to be used in the plotting script.
 
 ```{r}
-model_output <- bind_rows(post_df_hearing_stat.acc, post_hearing_stat.rt,
+model_output <- bind_rows(post_df_hearing_stat.acc, post_df_hearing_stat.rt,
                           post_df.acc.collapsed, post_df.rt.collapsed)
 
 write_csv(model_output, "simulations/group_means_acc_rt.csv")

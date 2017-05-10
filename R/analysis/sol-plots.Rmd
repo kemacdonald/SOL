@@ -137,9 +137,9 @@ gt_kids$layout$clip[gt_kids$layout$name == "panel"] <- "off"
 grid.draw(gt_kids)
 ```
 
-## Summary violin for categorical analyses
+## Summary violin plots 
 
-Get means and confidence intervals for accuracy and RT
+Get means and credible intervals for accuracy and RT
 
 ```{r}
 ms_acc <- raw_data %>% 
@@ -156,28 +156,24 @@ ms_acc <- raw_data %>%
 ```
 
 ```{r}
-gv_categorical %<>% 
+gv_acc <- gv_categorical %>% 
+  filter(measure == "accuracy") %>%
   group_by(age_group, measure) %>% 
-  mutate(m = mean(posterior_sample),
-         stdev = sd(posterior_sample),
-         hdi_lower = quantile(posterior_sample, probs = 0.025),
-         hdi_upper = quantile(posterior_sample, probs = 0.975),
-         plot_value = posterior_sample,
+  mutate(m = mean(prob_acc_sample),
+         stdev = sd(prob_acc_sample),
+         hdi_lower = quantile(prob_acc_sample, probs = 0.025),
+         hdi_upper = quantile(prob_acc_sample, probs = 0.975),
+         plot_value = prob_acc_sample,
          age_var_clean = ifelse(age_group == "kids", "children", "adults")) 
-
-m_hdi <- gv_categorical %>% 
-  ungroup() %>% 
-  select(hearing_status, age_var_clean, m, hdi_lower, hdi_upper, measure) %>% 
-  distinct() %>% 
-  rename(plot_value = m)
 ```
 
 ```{r}
-acc_violin <- gv_categorical %>% 
+acc_violin <- gv_acc %>% 
   filter(measure == "accuracy") %>% 
   ggplot(., aes(x = age_var_clean, y = plot_value, 
                 fill = hearing_status)) +
-  geom_violin(size = 1, adjust = 2, draw_quantiles = 0.5, color = "grey50", alpha = 0.85) +
+  geom_violin(size = 1, adjust = 2, draw_quantiles = 0.5, color = "grey50", alpha = 0.85,
+              trim = F) +
   geom_hline(yintercept = 0.5, linetype = "dashed", alpha = 0.4) +
   scale_x_discrete(limits=c("children","adults"), expand=c(0.5, 0)) +
   ylim(0.2, 1) +
@@ -195,9 +191,21 @@ legend <- get_legend(acc_violin)
 acc_violin <- acc_violin + theme(legend.position = "none")
 ```
 
+```{r}
+gv_rt <- gv_categorical %>% 
+  filter(measure == "rt") %>%
+  group_by(age_group, measure) %>% 
+  mutate(m = mean(posterior_sample),
+         stdev = sd(posterior_sample),
+         hdi_lower = quantile(posterior_sample, probs = 0.025),
+         hdi_upper = quantile(posterior_sample, probs = 0.975),
+         plot_value = posterior_sample,
+         age_var_clean = ifelse(age_group == "kids", "children", "adults")) 
+```
+
 
 ```{r}
-rt_violin <- gv_categorical %>% 
+rt_violin <- gv_rt %>% 
   filter(measure == "rt") %>% 
   ggplot(., aes(x = age_var_clean, y = posterior_sample, 
                 fill = hearing_status)) +
