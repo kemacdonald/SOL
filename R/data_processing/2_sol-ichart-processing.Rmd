@@ -18,7 +18,9 @@ This script takes in raw eye movement data and processes it. The outputs are:
 rm(list=ls())
 knitr::opts_chunk$set(warning=FALSE, message=FALSE, sanitize = T, 
                       fig.height=8, fig.width=10, echo=F, cache = T)
+```
 
+```{r}
 source("../helper_functions//libraries_v_3.6.R")
 source("../helper_functions//useful.R")
 library(magrittr); library(kmr); library(tidyverse)

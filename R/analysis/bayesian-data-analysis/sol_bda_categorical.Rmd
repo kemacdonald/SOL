@@ -33,7 +33,6 @@ Set seed to reproduce exact simulation values.
 set.seed(123)
 ```
 
-
 ## Age as categorical variable
 
 All categorical models were fit using STAN [@rstan], and are based on code adapted from @mcelreath2016statistical.  
