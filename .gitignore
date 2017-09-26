@@ -6,3 +6,4 @@
 *cache/
 .Rproj.user
 packrat/lib*
+.DS_Store
