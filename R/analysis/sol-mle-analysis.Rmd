@@ -58,7 +58,6 @@ d_2500 %>%
   mutate_if(is.numeric, round, digits = 1) 
 ```
 
-
 ## Plot distributions of dependent variables (Acc and RT)
 
 Mean accuracy for each child:
@@ -226,3 +225,14 @@ m4 %>%
   mutate(one_sided_p =  pt(-abs(statistic), df = 28)) %>% 
   kable(digits = 3)
 ```
+
+## Age and vocab correlation
+
+```{r}
+d_2500 %>% 
+  filter(age_group_collapsed == "Kids", include == "yes") %>% 
+  select(Sub.Num, Months, signs_produced) %>% 
+  unique() %>% 
+  summarise(corr = cor(Months, signs_produced, use='pairwise.complete.obs')) 
+```
+

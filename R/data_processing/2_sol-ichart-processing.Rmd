@@ -341,7 +341,7 @@ iChart_adults <- filteriChart(iChart_adults, minRT = analysis.window_adults[1],
 
 ### Compute mean accuracy and RT for each participant 
 
-```{r, warning=F, message=F}
+```{r, warning=F, message=F, eval = F}
 acc_ss <- poolData(meanAccuracy(iChart_kids, startWindowAcc=analysis.window[1], 
                                 endWindowAcc=analysis.window[2]), 
                    RejectFirstGap=TRUE,RejectLongestGap=TRUE, 
@@ -391,7 +391,7 @@ rt_ss_adults <- poolData(iChart_adults,
 
 ### Compute Acc and RT for each participant by age group 
 
-```{r, warning=F, message=F}
+```{r, warning=F, message=F, eval = F}
 acc_hearing_status <- poolData(meanAccuracy(iChart_kids, startWindowAcc=analysis.window[1],
                                             endWindowAcc=analysis.window[2]), 
                                RejectFirstGap=TRUE,RejectLongestGap=TRUE, 
@@ -715,7 +715,7 @@ Grab just the eye movement data and group information
 ```{r}
 ss_iChart <- iChart %>% 
   filter(Response == "D", GoodFirstGap == T, GoodLongestGap == T) %>% 
-  select(Sub.Num, Tr.Num, stimuli, age_group, Response, RT, trial_types, 
+  select(Sub.Num, Tr.Num, stimuli, age_group_collapsed, Response, RT, trial_types, 
          clean_target_img, `0`:`4000`) 
 ```
 
@@ -733,7 +733,7 @@ Summarize for each participant - get proportion looking at each time slice
 
 ```{r}
 ms_iChart_count <- ss_iChart_long %>% 
-  group_by(Sub.Num, Time.ms, age_group, value_cat) %>% 
+  group_by(Sub.Num, Time.ms, age_group_collapsed, value_cat) %>% 
   dplyr::summarise(count = ifelse(n() == 0, 0, n())) %>% 
   dplyr::summarise(sum_count = sum(count))
 
@@ -741,14 +741,14 @@ ms_iChart <- as.data.frame(xtabs(~ Sub.Num + value_cat + Time.ms,
                                  data = ss_iChart_long)) %>% 
   left_join(y = ms_iChart_count, by = c("Sub.Num", "Time.ms")) %>% 
   mutate(proportion_looking = Freq / sum_count,
-         age_group_factor = as.factor(age_group))
+         age_group_factor = as.factor(age_group_collapsed))
 ```
 
 Get means and CIs for proportion looking at each time slice across particpants
 
 ```{r}
 ms_mean_iChart <- ms_iChart %>% 
-  group_by(Time.ms, age_group, value_cat) %>% 
+  group_by(Time.ms, age_group_collapsed, value_cat) %>% 
   dplyr::summarise(mean_prop_looking = mean(proportion_looking),
                    ci_low = ci.low(proportion_looking),
                    ci_high = ci.high(proportion_looking))

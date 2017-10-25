@@ -11,8 +11,8 @@ Load libraries.
 
 ```{r, echo=F, warning=F, message=FALSE}
 rm(list=ls())
-source("../helper_functions/useful.R"); 
-library(magrittr); library(tidyverse)
+source("../helper_functions/libraries_v_3.6.R"); 
+library(stringr); library(magrittr); library(tidyverse)
 theme_set(theme_bw())
 ```
 
@@ -33,7 +33,7 @@ df %>%
   distinct()
 ```
 
-Histogram of main outcome variable --> Correct on 2-AFC measure
+Histogram of main outcome variable: Accuracy on 2-AFC measure
 
 ```{r}
 qplot(x=correct, data=df)
@@ -67,9 +67,7 @@ Plot accuracy for each gate within each sign.
 ms <- df %>%
   na.omit() %>% 
   dplyr::group_by(gate_name, gate_num, gate_signer, gate) %>%
-  summarise(mean_correct = mean(correct),
-            ci_h = ci.high(correct),
-            ci_l = ci.low(correct))
+  summarise(mean_correct = mean(correct))
 ```
 
 Now plot
@@ -78,16 +76,14 @@ Now plot
 ggplot(aes(x=gate_num, y=mean_correct, color = gate_signer), data=ms) +
   facet_wrap( ~ gate_name, ncol=10) +
   geom_line() +
-  geom_pointrange(aes(ymin=mean_correct - ci_l, 
-                      ymax=mean_correct + ci_h), 
-                  size=0.6) +
+  geom_point() +
   geom_hline(yintercept=0.5, lty="dashed") 
 ```
 
 ### Compute empirical F0
 
 Decisions about gate were made by VM/KM. Decision criteria was as follows:
-- Earliest gate that achieved accuracy above chance
+- Earliest gate that achieved 100 % accuracy.
 
 Note: there were some signs that did not have a clear gate based on the data. 
 In these cases we stick with the experimenter defined F0. 

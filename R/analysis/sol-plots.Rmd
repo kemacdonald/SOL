@@ -10,7 +10,9 @@ This document contains code for generating the visualizations that appear in the
 rm(list=ls())
 knitr::opts_chunk$set(warning=FALSE, message=FALSE, sanitize = T, 
                       fig.height=8, fig.width=10, echo=F, cache = F)
+```
 
+```{r}
 source("../helper_functions/libraries_v_3.6.R")
 source("../helper_functions/useful.R")
 library(magrittr); library(GGally); library(tidyverse)
@@ -32,6 +34,12 @@ median_sign_offset <- 1204
 ```
 
 ## Tanenhaus plot: Adults
+
+```{r}
+gv_all %<>% 
+  rename(age_group = age_group_collapsed) %>% 
+  mutate(age_group = ifelse(age_group == "Kids", "Children", age_group)) 
+```
 
 ```{r tanenhaus-plot}
 breaks <- seq(0,4000, by=500)
@@ -75,7 +83,7 @@ tan_adults <- gv_all %>%
                     ymin = 0,      
                     ymax = 0,
                     xmin = 4300,         
-                    xmax = 4600)
+                    xmax = 4600) 
 
 # Code to override clipping
 gt <- ggplot_gtable(ggplot_build(tan_adults))
@@ -90,7 +98,7 @@ breaks <- seq(0,4000, by=500)
 y_breaks <- seq(0.25,1.0, by = 0.25)
 points <- seq(0,4000, by = 300)
 
-tan_kids <- ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, 
+tan_kids_coda_deaf <- ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, 
                        linetype = hearing_status_participant, 
                        color = value_cat, shape = hearing_status_participant), 
                    data = gv_coda) + 
@@ -130,6 +138,58 @@ tan_kids <- ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking,
                     ymax = 0.15,
                     xmin = 4300,         
                     xmax = 4600)
+
+# Code to override clipping
+gt_kids_coda <- ggplot_gtable(ggplot_build(tan_kids_coda_deaf))
+gt_kids_coda$layout$clip[gt_kids_coda$layout$name == "panel"] <- "off"
+grid.draw(gt_kids_coda)
+```
+
+```{r}
+breaks <- seq(0,4000, by=500)
+y_breaks <- seq(0.25,1.0, by = 0.25)
+points <- seq(0,4000, by = 300)
+
+tan_kids <- gv_all %>% 
+  filter(age_group == "Children") %>%
+  ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking, 
+                       color = value_cat)) + 
+  geom_rect(aes(xmin = 600, xmax = 2500, ymin = -Inf, ymax = -.02), alpha = 0.1, 
+            fill = "grey70", color = NA) +
+  geom_vline(xintercept = 1200, linetype = "dashed") +
+  geom_line(data = filter(gv_all, age_group == "Children", Time.ms %in% points), size=0.7) +
+  geom_linerange(data = filter(gv_all, age_group == "Children", Time.ms %in% points),
+                 aes(ymin=mean_prop_looking - ci_low, 
+                     ymax=mean_prop_looking + ci_high), size=0.5, alpha = 0.7) +
+  geom_point(data = filter(gv_all, age_group == "Children", to.n(Time.ms) %in% points), size=1.5, 
+             fill = "white", stroke = 1.5) +
+  annotate(geom = "text", label = "median sign offset", x = 1900, y = 1.0) +
+  scale_shape_manual(values = c(19, 21)) +
+  scale_color_manual(values = c("grey70", "grey50", "grey1")) +
+  xlim(0, 4000) +
+  ylim(-.02,1) +
+  guides(color = F, linetype = F, fill = F)  +
+  labs(x = "Time in ms from onset of noun", y = "Proportion looking",
+       shape = "Hearing status:") +
+  theme(plot.margin = unit(c(1,4,1,1), "lines"),
+        text = element_text(size = 14),
+        legend.position=c(1,1),legend.justification=c(1,1),
+        legend.background = element_rect(fill="transparent"))  +
+  annotation_custom(grob = textGrob(label = "Signer"),
+                    ymin = 0.54,      
+                    ymax = 0.59,
+                    xmin = 4300,         
+                    xmax = 4500) +
+  annotation_custom(grob = textGrob(label = "Target"),
+                    ymin = 0.21,      
+                    ymax = 0.26,
+                    xmin = 4300,         
+                    xmax = 4500) +
+  annotation_custom(grob = textGrob(label = "Distracter"),
+                    ymin = 0.1,      
+                    ymax = 0.15,
+                    xmin = 4300,         
+                    xmax = 4600) 
 
 # Code to override clipping
 gt_kids <- ggplot_gtable(ggplot_build(tan_kids))
@@ -203,7 +263,6 @@ gv_rt <- gv_categorical %>%
          age_var_clean = ifelse(age_group == "kids", "children", "adults")) 
 ```
 
-
 ```{r}
 rt_violin <- gv_rt %>% 
   filter(measure == "rt") %>% 
@@ -219,35 +278,111 @@ rt_violin <- gv_rt %>%
   theme(text = element_text(size = 14))
 ```
 
+## Incremental plots
+
+```{r}
+inc_df <- read_csv("../../data/processed_data/graph_values/sol_incremental_gvals.csv")
+```
+
+```{r}
+levels(ms.final$age_code) <- c("children", "adults")
+
+item_plot_kids <- inc_df %>%
+  filter(age_code == "children") %>% 
+  ggplot(aes(x = reorder(sign, plot_order), y = mean,
+         color = all_signs, shape = all_signs, size = all_signs)) +
+  scale_color_manual(values = c("black", "red")) +
+  scale_shape_manual(values = c(20, 18)) +
+  scale_size_manual(values = c(0.8, 1.4)) +
+  geom_hline(yintercept = 1, linetype = "dashed") +
+  geom_pointrange(aes(ymin = lower, ymax = upper)) +
+  scale_x_discrete(expand = c(0.1,0)) +
+  coord_flip() +
+  guides(color = F, shape = F, size = F) +
+  scale_y_continuous(limits = c(0.1, 1.6), breaks = c(0.25, 0.5, 0.75, 1.0, 1.25, 1.5)) +
+  labs(y = "Prop. Target Sign Processed Prior to Gaze Shift", x = "Target sign") +
+  facet_wrap(~age_code, ncol = 2) +
+  ggthemes::theme_few() +
+  theme(text = element_text(size = 14)) 
+```
+
+```{r}
+item_plot_adults <- inc_df %>%
+  filter(age_code == "adults") %>% 
+  ggplot(aes(x = reorder(sign, plot_order), y = mean,
+         color = all_signs, shape = all_signs, size = all_signs)) +
+  scale_color_manual(values = c("black", "red")) +
+  scale_shape_manual(values = c(20, 18)) +
+  scale_size_manual(values = c(0.8, 1.4)) +
+  geom_hline(yintercept = 1, linetype = "dashed") +
+  geom_pointrange(aes(ymin = lower, ymax = upper)) +
+  scale_x_discrete(expand = c(0.1,0)) +
+  coord_flip() +
+  guides(color = F, shape = F, size = F) +
+  scale_y_continuous(limits = c(0.1, 1.6), breaks = c(0.25, 0.5, 0.75, 1.0, 1.25, 1.5)) +
+  labs(y = "Prop. Target Sign Processed Prior to Gaze Shift", x = "Target sign") +
+  facet_wrap(~age_code, ncol = 2) +
+  ggthemes::theme_few() +
+  theme(text = element_text(size = 14)) 
+```
+
+### Merge plots
+
+Figures 1: Timecourse and incremental analysis.
+
 Add plot labels
 
 ```{r}
-gt_kids <- ggdraw(gt_kids) + draw_plot_label("A")
-gt <- ggdraw(gt) + draw_plot_label("B")
-acc_violin <- ggdraw(acc_violin) + draw_plot_label("C")
-rt_violin <- ggdraw(rt_violin) + draw_plot_label("D")
+gt <- ggdraw(gt) + draw_plot_label("A")
+item_plot_adults <- ggdraw(item_plot_adults) + draw_plot_label("B")
+gt_kids <- ggdraw(gt_kids) + draw_plot_label("C")
+item_plot_kids <- ggdraw(item_plot_kids) + draw_plot_label("D")
 ```
 
-Merge plots
-
 ```{r}
-fig1 <- ggdraw() +
-  draw_plot(gt_kids, x = 0, y = .5, width = 0.6, height = .5) +
-  draw_plot(gt, x = 0, y = 0, width = 0.6, height = .5) +
-  draw_plot(acc_violin, x =0.7, y = 0.55, width = .3, height = .4) +
-  draw_plot(rt_violin, x = 0.7, y = 0.05, width = .3, height = .4) 
-
-# add legend
-final_plot <- plot_grid(fig1, legend, rel_widths = c(1, .2))
+fig2 <- ggdraw() +
+  draw_plot(gt, x = 0, y = .5, width = 0.55, height = .5) +
+  draw_plot(item_plot_adults, x = 0.6, y = 0.55, width = .3, height = .45) + 
+  draw_plot(gt_kids, x = 0, y = 0, width = 0.55, height = .5) +
+  draw_plot(item_plot_kids, x = 0.6, y = 0.03, width = .3, height = .45) 
 ```
 
 Save the final plot
 
 ```{r}
-save_plot(filename = "../../paper/sol-figs/fig2_timecourse.png", final_plot,
+save_plot(filename = "../../paper/sol-figs/fig2_timecourse_all.png", fig2,
           ncol = 3,
           nrow = 2,
           base_aspect_ratio = 1)
 ```
 
+### Make the group comparision plot: 
 
+  * Coda/Deaf timecourse
+  * ACC violin
+  * RT violin
+  
+Add plot labels
+
+```{r}
+gt_kids_coda <- ggdraw(gt_kids_coda) + draw_plot_label("A")
+acc_violin <- ggdraw(acc_violin) + draw_plot_label("B")
+rt_violin <- ggdraw(rt_violin) + draw_plot_label("C")
+```
+
+```{r}
+fig3_group_comp <- ggdraw() +
+  draw_plot(gt_kids_coda, x = 0, y = .15, width = 0.6, height = .65) + 
+  draw_plot(acc_violin, x = 0.65, y = 0.5, width = .33, height = .4) + 
+  draw_plot(rt_violin, x = 0.64, y = 0.05, width = .33, height = .4) 
+
+fig3 <- plot_grid(fig3_group_comp, legend, rel_widths = c(1,0.2))
+```
+
+```{r}
+save_plot(filename = "../../paper/sol-figs/fig3_group_comp.png", fig3,
+          ncol = 3,
+          nrow = 2,
+          base_aspect_ratio = 1)
+```
+  

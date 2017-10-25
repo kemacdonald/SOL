@@ -7,6 +7,9 @@ output: html_document
 ```{r setup, include = F}
 rm(list=ls()) # clear workspcace
 knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T,warning=F, message=F)
+```
+
+```{r}
 source("../helper_functions/useful.R")
 library(langcog); library(knitr); library(forcats)
 library(magrittr);library(rethinking); library(BayesFactor)
@@ -327,4 +330,3 @@ ss.all.signs %>%
   .$m_prop_sign_needed %>% 
   t.test(mu = 1.0)
 ```
-

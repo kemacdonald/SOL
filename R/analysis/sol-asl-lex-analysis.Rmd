@@ -1,0 +1,118 @@
+---
+title: "SOL Iconicity Analysis"
+author: "Kyle MacDonald"
+output: html_document
+---
+
+```{r setup, include = F}
+rm(list=ls()) # clear workspcace
+knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T,warning=F, message=F)
+```
+
+```{r}
+source("../helper_functions/useful.R")
+library(langcog); library(knitr); library(forcats)
+library(magrittr);library(rethinking); library(BayesFactor)
+library(car); library(tidyverse) 
+theme_set(theme_classic())
+```
+
+Read first shift and iconicity data.
+
+```{r}
+d <- read_csv("../../data/processed_data/summary_tables/sol_trial_level_df.csv")
+d_asl_lex<- read_csv("../../data/ASL-LEX/Sign-Level Data/SignData.csv")
+```
+
+```{r}
+d %<>% 
+  mutate(clean_target_img = case_when(
+    clean_target_img == "teddy" ~ "bear",
+    clean_target_img == "birdy" ~ "bird",
+    clean_target_img == "kitty" ~ "cat",
+    clean_target_img == "shoe" ~ "shoes",
+    TRUE ~ clean_target_img
+  ))
+```
+
+Join information about target signs
+
+```{r}
+signs <- d %>% 
+  filter(age_code == "child") %>% 
+  pull(clean_target_img) %>% 
+  unique()
+```
+
+```{r}
+d <- d_asl_lex %>% 
+  filter(LemmaID %in% signs) %>% 
+  select(LemmaID, starts_with("Iconicity")) %>% 
+  rename(clean_target_img = LemmaID) %>% 
+  left_join(d, ., by = "clean_target_img")
+```
+
+Does Iconicity influence RT?
+
+```{r}
+rt_plot <- d %>% 
+  filter(!is.na(`Iconicity(M)`)) %>% 
+  filter(RT > 0, RT <= 2500, !is.na(RT), GoodRT == T, correct == 1) %>% 
+  group_by(`Iconicity(M)`, clean_target_img, age_code) %>%
+  summarise(m = median(RT, na.rm = T),
+            ci_low = ci.low(RT),
+            ci_high = ci.high(RT)) %>% 
+  ggplot(aes(x = `Iconicity(M)`, y = m)) + 
+  geom_smooth(method = "lm", se = F) +
+  geom_pointrange(aes(ymin = m - ci_low, ymax = m + ci_high)) +
+  ggrepel::geom_label_repel(aes(label = clean_target_img), force = 10) +
+  ylim(0, 1500) +
+  labs(y = "Median RT (ms)", x = "Iconicity Score") +
+  facet_wrap(~age_code) +
+  ggthemes::theme_few()
+```
+
+What about accuracy?
+
+```{r}
+acc_plot <- d %>% 
+  filter(!is.na(`Iconicity(M)`)) %>% 
+  group_by(`Iconicity(M)`, clean_target_img, age_code) %>%
+  summarise(m = mean(Accuracy, na.rm = T),
+            ci_low = ci.low(Accuracy),
+            ci_high = ci.high(Accuracy)) %>% 
+  ggplot(aes(x = `Iconicity(M)`, y = m)) + 
+  geom_smooth(method = "lm", se = F) +
+  geom_pointrange(aes(ymin = m - ci_low, ymax = m + ci_high)) +
+  ggrepel::geom_label_repel(aes(label = clean_target_img), force = 10) +
+  labs(y = "Mean Accuracy", x = "Iconicity Score") +
+  facet_wrap(~age_code) +
+  ggthemes::theme_few()
+```
+
+```{r}
+plot_grid(rt_plot, acc_plot, ncol = 1, labels = c("RT", "Accuracy"))
+```
+
+RT model
+
+```{r}
+m.rt <- d %>% 
+  filter(RT > 0, RT <= 2500, !is.na(RT), GoodRT == T, correct == 1, age_code == "adult") %>%
+  lme4::lmer(log(RT) ~ `Iconicity(M)` + (1|Sub.Num), 
+             data = .)
+
+m.rt %>% broom::tidy() %>% knitr::kable()
+```
+
+Acc model
+
+```{r}
+m.acc <- d %>% 
+  filter(!is.na(Accuracy)) %>%
+  lme4::lmer(correct ~ `Iconicity(M)` * age_code + (1|Sub.Num), 
+             family = "binomial",
+             data = .)
+
+m.acc %>% broom::tidy() %>% knitr::kable()
+```
