@@ -47,6 +47,17 @@ d_2500 %>%
 ```{r}
 d_2500 %>% 
   filter(age_group_collapsed == "Kids", include == "yes") %>% 
+  select(Sub.Num, stimuli) %>% 
+  unique() %>% 
+  group_by(stimuli) %>% 
+  count() %>% 
+  kable()
+```
+
+
+```{r}
+d_2500 %>% 
+  filter(age_group_collapsed == "Kids", include == "yes") %>% 
   select(Sub.Num, age_peek_months, hearing_status_participant, gender) %>% 
   unique() %>% 
   summarise(n = n(),

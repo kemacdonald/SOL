@@ -12,8 +12,7 @@ knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T,warning=F, message=F)
 ```{r}
 source("../helper_functions/useful.R")
 library(langcog); library(knitr); library(forcats)
-library(magrittr);library(rethinking); library(BayesFactor)
-library(car); library(tidyverse) 
+library(magrittr); library(cowplot); library(tidyverse) 
 theme_set(theme_classic())
 ```
 
@@ -21,7 +20,8 @@ Read first shift and iconicity data.
 
 ```{r}
 d <- read_csv("../../data/processed_data/summary_tables/sol_trial_level_df.csv")
-d_asl_lex<- read_csv("../../data/ASL-LEX/Sign-Level Data/SignData.csv")
+d_asl_lex <- read_csv("../../data/ASL-LEX/Sign-Level Data/SignData.csv")
+d_phon <- read_csv("../../data/processed_data/sol_phon_overlap.csv")
 ```
 
 ```{r}
@@ -65,10 +65,14 @@ rt_plot <- d %>%
   ggplot(aes(x = `Iconicity(M)`, y = m)) + 
   geom_smooth(method = "lm", se = F) +
   geom_pointrange(aes(ymin = m - ci_low, ymax = m + ci_high)) +
-  ggrepel::geom_label_repel(aes(label = clean_target_img), force = 10) +
+  ggrepel::geom_label_repel(aes(label = clean_target_img),
+                            force = 10, nudge_x = 0.3,
+                            segment.color = 'black') +
   ylim(0, 1500) +
   labs(y = "Median RT (ms)", x = "Iconicity Score") +
   facet_wrap(~age_code) +
+  lims(x = c(0, 8)) +
+  ggtitle("RT ~ Iconicity") +
   ggthemes::theme_few()
 ```
 
@@ -84,25 +88,30 @@ acc_plot <- d %>%
   ggplot(aes(x = `Iconicity(M)`, y = m)) + 
   geom_smooth(method = "lm", se = F) +
   geom_pointrange(aes(ymin = m - ci_low, ymax = m + ci_high)) +
-  ggrepel::geom_label_repel(aes(label = clean_target_img), force = 10) +
+  ggrepel::geom_label_repel(aes(label = clean_target_img),
+                            force = 10,
+                            segment.color = 'black') +
   labs(y = "Mean Accuracy", x = "Iconicity Score") +
   facet_wrap(~age_code) +
+  lims(x = c(0, 8), y = c(0.4, 1)) +
+  geom_hline(yintercept = 0.5, lty = "dashed") +
+  ggtitle("Accuracy ~ Iconicity") +
   ggthemes::theme_few()
 ```
 
 ```{r}
-plot_grid(rt_plot, acc_plot, ncol = 1, labels = c("RT", "Accuracy"))
+plot_grid(rt_plot, acc_plot, ncol = 1)
 ```
 
 RT model
 
 ```{r}
 m.rt <- d %>% 
-  filter(RT > 0, RT <= 2500, !is.na(RT), GoodRT == T, correct == 1, age_code == "adult") %>%
-  lme4::lmer(log(RT) ~ `Iconicity(M)` + (1|Sub.Num), 
+  filter(RT >= 600, RT <= 2500, !is.na(RT), GoodRT == T, correct == 1) %>%
+  lm(log(RT) ~ `Iconicity(M)` * age_code,
              data = .)
 
-m.rt %>% broom::tidy() %>% knitr::kable()
+m.rt %>% broom::tidy() %>% knitr::kable(digits = 2)
 ```
 
 Acc model
@@ -110,9 +119,112 @@ Acc model
 ```{r}
 m.acc <- d %>% 
   filter(!is.na(Accuracy)) %>%
-  lme4::lmer(correct ~ `Iconicity(M)` * age_code + (1|Sub.Num), 
+  glm(correct ~ `Iconicity(M)` * age_code,
              family = "binomial",
              data = .)
 
-m.acc %>% broom::tidy() %>% knitr::kable()
+m.acc %>% broom::tidy() %>% knitr::kable(digits = 2)
+```
+
+## Phonological overlap analysis 
+
+```{r}
+d_phon_final <- d_phon %>% select(Target, NumberMatchedFeatures) 
+
+d_phon_final <- d_phon %>% 
+  select(Neighbor, NumberMatchedFeatures) %>% 
+  rename(Target = Neighbor) %>% 
+  bind_rows(., d_phon_final) %>% 
+  rename(clean_target_img = Target)
+```
+
+Join with processing data.
+
+```{r}
+d %<>% left_join(d_phon_final, by = "clean_target_img")
+```
+
+RT and phonological overlap.
+
+```{r}
+rt_phon_plot <- d %>% 
+  filter(!is.na(NumberMatchedFeatures)) %>% 
+  filter(RT >= 600, RT <= 2500, !is.na(RT), GoodRT == T, correct == 1) %>% 
+  group_by(NumberMatchedFeatures, clean_target_img, age_code, Sub.Num) %>%
+  summarise(m_ss = mean(RT, na.rm = T)) %>% 
+  group_by(NumberMatchedFeatures, clean_target_img, age_code) %>%
+  summarise(m = mean(m_ss, na.rm = T),
+            ci_low = ci.low(m_ss),
+            ci_high = ci.high(m_ss)) %>% 
+  ggplot(aes(x = NumberMatchedFeatures, y = m)) + 
+  geom_smooth(method = "lm", se = F) +
+  geom_pointrange(aes(ymin = m - ci_low, ymax = m + ci_high), 
+                  shape = 21, color = "darkblue", fill = "darkgrey",
+                  position = position_jitter(width = 0.15)) +
+  ggrepel::geom_label_repel(aes(label = clean_target_img),
+                            nudge_x = 0.5, nudge_y = 100, force = 5,
+                            segment.color = 'black') +
+  lims(y = c(0, 2000), x = c(0,5)) +
+  labs(y = "Median RT (ms)", x = "Number of Overlapping Features") +
+  facet_wrap(~age_code) +
+  ggtitle("RT ~ Phonological Overlap") +
+  ggthemes::theme_few()
+
+rt_phon_plot
+```
+
+Acc and phonological overlap.
+
+```{r}
+acc_phon_plot <- d %>% 
+  filter(!is.na(NumberMatchedFeatures)) %>% 
+  group_by(NumberMatchedFeatures, clean_target_img, age_code, Sub.Num) %>%
+  summarise(m_ss = mean(Accuracy, na.rm = T)) %>% 
+  group_by(NumberMatchedFeatures, clean_target_img, age_code) %>%
+  summarise(m = mean(m_ss, na.rm = T),
+            ci_low = ci.low(m_ss),
+            ci_high = ci.high(m_ss)) %>% 
+  ggplot(aes(x = NumberMatchedFeatures, y = m)) +
+  geom_smooth(method = "lm", se = F) +
+  geom_pointrange(aes(ymin = m - ci_low, ymax = m + ci_high), 
+                  shape = 21, color = "darkblue", fill = "darkgrey",
+                  position = position_jitter(width = 0.15)) +
+  ggrepel::geom_label_repel(aes(label = clean_target_img),
+                            nudge_x = 0.3, nudge_y = 0.05, force = 1,
+                            segment.color = 'black') +
+  geom_hline(yintercept = 0.5, lty = "dashed") +
+  labs(y = "Mean Accuracy", x = "Number of Overlapping Features") +
+  facet_wrap(~age_code) +
+  ggtitle("Accuracy ~ Phonological Overlap") +
+  lims(y = c(0.4, 1), x = c(0,5)) +
+  ggthemes::theme_few()
+
+acc_phon_plot
+```
+
+```{r}
+plot_grid(rt_phon_plot, acc_phon_plot, ncol = 1)
+```
+
+RT and phonological overlap model:
+
+```{r}
+m.rt.phon <- d %>% 
+  filter(RT >= 600, RT <= 2500, !is.na(RT), GoodRT == T) %>%
+  lm(log(RT) ~ NumberMatchedFeatures * age_code, 
+             data = .)
+
+m.rt.phon %>% broom::tidy() %>% knitr::kable(digits = 2)
+```
+
+Accuracy and phonological overlap model:
+
+```{r}
+m.acc.phon <- d %>% 
+  filter(!is.na(Accuracy)) %>%
+  glm(correct ~ NumberMatchedFeatures * age_code, 
+             family = "binomial",
+             data = .)
+
+m.acc.phon %>% broom::tidy() %>% knitr::kable(digits = 2)
 ```
