@@ -64,7 +64,8 @@ rt_plot <- d %>%
             ci_high = ci.high(RT)) %>% 
   ggplot(aes(x = `Iconicity(M)`, y = m)) + 
   geom_smooth(method = "lm", se = F) +
-  geom_pointrange(aes(ymin = m - ci_low, ymax = m + ci_high)) +
+  geom_pointrange(aes(ymin = m - ci_low, ymax = m + ci_high),
+                  shape = 21, color = "darkblue", fill = "darkgrey",) +
   ggrepel::geom_label_repel(aes(label = clean_target_img),
                             force = 10, nudge_x = 0.3,
                             segment.color = 'black') +
@@ -87,7 +88,8 @@ acc_plot <- d %>%
             ci_high = ci.high(Accuracy)) %>% 
   ggplot(aes(x = `Iconicity(M)`, y = m)) + 
   geom_smooth(method = "lm", se = F) +
-  geom_pointrange(aes(ymin = m - ci_low, ymax = m + ci_high)) +
+  geom_pointrange(aes(ymin = m - ci_low, ymax = m + ci_high),
+                  shape = 21, color = "darkblue", fill = "darkgrey",) +
   ggrepel::geom_label_repel(aes(label = clean_target_img),
                             force = 10,
                             segment.color = 'black') +
