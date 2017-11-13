@@ -67,7 +67,7 @@ tan_adults <- gv_all %>%
   labs(x = "Time in ms from onset of noun", y = "Proportion looking") +
   guides(color = F) +
   theme(plot.margin = unit(c(1,4,1,1), "lines"),
-        text = element_text(size = 14)) +
+        text = element_text(size = 16)) +
   annotate(geom = "text", label = "median sign offset", x = 1900, y = 1.0) +
   annotation_custom(grob = textGrob(label = "Signer"),
                     ymin = 0.7,      
@@ -120,7 +120,7 @@ tan_kids_coda_deaf <- ggplot(aes(x = to.n(Time.ms), y = mean_prop_looking,
   labs(x = "Time in ms from onset of noun", y = "Proportion looking",
        shape = "Hearing status:") +
   theme(plot.margin = unit(c(1,4,1,1), "lines"),
-        text = element_text(size = 14),
+        text = element_text(size = 16),
         legend.position=c(1,1),legend.justification=c(1,1),
         legend.background = element_rect(fill="transparent"))  +
   annotation_custom(grob = textGrob(label = "Signer"),
@@ -172,7 +172,7 @@ tan_kids <- gv_all %>%
   labs(x = "Time in ms from onset of noun", y = "Proportion looking",
        shape = "Hearing status:") +
   theme(plot.margin = unit(c(1,4,1,1), "lines"),
-        text = element_text(size = 14),
+        text = element_text(size = 16),
         legend.position=c(1,1),legend.justification=c(1,1),
         legend.background = element_rect(fill="transparent"))  +
   annotation_custom(grob = textGrob(label = "Signer"),
@@ -235,13 +235,13 @@ acc_violin <- gv_acc %>%
   geom_violin(size = 1, adjust = 2, draw_quantiles = 0.5, color = "grey50", alpha = 0.85,
               trim = F) +
   geom_hline(yintercept = 0.5, linetype = "dashed", alpha = 0.4) +
-  scale_x_discrete(limits=c("children","adults"), expand=c(0.5, 0)) +
+  scale_x_discrete(limits=c("children","adults"), expand=c(0.3, 0)) +
   ylim(0.2, 1) +
   labs(x = "Age Group", y = "Prop. Target Looking", fill = "Hearing status") +
   scale_color_manual(values = c("grey", "black")) +
   scale_fill_manual(values = c("black", "white")) +
   guides(color = F) +
-  theme(text = element_text(size = 14))
+  theme(text = element_text(size = 16))
 ```
 
 Extract and then remove the legend
@@ -269,13 +269,13 @@ rt_violin <- gv_rt %>%
   ggplot(., aes(x = age_var_clean, y = posterior_sample, 
                 fill = hearing_status)) +
   geom_violin(size = 1, adjust = 2, draw_quantiles = 0.5, color = "grey50", alpha = 0.85) +
-  scale_x_discrete(limits=c("children","adults"), expand=c(0.5, 0)) +
+  scale_x_discrete(limits=c("children","adults"), expand=c(0.3, 0)) +
   ylim(500, 1500) +
   labs(x = "Age Group", y = "RT (ms)", color = "Hearing Status") +
   scale_color_manual(values = c("grey", "black")) +
   scale_fill_manual(values = c("black", "white")) +
   guides(color = F, fill = F) +
-  theme(text = element_text(size = 14))
+  theme(text = element_text(size = 16))
 ```
 
 ## Incremental plots
@@ -285,7 +285,7 @@ inc_df <- read_csv("../../data/processed_data/graph_values/sol_incremental_gvals
 ```
 
 ```{r}
-levels(ms.final$age_code) <- c("children", "adults")
+levels(inc_df$age_code) <- c("children", "adults")
 
 item_plot_kids <- inc_df %>%
   filter(age_code == "children") %>% 
@@ -339,13 +339,35 @@ gt_kids <- ggdraw(gt_kids) + draw_plot_label("C")
 item_plot_kids <- ggdraw(item_plot_kids) + draw_plot_label("D")
 ```
 
+Add plot titles.
+
 ```{r}
-fig2 <- ggdraw() +
-  draw_plot(gt, x = 0, y = .5, width = 0.55, height = .5) +
-  draw_plot(item_plot_adults, x = 0.6, y = 0.55, width = .3, height = .45) + 
-  draw_plot(gt_kids, x = 0, y = 0, width = 0.55, height = .5) +
-  draw_plot(item_plot_kids, x = 0.6, y = 0.03, width = .3, height = .45) 
+title_adults <- ggdraw() + draw_label("Processing of ASL Signs by ASL-Proficient Adults", fontface='bold')
+title_kids <- ggdraw() + draw_label("Processing of ASL Signs by Young ASL-Learning Children", fontface='bold')
 ```
+
+```{r}
+row_1 <- ggdraw() +
+  draw_plot(gt, x = 0, y = 0, width = 0.55, height = .95) +
+  draw_plot(item_plot_adults, x = 0.6, y = 0.05, width = .3, height = .9) 
+  
+row_1 <- plot_grid(title_adults, row_1, ncol = 1,  rel_heights=c(0.1, 1))
+```
+
+```{r}
+row_2 <- ggdraw() +
+  draw_plot(gt_kids, x = 0, y = 0, width = 0.55, height = .95) +
+  draw_plot(item_plot_kids, x = 0.6, y = 0.05, width = .3, height = .9) 
+
+row_2 <- plot_grid(title_kids, row_2, ncol = 1,  rel_heights=c(0.1, 1))
+```
+
+Build final plot:
+
+```{r}
+fig2 <- plot_grid(row_1, row_2, ncol = 1)
+```
+
 
 Save the final plot
 
