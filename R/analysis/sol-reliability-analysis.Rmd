@@ -1,7 +1,6 @@
 ---
 title: "SOL Reliability Analysis"
 author: "Kyle MacDonald"
-date: "4/19/2017"
 output: html_document
 ---
 

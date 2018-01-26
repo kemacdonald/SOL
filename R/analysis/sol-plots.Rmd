@@ -7,29 +7,32 @@ output: html_document
 This document contains code for generating the visualizations that appear in the paper, "Real-time lexical comprehension in young children learning American Sign Language (ASL)."This script
 
 ```{r chunk_options}
-rm(list=ls())
 knitr::opts_chunk$set(warning=FALSE, message=FALSE, sanitize = T, 
                       fig.height=8, fig.width=10, echo=F, cache = F)
 ```
 
-```{r}
-source("../helper_functions/libraries_v_3.6.R")
-source("../helper_functions/useful.R")
+```{r libraries}
+library(here)
+source(here::here("R/helper_functions/libraries_v_3.6.R"))
+source(here::here("R/helper_functions/useful.R"))
 library(magrittr); library(GGally); library(tidyverse)
-library(cowplot); 
+library(cowplot)
+
+data_path <- "data/processed_data"
+bda_path <- "R/analysis/bayesian-data-analysis/simulations"
 theme_set(theme_classic())
 ```
 
-## Read in data
+## Read data
 
 ```{r}
-gv_all <- read_csv("../../data/processed_data/graph_values/sol_gvals_all.csv")
-gv_coda <- read_csv("../../data/processed_data/graph_values/sol_gvals_coda.csv")
-raw_data <- read_csv("../../data/processed_data/summary_tables/sol_ss_all_600_2500.csv")
-gv_categorical <- read_csv("bayesian-data-analysis/simulations/group_means_acc_rt.csv")
-```
+gv_all <- read_csv(here::here(data_path, "/graph_values/sol_gvals_all.csv"))
+gv_coda <- read_csv(here::here(data_path, "/graph_values/sol_gvals_coda.csv"))
+raw_data <- read_csv(here::here(data_path, "/summary_tables/sol_ss_all_600_2500.csv"))
+gv_categorical <- read_csv(here::here(bda_path, "group_means_acc_rt.csv"))
+inc_df <- read_csv(here::here(data_path, "/graph_values/sol_inc_gvals.csv"))
 
-```{r}
+# create median sign offset variable for plotting later on
 median_sign_offset <- 1204
 ```
 
@@ -280,12 +283,8 @@ rt_violin <- gv_rt %>%
 
 ## Incremental plots
 
-```{r}
-inc_df <- read_csv("../../data/processed_data/graph_values/sol_incremental_gvals.csv")
-```
-
-```{r}
-levels(inc_df$age_code) <- c("children", "adults")
+```{r inc kid plot}
+inc_df %<>% mutate(age_code = fct_recode(age_code, children = "child", adults = "adult"))
 
 item_plot_kids <- inc_df %>%
   filter(age_code == "children") %>% 
@@ -300,13 +299,13 @@ item_plot_kids <- inc_df %>%
   coord_flip() +
   guides(color = F, shape = F, size = F) +
   scale_y_continuous(limits = c(0.1, 1.6), breaks = c(0.25, 0.5, 0.75, 1.0, 1.25, 1.5)) +
-  labs(y = "Prop. Target Sign Processed Prior to Gaze Shift", x = "Target sign") +
+  labs(y = "Prop. Target Sign Length Processed Prior to Gaze Shift", x = "Target sign") +
   facet_wrap(~age_code, ncol = 2) +
   ggthemes::theme_few() +
-  theme(text = element_text(size = 14)) 
+  theme(text = element_text(size = 12)) 
 ```
 
-```{r}
+```{r inc adult plot}
 item_plot_adults <- inc_df %>%
   filter(age_code == "adults") %>% 
   ggplot(aes(x = reorder(sign, plot_order), y = mean,
@@ -320,10 +319,10 @@ item_plot_adults <- inc_df %>%
   coord_flip() +
   guides(color = F, shape = F, size = F) +
   scale_y_continuous(limits = c(0.1, 1.6), breaks = c(0.25, 0.5, 0.75, 1.0, 1.25, 1.5)) +
-  labs(y = "Prop. Target Sign Processed Prior to Gaze Shift", x = "Target sign") +
+  labs(y = "Prop. Target Sign Length Processed Prior to Gaze Shift", x = "Target sign") +
   facet_wrap(~age_code, ncol = 2) +
   ggthemes::theme_few() +
-  theme(text = element_text(size = 14)) 
+  theme(text = element_text(size = 12)) 
 ```
 
 ### Merge plots
@@ -368,17 +367,16 @@ Build final plot:
 fig2 <- plot_grid(row_1, row_2, ncol = 1)
 ```
 
-
 Save the final plot
 
 ```{r}
-save_plot(filename = "../../paper/sol-figs/fig2_timecourse_all.png", fig2,
+save_plot(filename = here::here("paper/figures/fig2_timecourse_all.png"), fig2,
           ncol = 3,
           nrow = 2,
           base_aspect_ratio = 1)
 ```
 
-### Make the group comparision plot: 
+### Make the group comparision plot 
 
   * Coda/Deaf timecourse
   * ACC violin

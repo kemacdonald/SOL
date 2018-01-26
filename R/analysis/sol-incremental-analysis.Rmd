@@ -4,39 +4,42 @@ author: "Kyle MacDonald"
 output: html_document
 ---
 
+## Setup
+
 ```{r setup, include = F}
-rm(list=ls()) # clear workspcace
 knitr::opts_chunk$set(fig.height=4, fig.width=7, cache = T,warning=F, message=F)
 ```
 
-```{r}
-source("../helper_functions/useful.R")
+```{r libraries}
+library(here)
+source(here::here("R/helper_functions/useful.R"))
 library(langcog); library(knitr); library(forcats)
 library(magrittr);library(rethinking); library(BayesFactor)
 library(car); library(tidyverse) 
 theme_set(theme_classic())
 ```
 
-Read data:
+## Read and process data
 
 * Sign lengths
 * RT and accuracy for each sign
 
-```{r}
-d <- read_csv("../../data/processed_data/summary_tables/sol_trial_level_df.csv")
-d.sign_lengths <- read_csv("../../data/demographics/target_sign_lengths_all.csv",
+```{r read data}
+d <- read_csv(here::here("data/processed_data/summary_tables/sol_trial_level_df.csv"))
+
+d.sign_lengths <- read_csv(here::here("data/demographics/target_sign_lengths_all.csv"),
                          col_types = "ccccnnnnn")
 ```
 
 Split sign variable into carrier and target information
 
-```{r}
+```{r split sign variable}
 d.sign_lengths %<>% separate(sign, into = c("clean_target_img", "carrier"), sep = "_")
 ```
 
 Separate trial number information and convert the data frame to long format to make merging with VP measures easier.
 
-```{r}
+```{r separate trial numbers}
 # separate
 d.sign_lengths %<>% separate(trial_num_peek, 
                              into = c("Tr.Num.1", "Tr.Num.2", "Tr.Num.3",
@@ -53,13 +56,13 @@ d.sign_lengths %<>% filter(is.na(Tr.Num) == F) %>%
 
 Create "signer" variable in summary table so we can add the sign length information.
 
-```{r}
+```{r create signer variable}
 d %<>% mutate(signer = ifelse(stimuli == "V1", "p", "r"))
 ```
 
 Now we can add the sign length information to our data frame and calculate a new variable where we add 200 ms to the length of the target sign in order to account for the time it takes to program an eye movement. That is, we consider eye movements that occurred up to 200 ms after the offset of the target sign as being initiated prior to sign offset, providing evidence for incremental processing. 
 
-```{r}
+```{r create sign length variable}
 d %<>% left_join(., d.sign_lengths, by = c("clean_target_img", "signer", "Tr.Num", "stimuli"))
 
 d %<>% filter(is.na(length_ms) == F) %>% mutate(length_ms_200 = length_ms + 200)
@@ -70,8 +73,8 @@ d %<>% filter(is.na(length_ms) == F) %>% mutate(length_ms_200 = length_ms + 200)
 Get the difference between RT and sign length for all signs. We also get the proportion of sign needed before shifting in order to normalize for the different sign lengths.
 
 ```{r}
-d %<>% mutate(shift_diff_offset = (RT - length_ms_200) / 1000,
-              prop_sign_to_shift = RT / length_ms_200)
+d %<>% mutate(shift_diff_offset = (RT - 200) / 1000,
+              prop_sign_to_shift = (RT - 200) / length_ms)
 ```
 
 Next, we do the same kind of analysis but using the `prop_sign_needed` variable, which should help account for the signs being different lengths. Note that we are only including correct shifts since these are most likely to be driven by speed of lexical acess.
@@ -179,7 +182,13 @@ ms.final <- bind_rows(ms, ms.all.signs) %>%
   mutate(age_code = fct_relevel(as.factor(age_code), "child"))
 ```
 
-Make the plot
+Save the graph values.
+
+```{r}
+write_csv(x = ms.final, path = here::here("data/processed_data/graph_values/sol_inc_gvals.csv"))
+```
+
+Make a side by side version of the item level plot.
 
 ```{r}
 levels(ms.final$age_code) <- c("children", "adults")
@@ -203,7 +212,7 @@ item_plot <- ms.final %>%
 
 Save plot
 
-```{r}
+```{r, eval = F}
 ggsave(item_plot, filename = "../../paper/sol-figs/fig3_item_analysis.png", 
        device = "png", width = 7, height = 4)
 ```
@@ -218,9 +227,7 @@ d.sign_lengths %>%
 
 ## Incremental Bayesian analysis model
 
-Estimate the difference between kids and adults using bayesian estimation.
-
-First we need to create dummy variables for the relevant group comparisons.
+Estimate the difference between kids and adults using bayesian estimation. First we need to create dummy variables for the relevant group comparisons.
 
 ```{r dummy vars}
 ss.model <- ss.all.signs %>% mutate(age_code_num = ifelse(age_code == "adult", 1, 0))
@@ -258,8 +265,6 @@ round(quantile(diff.post , probs = c(0.025, 0.5, 0.975)), 2)
 ```
 
 The HDI does not include zero, indicating that there is evidence for a difference between kids and adults in the prop. sign processed prior to shifting.
-
--------
 
 Next, we estimate whether each group (kids and adults) are shifting prior to the offset of the target sign.
 
@@ -317,14 +322,14 @@ round(quantile(m2.adult.samples$Intercept , probs = c(0.025, 0.5, 0.975)), 2)
 
 One sample t-test comparing prop shifting against null hypothesis: 1.0.
 
-```{r}
+```{r t-test kids}
 ss.all.signs %>% 
   filter(age_code == "child") %>% 
   .$m_prop_sign_needed %>% 
   t.test(mu = 1.0)
 ```
 
-```{r}
+```{r t-test adults}
 ss.all.signs %>% 
   filter(age_code == "adult") %>% 
   .$m_prop_sign_needed %>% 
